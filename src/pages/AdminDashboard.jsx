@@ -379,8 +379,8 @@ export default function AdminDashboard() {
                 {lojistas.filter(l => !selectedCityFilter || l.cidade?.toLowerCase() === selectedCityFilter.toLowerCase()).map((lojista) => (
                   <div key={lojista.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
-                      <h3 className="font-bold text-lg text-slate-800">{lojista.nome || 'Lojista'}</h3>
-                      <p className="text-xs text-slate-500">Cidade: {lojista.cidade || 'Não informada'} | Tel: {lojista.telefone || 'Não informado'}</p>
+                      <h3 className="font-bold text-lg text-slate-800">{lojista.nome || lojista.name || 'Lojista'}</h3>
+                      <p className="text-xs text-slate-500">Cidade: {lojista.cidade || 'Não informada'} | Tel: {lojista.telefone || lojista.phone || 'Não informado'}</p>
                       <span className={`text-xs font-bold px-3 py-1 rounded-full inline-block mt-2 ${lojista.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {lojista.ativo ? 'Ativo (Liberado)' : 'Inadimplente (Bloqueado)'}
                       </span>
@@ -406,9 +406,9 @@ export default function AdminDashboard() {
                     <div className="flex flex-col gap-2">
                       <button onClick={() => {
                         setEditingLojistaId(lojista.id);
-                        setEditNome(lojista.nome || '');
+                        setEditNome(lojista.nome || lojista.name || '');
                         setEditCidade(lojista.cidade || '');
-                        setEditTelefone(lojista.telefone || '');
+                        setEditTelefone(lojista.telefone || lojista.phone || '');
                         setIsEditModalOpen(true);
                       }} className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
                         Editar Dados
