@@ -287,6 +287,19 @@ export default function AdminDashboard() {
     }
   };
 
+  // NOVA FUNÇÃO: Excluir Categoria
+  const handleDeleteCategory = async (catId) => {
+    if (!confirm('Deseja realmente excluir esta categoria?')) return;
+    try {
+      const { error } = await supabase.from('categories').delete().eq('id', catId);
+      if (error) throw error;
+      alert('Categoria excluída com sucesso!');
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao excluir categoria: ' + err.message);
+    }
+  };
+
   // Filtro de Pedidos
   const filteredOrders = orders.filter(order => {
     if (selectedCity && String(order.cidade_id) !== String(selectedCity) && order.cidade_nome_exibicao !== selectedCity) return false;
@@ -622,7 +635,10 @@ export default function AdminDashboard() {
                     ) : (
                       <>
                         <span className="font-medium text-slate-800">{cat.nome}</span>
-                        <button type="button" onClick={() => { setEditingCatId(cat.id); setEditingCatNome(cat.nome); }} className="text-xs text-teal-600 font-bold">Editar</button>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => { setEditingCatId(cat.id); setEditingCatNome(cat.nome); }} className="text-xs text-teal-600 font-bold">Editar</button>
+                          <button type="button" onClick={() => handleDeleteCategory(cat.id)} className="text-xs text-rose-600 font-bold">Excluir</button>
+                        </div>
                       </>
                     )}
                   </div>
