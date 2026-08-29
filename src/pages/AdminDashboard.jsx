@@ -597,14 +597,29 @@ export default function AdminDashboard() {
         {isEditModalOpen && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <form onSubmit={handleSaveEditLojista} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
-              <h3 className="text-xl font-bold text-slate-800">Editar Dados do Lojista</h3>
-              <input type="text" value={editNome} onChange={(e) => setEditNome(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
-              <input type="text" value={editCidade} onChange={(e) => setEditCidade(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
-              <input type="text" value={editTelefone} onChange={(e) => setEditTelefone(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
+              <div className="flex justify-between items-center pb-2 border-b">
+                <h3 className="text-xl font-bold text-slate-800">Editar Dados do Lojista</h3>
+                <button type="button" onClick={() => setIsEditModalOpen(false)} className="text-slate-400 font-bold">✕</button>
+              </div>
 
-              <div className="flex space-x-3 pt-3">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="w-1/2 bg-slate-200 text-slate-700 p-2 rounded-xl font-semibold text-sm">Cancelar</button>
-                <button type="submit" className="w-1/2 bg-teal-600 text-white p-2 rounded-xl font-semibold text-sm">Atualizar</button>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Nome da Loja</label>
+                <input type="text" placeholder="Nome da Loja" value={editNome} onChange={(e) => setEditNome(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" required />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Cidade</label>
+                <input type="text" placeholder="Cidade" value={editCidade} onChange={(e) => setEditCidade(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" required />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone / WhatsApp</label>
+                <input type="text" placeholder="Telefone" value={editTelefone} onChange={(e) => setEditTelefone(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" />
+              </div>
+
+              <div className="flex space-x-3 pt-3 border-t">
+                <button type="button" onClick={() => setIsEditModalOpen(false)} className="w-1/2 bg-slate-200 text-slate-700 p-2.5 rounded-xl font-semibold text-sm">Cancelar</button>
+                <button type="submit" className="w-1/2 bg-teal-600 hover:bg-teal-700 text-white p-2.5 rounded-xl font-semibold text-sm">Atualizar</button>
               </div>
             </form>
           </div>
