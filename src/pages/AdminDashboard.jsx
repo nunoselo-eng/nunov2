@@ -17,11 +17,15 @@ export default function AdminDashboard() {
   const [novoNome, setNovoNome] = useState('');
   const [novoEmail, setNovoEmail] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
+  const [novaCidade, setNovaCidade] = useState('');
+  const [novoTelefone, setNovoTelefone] = useState('');
   const [novasCategoriasIds, setNovasCategoriasIds] = useState([]);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingLojistaId, setEditingLojistaId] = useState(null);
   const [editNome, setEditNome] = useState('');
+  const [editCidade, setEditCidade] = useState('');
+  const [editTelefone, setEditTelefone] = useState('');
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [novaCategoriaNome, setNovaCategoriaNome] = useState('');
@@ -71,15 +75,15 @@ export default function AdminDashboard() {
     const { data: catsData } = await supabase.from('categories').select('*');
     const uniqueCategoriesMap = new Map();
     (catsData || []).forEach(cat => {
-      const nomeChave = cat.nome?.trim().toLowerCase();
+      const nomeChave = (cat.nome || cat.name)?.trim().toLowerCase();
       if (nomeChave && !uniqueCategoriesMap.has(nomeChave)) {
-        uniqueCategoriesMap.set(nomeChave, cat);
+        uniqueCategoriesMap.set(nomeChave, { ...cat, nome: cat.nome || cat.name });
       }
     });
 
     // 3. Cidades
     const { data: citiesData } = await supabase.from('cities').select('*');
-    const citiesMap = new Map((citiesData || []).map(c => [String(c.id), c.nome]));
+    const citiesMap = new Map((citiesData || []).map(c => [String(c.id), c.nome || c.name]));
 
     // 4. Vínculos Lojista-Categorias
     const { data: vinculosData } = await supabase.from('lojista_categorias').select('*');
@@ -98,7 +102,7 @@ export default function AdminDashboard() {
 
     setLojistas(formattedLojistas);
     setCategories(Array.from(uniqueCategoriesMap.values()));
-    setCities(citiesData || []);
+    setCities((citiesData || []).map(c => ({ ...c, nome: c.nome || c.name })));
 
     // 5. Cotações e Itens
     const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
@@ -203,11 +207,12 @@ export default function AdminDashboard() {
 
       const userId = authData.user?.id;
 
-      // Inserção na tabela profiles usando a coluna correta 'name'
       const { error: profileError } = await supabase.from('profiles').insert([{ 
         id: userId, 
         tipo: 'lojista', 
         name: novoNome, 
+        cidade: novaCidade,
+        telefone: novoTelefone,
         ativo: true 
       }]);
 
@@ -220,7 +225,7 @@ export default function AdminDashboard() {
 
       alert('Lojista cadastrado com sucesso!');
       setIsModalOpen(false);
-      setNovoNome(''); setNovoEmail(''); setNovaSenha(''); setNovasCategoriasIds([]);
+      setNovoNome(''); setNovoEmail(''); setNovaSenha(''); setNovaCidade(''); setNovoTelefone(''); setNovasCategoriasIds([]);
       fetchAllData();
     } catch (err) {
       alert('Erro ao cadastrar lojista: ' + err.message);
@@ -231,7 +236,9 @@ export default function AdminDashboard() {
     e.preventDefault();
     try {
       const { error } = await supabase.from('profiles').update({ 
-        name: editNome 
+        name: editNome,
+        cidade: editCidade,
+        telefone: editTelefone
       }).eq('id', editingLojistaId);
       
       if (error) throw error;
@@ -356,10 +363,11 @@ export default function AdminDashboard() {
 
             {loading ? <p className="text-center py-8 text-slate-500">Carregando...</p> : (
               <div className="space-y-4">
-                {lojistas.map((lojista) => (
+                {lojistas.filter(l => !selectedCityFilter || l.cidade?.toLowerCase() === selectedCityFilter.toLowerCase()).map((lojista) => (
                   <div key={lojista.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
                       <h3 className="font-bold text-lg text-slate-800">{lojista.name || lojista.nome || 'Lojista'}</h3>
+                      <p className="text-xs text-slate-500">Cidade: {lojista.cidade || 'Não informada'} | Tel: {lojista.telefone || 'Não informado'}</p>
                       <span className={`text-xs font-bold px-3 py-1 rounded-full inline-block mt-2 ${lojista.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {lojista.ativo ? 'Ativo (Liberado)' : 'Inadimplente (Bloqueado)'}
                       </span>
@@ -386,6 +394,8 @@ export default function AdminDashboard() {
                       <button onClick={() => {
                         setEditingLojistaId(lojista.id);
                         setEditNome(lojista.name || lojista.nome || '');
+                        setEditCidade(lojista.cidade || '');
+                        setEditTelefone(lojista.telefone || '');
                         setIsEditModalOpen(true);
                       }} className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
                         Editar Dados
@@ -534,6 +544,8 @@ export default function AdminDashboard() {
               <input type="text" placeholder="Nome da Loja" value={novoNome} onChange={(e) => setNovoNome(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="email" placeholder="E-mail" value={novoEmail} onChange={(e) => setNovoEmail(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="password" placeholder="Senha Inicial" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
+              <input type="text" placeholder="Cidade" value={novaCidade} onChange={(e) => setNovaCidade(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
+              <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefone} onChange={(e) => setNovoTelefone(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-2">Categorias Atendidas</label>
@@ -575,6 +587,16 @@ export default function AdminDashboard() {
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Nome da Loja</label>
                 <input type="text" placeholder="Nome da Loja" value={editNome} onChange={(e) => setEditNome(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" required />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Cidade</label>
+                <input type="text" placeholder="Cidade" value={editCidade} onChange={(e) => setEditCidade(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone / WhatsApp</label>
+                <input type="text" placeholder="Telefone" value={editTelefone} onChange={(e) => setEditTelefone(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" />
               </div>
 
               <div className="flex space-x-3 pt-3 border-t">
