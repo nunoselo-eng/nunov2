@@ -17,15 +17,11 @@ export default function AdminDashboard() {
   const [novoNome, setNovoNome] = useState('');
   const [novoEmail, setNovoEmail] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
-  const [novaCidade, setNovaCidade] = useState('');
-  const [novoTelefone, setNovoTelefone] = useState('');
   const [novasCategoriasIds, setNovasCategoriasIds] = useState([]);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingLojistaId, setEditingLojistaId] = useState(null);
   const [editNome, setEditNome] = useState('');
-  const [editCidade, setEditCidade] = useState('');
-  const [editTelefone, setEditTelefone] = useState('');
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [novaCategoriaNome, setNovaCategoriaNome] = useState('');
@@ -83,12 +79,6 @@ export default function AdminDashboard() {
 
     // 3. Cidades
     const { data: citiesData } = await supabase.from('cities').select('*');
-    const uniqueCitiesMap = new Map();
-    (citiesData || []).forEach(c => {
-      if (c.nome && !uniqueCitiesMap.has(c.nome.trim().toLowerCase())) {
-        uniqueCitiesMap.set(c.nome.trim().toLowerCase(), c);
-      }
-    });
     const citiesMap = new Map((citiesData || []).map(c => [String(c.id), c.nome]));
 
     // 4. Vínculos Lojista-Categorias
@@ -108,7 +98,7 @@ export default function AdminDashboard() {
 
     setLojistas(formattedLojistas);
     setCategories(Array.from(uniqueCategoriesMap.values()));
-    setCities(Array.from(uniqueCitiesMap.values()));
+    setCities(citiesData || []);
 
     // 5. Cotações e Itens
     const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
@@ -121,20 +111,17 @@ export default function AdminDashboard() {
     });
     setOrderItemsMap(oItemsMap);
 
-    // 6. Busca de Propostas (Bids) por IDs dos Pedidos
+    // 6. Propostas (Bids)
     let bidsData = [];
     if (ordersData && ordersData.length > 0) {
       const orderIds = ordersData.map(o => o.id);
-      
       const { data: bData } = await supabase.from('bids').select('*').in('order_id', orderIds);
       if (bData) bidsData = bData;
 
       const { data: fallbackBids } = await supabase.from('bids').select('*').in('pedido_id', orderIds);
       if (fallbackBids && fallbackBids.length > 0) {
         fallbackBids.forEach(fb => {
-          if (!bidsData.some(b => b.id === fb.id)) {
-            bidsData.push(fb);
-          }
+          if (!bidsData.some(b => b.id === fb.id)) bidsData.push(fb);
         });
       }
     }
@@ -182,14 +169,6 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
-  const saveCityIfNew = async (cityName) => {
-    if (!cityName) return;
-    const exists = cities.some(c => c.nome.toLowerCase() === cityName.trim().toLowerCase());
-    if (!exists) {
-      await supabase.from('cities').insert([{ nome: cityName.trim(), ativo: true }]);
-    }
-  };
-
   const handleToggleAtivo = async (lojistaId, statusAtual) => {
     const novoStatus = !statusAtual;
     const { error } = await supabase.from('profiles').update({ ativo: novoStatus }).eq('id', lojistaId);
@@ -223,16 +202,16 @@ export default function AdminDashboard() {
       if (authError) throw authError;
 
       const userId = authData.user?.id;
-      if (novaCidade) await saveCityIfNew(novaCidade);
 
-      await supabase.from('profiles').insert([{ 
+      // Inserção na tabela profiles usando a coluna correta 'name'
+      const { error: profileError } = await supabase.from('profiles').insert([{ 
         id: userId, 
         tipo: 'lojista', 
-        nome: novoNome, 
-        cidade: novaCidade, 
-        telefone: novoTelefone, 
+        name: novoNome, 
         ativo: true 
       }]);
+
+      if (profileError) throw profileError;
 
       if (novasCategoriasIds.length > 0) {
         const vinculos = novasCategoriasIds.map(catId => ({ lojista_id: userId, categoria_id: catId }));
@@ -241,7 +220,7 @@ export default function AdminDashboard() {
 
       alert('Lojista cadastrado com sucesso!');
       setIsModalOpen(false);
-      setNovoNome(''); setNovoEmail(''); setNovaSenha(''); setNovoCidade(''); setNovoTelefone(''); setNovasCategoriasIds([]);
+      setNovoNome(''); setNovoEmail(''); setNovaSenha(''); setNovasCategoriasIds([]);
       fetchAllData();
     } catch (err) {
       alert('Erro ao cadastrar lojista: ' + err.message);
@@ -251,11 +230,8 @@ export default function AdminDashboard() {
   const handleSaveEditLojista = async (e) => {
     e.preventDefault();
     try {
-      if (editCidade) await saveCityIfNew(editCidade);
       const { error } = await supabase.from('profiles').update({ 
-        nome: editNome, 
-        cidade: editCidade, 
-        telefone: editTelefone 
+        name: editNome 
       }).eq('id', editingLojistaId);
       
       if (error) throw error;
@@ -271,7 +247,7 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (!novaCategoriaNome.trim()) return;
     try {
-      await supabase.from('categories').insert([{ nome: novaCategoriaNome.trim(), ativo: true }]);
+      await supabase.from('categories').insert([{ nome: novaCategoriaNome.trim() }]);
       alert('Categoria cadastrada com sucesso!');
       setNovaCategoriaNome('');
       fetchAllData();
@@ -316,7 +292,7 @@ export default function AdminDashboard() {
       const term = searchTerm.toLowerCase();
       const matchDesc = order.descricao?.toLowerCase().includes(term);
       const matchCodigo = order.codigo_pedido?.toLowerCase().includes(term);
-      const matchCliente = order.cliente?.nome?.toLowerCase().includes(term);
+      const matchCliente = order.cliente?.name?.toLowerCase().includes(term);
       if (!matchDesc && !matchCodigo && !matchCliente) return false;
     }
     return true;
@@ -380,11 +356,10 @@ export default function AdminDashboard() {
 
             {loading ? <p className="text-center py-8 text-slate-500">Carregando...</p> : (
               <div className="space-y-4">
-                {lojistas.filter(l => !selectedCityFilter || l.cidade?.toLowerCase() === selectedCityFilter.toLowerCase()).map((lojista) => (
+                {lojistas.map((lojista) => (
                   <div key={lojista.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
-                      <h3 className="font-bold text-lg text-slate-800">{lojista.nome || 'Lojista'}</h3>
-                      <p className="text-xs text-slate-500">Cidade: {lojista.cidade || 'Não informada'} | Tel: {lojista.telefone || 'Não informado'}</p>
+                      <h3 className="font-bold text-lg text-slate-800">{lojista.name || lojista.nome || 'Lojista'}</h3>
                       <span className={`text-xs font-bold px-3 py-1 rounded-full inline-block mt-2 ${lojista.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {lojista.ativo ? 'Ativo (Liberado)' : 'Inadimplente (Bloqueado)'}
                       </span>
@@ -410,9 +385,7 @@ export default function AdminDashboard() {
                     <div className="flex flex-col gap-2">
                       <button onClick={() => {
                         setEditingLojistaId(lojista.id);
-                        setEditNome(lojista.nome || '');
-                        setEditCidade(lojista.cidade || '');
-                        setEditTelefone(lojista.telefone || '');
+                        setEditNome(lojista.name || lojista.nome || '');
                         setIsEditModalOpen(true);
                       }} className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
                         Editar Dados
@@ -444,7 +417,7 @@ export default function AdminDashboard() {
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Cliente</label>
                 <select value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 bg-slate-50 text-sm">
                   <option value="">Todos os Clientes</option>
-                  {clients.map((cli) => <option key={cli.id} value={cli.id}>{cli.nome || cli.email}</option>)}
+                  {clients.map((cli) => <option key={cli.id} value={cli.id}>{cli.name || cli.nome || cli.email}</option>)}
                 </select>
               </div>
 
@@ -452,7 +425,7 @@ export default function AdminDashboard() {
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Lojista / Loja</label>
                 <select value={selectedStore} onChange={(e) => setSelectedStore(e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 bg-slate-50 text-sm">
                   <option value="">Todos os Lojistas</option>
-                  {stores.map((st) => <option key={st.id} value={st.id}>{st.nome || st.email}</option>)}
+                  {stores.map((st) => <option key={st.id} value={st.id}>{st.name || st.nome || st.email}</option>)}
                 </select>
               </div>
 
@@ -477,7 +450,7 @@ export default function AdminDashboard() {
                           Pedido #{order.codigo_pedido || order.id}
                         </span>
                         <h4 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h4>
-                        <p className="text-xs text-slate-500 mt-0.5">Cliente: {order.cliente?.nome || 'Não informado'} | Tel: {order.cliente?.telefone || 'Não informado'} | Cidade: {order.cidade_nome_exibicao}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Cliente: {order.cliente?.name || order.cliente?.nome || 'Não informado'} | Cidade: {order.cidade_nome_exibicao}</p>
                       </div>
                       <button onClick={() => toggleDetails(order.id)} className="text-xs font-bold text-teal-700 bg-teal-50 px-3 py-1.5 rounded-lg border border-teal-200">
                         {showDetails[order.id] ? 'Ocultar Detalhes' : `Ver Detalhes (${orderBids.length} Propostas)`}
@@ -509,8 +482,7 @@ export default function AdminDashboard() {
                               <div key={bid.id} className={`p-4 rounded-xl border ${bid.status === 'Aceito' ? 'border-green-300 bg-green-50/50' : 'border-slate-200 bg-white'} space-y-2`}>
                                 <div className="flex justify-between items-center">
                                   <div>
-                                    <p className="font-bold text-slate-800 text-sm">Loja: {lojista?.nome || `Lojista #${bid.lojista_id}`}</p>
-                                    <p className="text-xs text-slate-500">Contato: {lojista?.telefone || 'Não informado'}</p>
+                                    <p className="font-bold text-slate-800 text-sm">Loja: {lojista?.name || lojista?.nome || `Lojista #${bid.lojista_id}`}</p>
                                   </div>
                                   <div className="text-right">
                                     <p className="text-base font-extrabold text-slate-900">Total: R$ {total.toFixed(2)}</p>
@@ -562,8 +534,6 @@ export default function AdminDashboard() {
               <input type="text" placeholder="Nome da Loja" value={novoNome} onChange={(e) => setNovoNome(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="email" placeholder="E-mail" value={novoEmail} onChange={(e) => setNovoEmail(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="password" placeholder="Senha Inicial" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
-              <input type="text" placeholder="Cidade" value={novaCidade} onChange={(e) => setNovaCidade(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
-              <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefone} onChange={(e) => setNovoTelefone(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-2">Categorias Atendidas</label>
@@ -605,16 +575,6 @@ export default function AdminDashboard() {
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Nome da Loja</label>
                 <input type="text" placeholder="Nome da Loja" value={editNome} onChange={(e) => setEditNome(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" required />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Cidade</label>
-                <input type="text" placeholder="Cidade" value={editCidade} onChange={(e) => setEditCidade(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" required />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone / WhatsApp</label>
-                <input type="text" placeholder="Telefone" value={editTelefone} onChange={(e) => setEditTelefone(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" />
               </div>
 
               <div className="flex space-x-3 pt-3 border-t">
