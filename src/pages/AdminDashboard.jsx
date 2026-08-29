@@ -18,7 +18,6 @@ export default function AdminDashboard() {
   const [novoEmail, setNovoEmail] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
   const [novaCidade, setNovaCidade] = useState('');
-  const [isNewCityCreate, setIsNewCityCreate] = useState(false);
   const [novoTelefone, setNovoTelefone] = useState('');
   const [novasCategoriasIds, setNovasCategoriasIds] = useState([]);
 
@@ -26,7 +25,6 @@ export default function AdminDashboard() {
   const [editingLojistaId, setEditingLojistaId] = useState(null);
   const [editNome, setEditNome] = useState('');
   const [editCidade, setEditCidade] = useState('');
-  const [isNewCityEdit, setIsNewCityEdit] = useState(false);
   const [editTelefone, setEditTelefone] = useState('');
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -98,7 +96,7 @@ export default function AdminDashboard() {
 
     const formattedLojistas = lojistasList.map(lojista => {
       const catIds = (vinculosData || [])
-        .filter(v => v.lojista_id === lojista.id)
+        .filter(v => String(v.lojista_id) === String(lojista.id))
         .map(v => v.categoria_id);
 
       return {
@@ -131,7 +129,6 @@ export default function AdminDashboard() {
       const { data: bData } = await supabase.from('bids').select('*').in('order_id', orderIds);
       if (bData) bidsData = bData;
 
-      // Fallback por pedido_id
       const { data: fallbackBids } = await supabase.from('bids').select('*').in('pedido_id', orderIds);
       if (fallbackBids && fallbackBids.length > 0) {
         fallbackBids.forEach(fb => {
@@ -142,7 +139,6 @@ export default function AdminDashboard() {
       }
     }
 
-    // Busca itens de todas as propostas encontradas
     if (bidsData.length > 0) {
       const bidIds = bidsData.map(b => b.id);
       const { data: bidItemsData } = await supabase.from('bid_items').select('*').in('bid_id', bidIds);
@@ -155,7 +151,6 @@ export default function AdminDashboard() {
       setBidItemsMap(bItemsMap);
     }
 
-    // Mapeamento Agrupado de Propostas por Pedido
     const groupedBids = {};
     bidsData.forEach(bid => {
       const key1 = bid.order_id ? String(bid.order_id) : null;
@@ -178,7 +173,7 @@ export default function AdminDashboard() {
     if (ordersData) {
       const formattedOrders = ordersData.map(o => ({
         ...o,
-        cidade_nome_exibicao: citiesMap.get(String(o.cidade_id)) || o.cidade_id || 'Não informada',
+        cidade_nome_exibicao: citiesMap.get(String(o.cidade_id)) || o.cidade_nome || 'Não informada',
         cliente: pMap.get(String(o.cliente_id))
       }));
       setOrders(formattedOrders);
@@ -187,16 +182,14 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
-  // Helper de Cidades
   const saveCityIfNew = async (cityName) => {
     if (!cityName) return;
     const exists = cities.some(c => c.nome.toLowerCase() === cityName.trim().toLowerCase());
     if (!exists) {
-      await supabase.from('cities').insert([{ nome: cityName.trim() }]);
+      await supabase.from('cities').insert([{ nome: cityName.trim(), ativo: true }]);
     }
   };
 
-  // Funções da Aba de Lojistas
   const handleToggleAtivo = async (lojistaId, statusAtual) => {
     const novoStatus = !statusAtual;
     const { error } = await supabase.from('profiles').update({ ativo: novoStatus }).eq('id', lojistaId);
@@ -232,7 +225,14 @@ export default function AdminDashboard() {
       const userId = authData.user?.id;
       if (novaCidade) await saveCityIfNew(novaCidade);
 
-      await supabase.from('profiles').insert([{ id: userId, tipo: 'lojista', nome: novoNome, cidade: novaCidade, telefone: novoTelefone, ativo: true }]);
+      await supabase.from('profiles').insert([{ 
+        id: userId, 
+        tipo: 'lojista', 
+        nome: novoNome, 
+        cidade: novaCidade, 
+        telefone: novoTelefone, 
+        ativo: true 
+      }]);
 
       if (novasCategoriasIds.length > 0) {
         const vinculos = novasCategoriasIds.map(catId => ({ lojista_id: userId, categoria_id: catId }));
@@ -241,7 +241,7 @@ export default function AdminDashboard() {
 
       alert('Lojista cadastrado com sucesso!');
       setIsModalOpen(false);
-      setNovoNome(''); setNovoEmail(''); setNovaSenha(''); setNovaCidade(''); setNovoTelefone(''); setNovasCategoriasIds([]);
+      setNovoNome(''); setNovoEmail(''); setNovaSenha(''); setNovoCidade(''); setNovoTelefone(''); setNovasCategoriasIds([]);
       fetchAllData();
     } catch (err) {
       alert('Erro ao cadastrar lojista: ' + err.message);
@@ -252,7 +252,13 @@ export default function AdminDashboard() {
     e.preventDefault();
     try {
       if (editCidade) await saveCityIfNew(editCidade);
-      await supabase.from('profiles').update({ nome: editNome, cidade: editCidade, telefone: editTelefone }).eq('id', editingLojistaId);
+      const { error } = await supabase.from('profiles').update({ 
+        nome: editNome, 
+        cidade: editCidade, 
+        telefone: editTelefone 
+      }).eq('id', editingLojistaId);
+      
+      if (error) throw error;
       alert('Dados atualizados com sucesso!');
       setIsEditModalOpen(false);
       fetchAllData();
@@ -265,7 +271,7 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (!novaCategoriaNome.trim()) return;
     try {
-      await supabase.from('categories').insert([{ nome: novaCategoriaNome.trim() }]);
+      await supabase.from('categories').insert([{ nome: novaCategoriaNome.trim(), ativo: true }]);
       alert('Categoria cadastrada com sucesso!');
       setNovaCategoriaNome('');
       fetchAllData();
@@ -287,7 +293,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // NOVA FUNÇÃO: Excluir Categoria
   const handleDeleteCategory = async (catId) => {
     if (!confirm('Deseja realmente excluir esta categoria?')) return;
     try {
@@ -300,7 +305,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Filtro de Pedidos
   const filteredOrders = orders.filter(order => {
     if (selectedCity && String(order.cidade_id) !== String(selectedCity) && order.cidade_nome_exibicao !== selectedCity) return false;
     if (selectedClient && String(order.cliente_id) !== String(selectedClient)) return false;
@@ -379,8 +383,8 @@ export default function AdminDashboard() {
                 {lojistas.filter(l => !selectedCityFilter || l.cidade?.toLowerCase() === selectedCityFilter.toLowerCase()).map((lojista) => (
                   <div key={lojista.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
-                      <h3 className="font-bold text-lg text-slate-800">{lojista.nome || lojista.name || 'Lojista'}</h3>
-                      <p className="text-xs text-slate-500">Cidade: {lojista.cidade || 'Não informada'} | Tel: {lojista.telefone || lojista.phone || 'Não informado'}</p>
+                      <h3 className="font-bold text-lg text-slate-800">{lojista.nome || 'Lojista'}</h3>
+                      <p className="text-xs text-slate-500">Cidade: {lojista.cidade || 'Não informada'} | Tel: {lojista.telefone || 'Não informado'}</p>
                       <span className={`text-xs font-bold px-3 py-1 rounded-full inline-block mt-2 ${lojista.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {lojista.ativo ? 'Ativo (Liberado)' : 'Inadimplente (Bloqueado)'}
                       </span>
@@ -406,9 +410,9 @@ export default function AdminDashboard() {
                     <div className="flex flex-col gap-2">
                       <button onClick={() => {
                         setEditingLojistaId(lojista.id);
-                        setEditNome(lojista.nome || lojista.name || '');
+                        setEditNome(lojista.nome || '');
                         setEditCidade(lojista.cidade || '');
-                        setEditTelefone(lojista.telefone || lojista.phone || '');
+                        setEditTelefone(lojista.telefone || '');
                         setIsEditModalOpen(true);
                       }} className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
                         Editar Dados
@@ -427,7 +431,6 @@ export default function AdminDashboard() {
         {/* ABA 2: MONITORAMENTO DE PEDIDOS */}
         {activeTab === 'pedidos' && (
           <div className="space-y-6">
-            {/* Filtros */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Cidade</label>
@@ -459,7 +462,6 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Lista de Cotações */}
             <div className="bg-white shadow-xl rounded-2xl border border-slate-200 p-6 space-y-4">
               <h3 className="text-xl font-bold text-slate-800">Cotações Encontradas ({filteredOrders.length})</h3>
 
@@ -484,7 +486,6 @@ export default function AdminDashboard() {
 
                     {showDetails[order.id] && (
                       <div className="space-y-4 pt-2">
-                        {/* Itens do Cliente */}
                         <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2">
                           <p className="text-xs font-bold text-slate-500 uppercase">Itens da Cotação:</p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -497,7 +498,6 @@ export default function AdminDashboard() {
                           </div>
                         </div>
 
-                        {/* Propostas */}
                         <div className="space-y-2">
                           <p className="text-xs font-bold text-slate-500 uppercase">Propostas Enviadas:</p>
                           {orderBids.length === 0 ? <p className="text-xs text-slate-500 italic">Nenhuma proposta enviada ainda.</p> : orderBids.map((bid) => {
