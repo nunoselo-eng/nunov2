@@ -19,6 +19,11 @@ export default function LojistaDashboard() {
   const [statusFilter, setStatusFilter] = useState('todas'); // 'todas', 'urgentes', 'confirmadas'
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Filtro por data e ordenação (padrão: mais recentes primeiro)
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = mais recentes primeiro, 'asc' = mais antigos primeiro
+
   // Modais e Imagens
   const [activeImage, setActiveImage] = useState(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -303,9 +308,30 @@ export default function LojistaDashboard() {
     return { texto: `${minutos}m ${segundos}s restantes`, expirado: false };
   };
 
+  // Verifica se uma data (created_at) cai dentro do período selecionado
+  const dentroDoPeriodo = (dataStr) => {
+    if (!dataStr) return true;
+    const data = new Date(dataStr);
+    if (dateFrom && data < new Date(dateFrom + 'T00:00:00')) return false;
+    if (dateTo && data > new Date(dateTo + 'T23:59:59')) return false;
+    return true;
+  };
+
+  // Ordena qualquer lista pela data de criação, respeitando o sortOrder
+  const ordenarPorData = (lista, campoData = 'created_at') => {
+    const copia = [...lista];
+    copia.sort((a, b) => {
+      const dataA = new Date(a[campoData] || 0).getTime();
+      const dataB = new Date(b[campoData] || 0).getTime();
+      return sortOrder === 'asc' ? dataA - dataB : dataB - dataA;
+    });
+    return copia;
+  };
+
   // Filtragem
-  const filteredOrders = orders.filter(order => {
+  const filteredOrders = ordenarPorData(orders.filter(order => {
     if (statusFilter === 'urgentes' && order.prazo_opcao !== 'urgente') return false;
+    if (!dentroDoPeriodo(order.created_at)) return false;
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -317,7 +343,10 @@ export default function LojistaDashboard() {
     }
 
     return true;
-  });
+  }));
+
+  const acceptedBidsOrdenados = ordenarPorData(acceptedBids.filter(bid => dentroDoPeriodo(bid.created_at)));
+  const pendingBidsOrdenados = ordenarPorData(pendingBids.filter(bid => dentroDoPeriodo(bid.created_at)));
 
   return (
     <div className="bg-[#f8f9fa] text-slate-700 min-h-screen flex flex-col justify-between font-sans">
@@ -428,6 +457,43 @@ export default function LojistaDashboard() {
                 </div>
               </div>
 
+              {/* Filtro por Data e Ordenação */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                  <span>📅 Período:</span>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 bg-white"
+                  />
+                  <span className="text-slate-400">até</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 bg-white"
+                  />
+                  {(dateFrom || dateTo) && (
+                    <button
+                      onClick={() => { setDateFrom(''); setDateTo(''); }}
+                      className="text-rose-600 font-bold hover:underline"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex-1" />
+
+                <button
+                  onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+                >
+                  {sortOrder === 'desc' ? '⬇ Mais recentes primeiro' : '⬆ Mais antigos primeiro'}
+                </button>
+              </div>
+
               {/* Lista de Cotações Disponíveis */}
               <div className="space-y-3">
                 {loading ? (
@@ -513,7 +579,7 @@ export default function LojistaDashboard() {
         </div>
 
         {/* ================= SEÇÃO 2: FECHADAS (vendas confirmadas) ================= */}
-        {acceptedBids.length > 0 && (
+        {acceptedBidsOrdenados.length > 0 && (
           <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl shadow-sm">
             <button
               onClick={() => toggleSection('fechadas')}
@@ -521,7 +587,7 @@ export default function LojistaDashboard() {
             >
               <span className="flex items-center gap-2">
                 <span className="text-lg">🎉</span>
-                <h2 className="text-lg font-bold text-emerald-900">Vendas Confirmadas ({acceptedBids.length})</h2>
+                <h2 className="text-lg font-bold text-emerald-900">Vendas Confirmadas ({acceptedBidsOrdenados.length})</h2>
               </span>
               <span className="text-emerald-700/60 text-xs font-semibold">
                 {collapsedSections.fechadas ? '▸ Expandir' : '▾ Encolher'}
@@ -530,7 +596,7 @@ export default function LojistaDashboard() {
 
             {!collapsedSections.fechadas && (
               <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-                {acceptedBids.map((bid) => {
+                {acceptedBidsOrdenados.map((bid) => {
                   const cardKey = `fechada-${bid.id}`;
                   const isCollapsed = collapsedCards.has(cardKey);
 
@@ -583,7 +649,7 @@ export default function LojistaDashboard() {
         )}
 
         {/* ================= SEÇÃO 3: ENVIADAS (aguardando resposta do cliente) ================= */}
-        {pendingBids.length > 0 && (
+        {pendingBidsOrdenados.length > 0 && (
           <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl shadow-sm">
             <button
               onClick={() => toggleSection('enviadas')}
@@ -591,7 +657,7 @@ export default function LojistaDashboard() {
             >
               <span className="flex items-center gap-2">
                 <span className="text-lg">📨</span>
-                <h2 className="text-lg font-bold text-indigo-900">Propostas Enviadas ({pendingBids.length})</h2>
+                <h2 className="text-lg font-bold text-indigo-900">Propostas Enviadas ({pendingBidsOrdenados.length})</h2>
               </span>
               <span className="text-indigo-700/60 text-xs font-semibold">
                 {collapsedSections.enviadas ? '▸ Expandir' : '▾ Encolher'}
@@ -600,7 +666,7 @@ export default function LojistaDashboard() {
 
             {!collapsedSections.enviadas && (
               <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-                {pendingBids.map((bid) => {
+                {pendingBidsOrdenados.map((bid) => {
                   const cardKey = `enviada-${bid.id}`;
                   const isCollapsed = collapsedCards.has(cardKey);
 
