@@ -20,8 +20,15 @@ export default function Login() {
     setErrorMsg('');
 
     try {
+      // Aceita e-mail normal (cliente/lojista/admin) ou um "usuário"
+      // sem @ (caso do representante, que não usa e-mail de verdade).
+      const entrada = email.trim();
+      const emailLogin = entrada.includes('@')
+        ? entrada
+        : `${entrada.toLowerCase()}@interno.nunoselo.app`;
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: emailLogin,
         password,
       });
 
@@ -96,15 +103,15 @@ export default function Login() {
           )}
 
           <form className="w-full flex flex-col" onSubmit={handleLogin}>
-            {/* Campo E-mail */}
+            {/* Campo E-mail ou Usuário */}
             <div className="mb-4">
               <label className="block text-xs font-semibold text-slate-600 mb-1.5" htmlFor="email">
-                E-mail
+                E-mail ou Usuário
               </label>
               <input 
-                type="email" 
+                type="text" 
                 id="email"
-                placeholder="Insira seu e-mail de acesso" 
+                placeholder="Seu e-mail de acesso ou usuário" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
