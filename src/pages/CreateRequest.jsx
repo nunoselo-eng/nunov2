@@ -457,7 +457,7 @@ export default function CreateRequest() {
         <button 
           type="submit" 
           disabled={uploading}
-          className={`w-full p-3 rounded-xl font-semibold text-white transition shadow-sm ${uploading ? 'bg-slate-400 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'}`}
+          className={`w-full p-3 rounded-xl font-semibold text-white transition shadow-sm ${uploading ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#00068F] hover:bg-[#00068F]'}`}
         >
           {uploading ? 'Enviando imagens...' : 'Enviar Cotação'}
         </button>
