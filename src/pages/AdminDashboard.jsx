@@ -341,7 +341,7 @@ export default function AdminDashboard() {
 
       const { error: profileError } = await supabase.from('profiles').insert([{
         id: userId,
-        tipo: 'representante',
+        tipo: 'criador_de_contas',
         nome: novoNomeRep,
         ativo: true
       }]);
