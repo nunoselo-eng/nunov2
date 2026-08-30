@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 import { uploadImageToStorage } from '../utils/uploadImage';
 import logo from '../assets/logo.svg';
+import { getStatusPrazo } from '../utils/prazoUtils';
 
 export default function LojistaDashboard() {
   const [orders, setOrders] = useState([]);
@@ -43,6 +44,7 @@ export default function LojistaDashboard() {
   const [pedidoItemsMap, setPedidoItemsMap] = useState({});
   const [minhaPropostaItemsMap, setMinhaPropostaItemsMap] = useState({});
   const [ordersFechadosComOutro, setOrdersFechadosComOutro] = useState(new Set());
+  const [lojistasElegiveisPorPedido, setLojistasElegiveisPorPedido] = useState({});
 
   // Paginação (10 pedidos por página em cada seção)
   const ITENS_POR_PAGINA = 10;
@@ -170,6 +172,46 @@ export default function LojistaDashboard() {
               cidade_nome_exibicao: citiesMap.get(String(o.cidade_id)) || 'Não informada'
             }));
           setOrders(formatted);
+
+          // Lojistas elegíveis (mesma categoria + cidade) de cada pedido,
+          // pra saber se o prazo está correndo ou pausado (horário comercial).
+          const categoriaIdsPresentes = Array.from(new Set(formatted.map(o => o.categoria_id).filter(Boolean)));
+          if (categoriaIdsPresentes.length > 0) {
+            const { data: vinculosCat } = await supabase
+              .from('lojista_categorias')
+              .select('lojista_id, categoria_id')
+              .in('categoria_id', categoriaIdsPresentes);
+
+            const lojistaIdsCandidatos = Array.from(new Set((vinculosCat || []).map(v => v.lojista_id).filter(Boolean)));
+            let lojistasCandidatos = [];
+            if (lojistaIdsCandidatos.length > 0) {
+              const { data: lojistasHorarioData } = await supabase
+                .from('profiles')
+                .select('id, cidade, ativo, horario_abertura, horario_fechamento, dias_funcionamento')
+                .in('id', lojistaIdsCandidatos);
+              lojistasCandidatos = lojistasHorarioData || [];
+            }
+
+            const vinculosPorCategoria = {};
+            (vinculosCat || []).forEach(v => {
+              if (!vinculosPorCategoria[v.categoria_id]) vinculosPorCategoria[v.categoria_id] = new Set();
+              vinculosPorCategoria[v.categoria_id].add(v.lojista_id);
+            });
+
+            const mapaElegiveis = {};
+            formatted.forEach(o => {
+              const idsDaCategoria = vinculosPorCategoria[o.categoria_id] || new Set();
+              const cidadePedido = (o.cidade_nome_exibicao || '').trim().toLowerCase();
+              mapaElegiveis[o.id] = lojistasCandidatos.filter(l => {
+                if (!idsDaCategoria.has(l.id)) return false;
+                if (l.ativo === false) return false;
+                if (!cidadePedido || cidadePedido === 'não informada') return true;
+                const cidadeLojista = (l.cidade || '').trim().toLowerCase();
+                return cidadeLojista.includes(cidadePedido) || cidadePedido.includes(cidadeLojista);
+              });
+            });
+            setLojistasElegiveisPorPedido(mapaElegiveis);
+          }
         }
       }
 
@@ -364,19 +406,10 @@ export default function LojistaDashboard() {
     }
   };
 
-  const getRemainingTime = (expiraEm) => {
-    if (!expiraEm) return { texto: 'Sem prazo', expirado: false };
-    const diff = new Date(expiraEm).getTime() - now;
-    if (diff <= 0) return { texto: 'Prazo Expirado', expirado: true };
-
-    const horas = Math.floor(diff / (1000 * 60 * 60));
-    const minutos = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const segundos = Math.floor((diff % (1000 * 60)) / 1000);
-
-    if (horas > 0) {
-      return { texto: `${horas}h ${minutos}m restantes`, expirado: false };
-    }
-    return { texto: `${minutos}m ${segundos}s restantes`, expirado: false };
+  const getRemainingTime = (order) => {
+    if (!order?.expira_em) return { texto: 'Sem prazo', expirado: false, pausado: false };
+    const status = getStatusPrazo(order, lojistasElegiveisPorPedido[order.id] || [], new Date(now));
+    return { texto: status.texto, expirado: status.expirado, pausado: status.pausado };
   };
 
   // Verifica se uma data (created_at) cai dentro do período selecionado
@@ -705,7 +738,7 @@ export default function LojistaDashboard() {
                 ) : (
                   <>
                   {paginatedAbertas.map((order) => {
-                    const tempo = getRemainingTime(order.expira_em);
+                    const tempo = getRemainingTime(order);
                     const cardKey = `aberta-${order.id}`;
                     const isCollapsed = collapsedCards.has(cardKey);
 
@@ -733,9 +766,9 @@ export default function LojistaDashboard() {
                               )}
 
                               <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                                tempo.expirado ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'
+                                tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
                               }`}>
-                                ⏱️ {tempo.texto}
+                                {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
                               </span>
 
                               {isCollapsed && (
