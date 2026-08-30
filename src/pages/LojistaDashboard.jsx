@@ -626,19 +626,31 @@ export default function LojistaDashboard() {
         )}
 
         {/* Card de Boas-Vindas */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Painel do Lojista</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Acompanhe e envie orçamentos para cotações da sua região</p>
-          </div>
+        <div className="relative p-6 rounded-2xl shadow-sm overflow-hidden">
+          <div className="absolute inset-0" style={{ backgroundColor: '#5E17EB' }} />
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: '#00068F', clipPath: 'polygon(4% 0, 62% 0, 54% 100%, -4% 100%)' }}
+          />
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: '#935DFF', clipPath: 'polygon(0 0, 4% 0, -4% 100%, -8% 100%)' }}
+          />
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl">
-              {orders.length} cotações ativas
-            </span>
-            <span className="text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl">
-              {acceptedBids.length} vendas fechadas
-            </span>
+          <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Painel do Lojista</h1>
+              <p className="text-sm text-indigo-100 mt-0.5">Acompanhe e envie orçamentos para cotações da sua região</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold bg-white text-indigo-900 px-3 py-1.5 rounded-xl">
+                {orders.length} cotações ativas
+              </span>
+              <span className="text-xs font-bold bg-white text-emerald-700 px-3 py-1.5 rounded-xl">
+                {acceptedBids.length} vendas fechadas
+              </span>
+            </div>
           </div>
         </div>
 
