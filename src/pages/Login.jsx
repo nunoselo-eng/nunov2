@@ -42,6 +42,8 @@ export default function Login() {
         navigate('/admin');
       } else if (profile?.tipo === 'lojista') {
         navigate('/lojista-dashboard');
+      } else if (profile?.tipo === 'representante') {
+        navigate('/representante-dashboard');
       } else {
         navigate('/client-dashboard');
       }
