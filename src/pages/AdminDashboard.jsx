@@ -225,7 +225,8 @@ export default function AdminDashboard() {
     if (!cityName) return;
     const exists = cities.some(c => c.nome.toLowerCase() === cityName.trim().toLowerCase());
     if (!exists) {
-      await supabase.from('cities').insert([{ nome: cityName.trim(), ativo: true }]);
+      const { error } = await supabase.from('cities').insert([{ nome: cityName.trim() }]);
+      if (error) throw error;
     }
   };
 
@@ -388,7 +389,8 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (!novaCategoriaNome.trim()) return;
     try {
-      await supabase.from('categories').insert([{ nome: novaCategoriaNome.trim(), ativo: true }]);
+      const { error } = await supabase.from('categories').insert([{ nome: novaCategoriaNome.trim() }]);
+      if (error) throw error;
       alert('Categoria cadastrada com sucesso!');
       setNovaCategoriaNome('');
       fetchAllData();
