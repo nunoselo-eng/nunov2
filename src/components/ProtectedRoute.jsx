@@ -7,6 +7,7 @@ import { supabase } from '../supabaseClient';
 const DASHBOARD_BY_ROLE = {
   admin: '/admin',
   lojista: '/lojista-dashboard',
+  representante: '/representante-dashboard',
   cliente: '/client-dashboard',
 };
 
@@ -68,7 +69,9 @@ export default function ProtectedRoute({ allowedRole, children }) {
         ? 'admin'
         : profile.tipo === 'lojista'
           ? 'lojista'
-          : 'cliente';
+          : profile.tipo === 'representante'
+            ? 'representante'
+            : 'cliente';
 
       if (role === allowedRole) {
         if (ativo) setStatus('authorized');
