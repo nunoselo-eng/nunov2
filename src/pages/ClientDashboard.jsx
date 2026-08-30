@@ -558,16 +558,16 @@ export default function ClientDashboard() {
         {/* Card de Boas-vindas com Botão de Nova Cotação Maior */}
         <div className="relative p-6 rounded-2xl shadow-sm overflow-hidden">
           {/* Camada base: roxo */}
-          <div className="absolute inset-0" style={{ backgroundColor: '#7c3aed' }} />
+          <div className="absolute inset-0" style={{ backgroundColor: '#935DFF' }} />
           {/* Camada do meio: azul-marinho, recortada em ângulo */}
           <div
             className="absolute inset-0"
-            style={{ backgroundColor: '#140a52', clipPath: 'polygon(4% 0, 62% 0, 54% 100%, -4% 100%)' }}
+            style={{ backgroundColor: '#00068F', clipPath: 'polygon(4% 0, 62% 0, 54% 100%, -4% 100%)' }}
           />
           {/* Faixa fina roxo-clara na borda esquerda, mesmo ângulo */}
           <div
             className="absolute inset-0"
-            style={{ backgroundColor: '#9d6bf0', clipPath: 'polygon(0 0, 4% 0, -4% 100%, -8% 100%)' }}
+            style={{ backgroundColor: '#5E17EB', clipPath: 'polygon(0 0, 4% 0, -4% 100%, -8% 100%)' }}
           />
 
           <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
