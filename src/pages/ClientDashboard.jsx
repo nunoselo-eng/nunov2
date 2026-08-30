@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo.svg';
+import { getStatusPrazo } from '../utils/prazoUtils';
 
 export default function ClientDashboard() {
   const [orders, setOrders] = useState([]);
   const [bidsByOrder, setBidsByOrder] = useState({});
   const [bidItemsMap, setBidItemsMap] = useState({});
   const [lojistaPorBid, setLojistaPorBid] = useState({});
+  const [lojistasElegiveisPorPedido, setLojistasElegiveisPorPedido] = useState({});
   const [orderItemsMap, setOrderItemsMap] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -104,6 +106,47 @@ export default function ClientDashboard() {
         if (ordersData && ordersData.length > 0) {
           setOrders(ordersData);
           const orderIds = ordersData.map(o => o.id);
+
+          // Lojistas elegíveis (mesma categoria + cidade) de cada pedido,
+          // usados pra calcular se o prazo está correndo ou pausado.
+          const categoriaIds = Array.from(new Set(ordersData.map(o => o.categoria_id).filter(Boolean)));
+          if (categoriaIds.length > 0) {
+            const { data: vinculosCat } = await supabase
+              .from('lojista_categorias')
+              .select('lojista_id, categoria_id')
+              .in('categoria_id', categoriaIds);
+
+            const lojistaIdsCandidatos = Array.from(new Set((vinculosCat || []).map(v => v.lojista_id).filter(Boolean)));
+            let lojistasCandidatos = [];
+            if (lojistaIdsCandidatos.length > 0) {
+              const { data: lojistasData } = await supabase
+                .from('profiles')
+                .select('id, cidade, ativo, horario_abertura, horario_fechamento, dias_funcionamento')
+                .in('id', lojistaIdsCandidatos);
+              lojistasCandidatos = lojistasData || [];
+            }
+
+            const cidadeMapLocal = new Map((citiesData || []).map(c => [String(c.id), c.nome]));
+            const vinculosPorCategoria = {};
+            (vinculosCat || []).forEach(v => {
+              if (!vinculosPorCategoria[v.categoria_id]) vinculosPorCategoria[v.categoria_id] = new Set();
+              vinculosPorCategoria[v.categoria_id].add(v.lojista_id);
+            });
+
+            const mapaElegiveis = {};
+            ordersData.forEach(o => {
+              const idsDaCategoria = vinculosPorCategoria[o.categoria_id] || new Set();
+              const cidadePedido = (cidadeMapLocal.get(String(o.cidade_id)) || '').trim().toLowerCase();
+              mapaElegiveis[o.id] = lojistasCandidatos.filter(l => {
+                if (!idsDaCategoria.has(l.id)) return false;
+                if (l.ativo === false) return false;
+                if (!cidadePedido) return true;
+                const cidadeLojista = (l.cidade || '').trim().toLowerCase();
+                return cidadeLojista.includes(cidadePedido) || cidadePedido.includes(cidadeLojista);
+              });
+            });
+            setLojistasElegiveisPorPedido(mapaElegiveis);
+          }
 
           const { data: itemsData } = await supabase
             .from('order_items')
@@ -219,22 +262,15 @@ export default function ClientDashboard() {
     setShowDetails(prev => ({ ...prev, [bidId]: !prev[bidId] }));
   };
 
-  const getRemainingTime = (expiraEm) => {
-    if (!expiraEm) return { texto: 'Sem prazo', expirado: false };
-    const diff = new Date(expiraEm).getTime() - now;
-    if (diff <= 0) return { texto: 'Prazo para propostas encerrado', expirado: true };
-
-    const horas = Math.floor(diff / (1000 * 60 * 60));
-    const minutos = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const segundos = Math.floor((diff % (1000 * 60)) / 1000);
-
-    if (horas > 0) return { texto: `Recebendo propostas por mais ${horas}h ${minutos}m`, expirado: false };
-    return { texto: `Recebendo propostas por mais ${minutos}m ${segundos}s`, expirado: false };
+  const getRemainingTime = (order) => {
+    if (!order?.expira_em) return { texto: 'Sem prazo', expirado: false, pausado: false };
+    const status = getStatusPrazo(order, lojistasElegiveisPorPedido[order.id] || [], new Date(now));
+    return { texto: status.texto, expirado: status.expirado, pausado: status.pausado };
   };
 
   const classifyOrder = (order) => {
     const orderBids = bidsByOrder[String(order.id)] || [];
-    const tempo = getRemainingTime(order.expira_em);
+    const tempo = getRemainingTime(order);
     const hasAcceptedBid = orderBids.some(b => b.status === 'Aceito');
     if (hasAcceptedBid) return 'confirmadas';
     if (tempo.expirado) return 'encerradas';
@@ -280,7 +316,7 @@ export default function ClientDashboard() {
   const renderOrderCard = (order) => {
     const orderBids = bidsByOrder[String(order.id)] || [];
     const items = orderItemsMap[order.id] || [];
-    const tempo = getRemainingTime(order.expira_em);
+    const tempo = getRemainingTime(order);
     const isCardCollapsed = collapsedCards.has(order.id);
 
     return (
@@ -302,9 +338,9 @@ export default function ClientDashboard() {
                   Pedido #{order.codigo_pedido || order.id}
                 </span>
                 <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                  tempo.expirado ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'
+                  tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
                 }`}>
-                  ⏱️ {tempo.texto}
+                  {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
                 </span>
               </div>
               <h2 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h2>
