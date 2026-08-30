@@ -7,6 +7,7 @@ export default function ClientDashboard() {
   const [orders, setOrders] = useState([]);
   const [bidsByOrder, setBidsByOrder] = useState({});
   const [bidItemsMap, setBidItemsMap] = useState({});
+  const [lojistaPorBid, setLojistaPorBid] = useState({});
   const [orderItemsMap, setOrderItemsMap] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -154,6 +155,20 @@ export default function ClientDashboard() {
             });
 
             setBidsByOrder(grouped);
+
+            // Dados do lojista de cada proposta (nome/telefone), pra liberar
+            // o WhatsApp assim que o cliente aceitar uma proposta.
+            const lojistaIds = Array.from(new Set(bidsData.map(b => b.lojista_id).filter(Boolean)));
+            if (lojistaIds.length > 0) {
+              const { data: lojistasData } = await supabase
+                .from('profiles')
+                .select('id, nome, telefone')
+                .in('id', lojistaIds);
+
+              const lojistaMap = {};
+              (lojistasData || []).forEach(l => { lojistaMap[l.id] = l; });
+              setLojistaPorBid(lojistaMap);
+            }
           }
         }
       }
@@ -187,10 +202,16 @@ export default function ClientDashboard() {
     const confirm = window.confirm('Deseja realmente confirmar esta proposta? Ao confirmar, o lojista receberá seus dados para finalizar a entrega.');
     if (!confirm) return;
 
-    const { error } = await supabase.from('bids').update({ status: 'Aceito' }).eq('id', bidId);
+    const { error } = await supabase
+      .from('bids')
+      .update({ status: 'Aceito', accepted_at: new Date().toISOString() })
+      .eq('id', bidId);
+
     if (!error) {
       alert('Proposta confirmada com sucesso!');
       fetchClientData();
+    } else {
+      alert('Erro ao confirmar proposta: ' + error.message);
     }
   };
 
@@ -349,9 +370,23 @@ export default function ClientDashboard() {
                         </button>
 
                         {isAccepted ? (
-                          <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full flex items-center gap-1">
-                            ✓ Proposta Confirmada
-                          </span>
+                          <>
+                            <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full flex items-center gap-1">
+                              ✓ Proposta Confirmada
+                            </span>
+                            {lojistaPorBid[bid.lojista_id]?.telefone && (
+                              <a
+                                href={`https://wa.me/55${lojistaPorBid[bid.lojista_id].telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                                  `Olá, ${lojistaPorBid[bid.lojista_id]?.nome || 'tudo bem'}! Sou ${nome || 'o cliente'} e vamos continuar com o pedido do ${order.descricao || 'produto'} - ${order.codigo_pedido || order.id}.`
+                                )}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1"
+                              >
+                                💬 WhatsApp
+                              </a>
+                            )}
+                          </>
                         ) : (
                           <button
                             onClick={() => handleAcceptBid(bid.id)}
