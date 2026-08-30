@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 import { uploadImageToStorage } from '../utils/uploadImage';
@@ -79,9 +79,41 @@ export default function LojistaDashboard() {
     window.location.href = '/';
   };
 
+  // Guarda a lista de categorias do lojista sempre atualizada, pra
+  // conferir a relevância de um pedido novo assim que ele chega via realtime.
+  const categoryIdsRef = useRef([]);
+
+  // Contexto de áudio único e persistente. Navegadores só deixam tocar som
+  // depois de alguma interação do usuário na página, então "destravamos"
+  // ele no primeiro clique/tecla e reaproveitamos sempre o mesmo contexto.
+  const audioCtxRef = useRef(null);
+
+  useEffect(() => {
+    const destravarAudio = () => {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+      }
+    };
+    window.addEventListener('click', destravarAudio);
+    window.addEventListener('keydown', destravarAudio);
+    return () => {
+      window.removeEventListener('click', destravarAudio);
+      window.removeEventListener('keydown', destravarAudio);
+    };
+  }, []);
+
   const playBeep = () => {
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -114,7 +146,11 @@ export default function LojistaDashboard() {
 
     const channel = supabase
       .channel('realtime-orders')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        const categoriaDoNovoPedido = payload?.new?.categoria_id;
+        const relevantePraEsteLojista = categoryIdsRef.current.includes(categoriaDoNovoPedido);
+        if (!relevantePraEsteLojista) return;
+
         playBeep();
         setNewOrderAlert(true);
         fetchLojistaData();
@@ -140,6 +176,7 @@ export default function LojistaDashboard() {
 
       const { data: allowedCategories } = await supabase.from('lojista_categorias').select('categoria_id').eq('lojista_id', user.id);
       const categoryIds = allowedCategories?.map(c => c.categoria_id) || [];
+      categoryIdsRef.current = categoryIds;
 
       // Busca TODAS as propostas já enviadas por este lojista (qualquer status),
       // para não deixar orçar de novo um pedido já orçado.
