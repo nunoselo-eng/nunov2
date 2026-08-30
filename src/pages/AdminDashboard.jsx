@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('lojistas');
+  const [activeTab, setActiveTab] = useState('lojistas'); // 'lojistas' ou 'pedidos'
 
   // --- ESTADOS DA ABA LOJISTAS E CATEGORIAS ---
   const [lojistas, setLojistas] = useState([]);
@@ -41,11 +41,13 @@ export default function AdminDashboard() {
   const [orderItemsMap, setOrderItemsMap] = useState({});
   const [bidItemsMap, setBidItemsMap] = useState({});
 
+  // Filtros de Cotações
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedStore, setSelectedStore] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Modais de Imagem e Detalhes
   const [showDetails, setShowDetails] = useState({});
   const [activeImage, setActiveImage] = useState(null);
 
@@ -61,6 +63,7 @@ export default function AdminDashboard() {
   async function fetchAllData() {
     setLoading(true);
 
+    // 1. Perfis e Lojistas
     const { data: profilesData } = await supabase.from('profiles').select('*');
     const pMap = new Map((profilesData || []).map(p => [String(p.id), p]));
     setProfilesMap(pMap);
@@ -68,23 +71,32 @@ export default function AdminDashboard() {
     const lojistasList = (profilesData || []).filter(p => p.tipo === 'lojista');
     setClients(profilesData || []);
 
+    // 2. Categorias
     const { data: catsData } = await supabase.from('categories').select('*');
     const uniqueCategoriesMap = new Map();
     (catsData || []).forEach(cat => {
-      const nomeChave = (cat.nome || cat.name)?.trim().toLowerCase();
+      const nomeChave = cat.nome?.trim().toLowerCase();
       if (nomeChave && !uniqueCategoriesMap.has(nomeChave)) {
-        uniqueCategoriesMap.set(nomeChave, { ...cat, nome: cat.nome || cat.name });
+        uniqueCategoriesMap.set(nomeChave, cat);
       }
     });
 
+    // 3. Cidades
     const { data: citiesData } = await supabase.from('cities').select('*');
-    const citiesMap = new Map((citiesData || []).map(c => [String(c.id), c.nome || c.name]));
+    const uniqueCitiesMap = new Map();
+    (citiesData || []).forEach(c => {
+      if (c.nome && !uniqueCitiesMap.has(c.nome.trim().toLowerCase())) {
+        uniqueCitiesMap.set(c.nome.trim().toLowerCase(), c);
+      }
+    });
+    const citiesMap = new Map((citiesData || []).map(c => [String(c.id), c.nome]));
 
+    // 4. Vínculos Lojista-Categorias
     const { data: vinculosData } = await supabase.from('lojista_categorias').select('*');
 
     const formattedLojistas = lojistasList.map(lojista => {
       const catIds = (vinculosData || [])
-        .filter(v => String(v.lojista_id) === String(lojista.id))
+        .filter(v => v.lojista_id === lojista.id)
         .map(v => v.categoria_id);
 
       return {
@@ -96,8 +108,9 @@ export default function AdminDashboard() {
 
     setLojistas(formattedLojistas);
     setCategories(Array.from(uniqueCategoriesMap.values()));
-    setCities((citiesData || []).map(c => ({ ...c, nome: c.nome || c.name })));
+    setCities(Array.from(uniqueCitiesMap.values()));
 
+    // 5. Cotações e Itens
     const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
     const { data: orderItemsData } = await supabase.from('order_items').select('*');
     
@@ -108,20 +121,26 @@ export default function AdminDashboard() {
     });
     setOrderItemsMap(oItemsMap);
 
+    // 6. Busca de Propostas (Bids) por IDs dos Pedidos
     let bidsData = [];
     if (ordersData && ordersData.length > 0) {
       const orderIds = ordersData.map(o => o.id);
+      
       const { data: bData } = await supabase.from('bids').select('*').in('order_id', orderIds);
       if (bData) bidsData = bData;
 
+      // Fallback por pedido_id
       const { data: fallbackBids } = await supabase.from('bids').select('*').in('pedido_id', orderIds);
       if (fallbackBids && fallbackBids.length > 0) {
         fallbackBids.forEach(fb => {
-          if (!bidsData.some(b => b.id === fb.id)) bidsData.push(fb);
+          if (!bidsData.some(b => b.id === fb.id)) {
+            bidsData.push(fb);
+          }
         });
       }
     }
 
+    // Busca itens de todas as propostas encontradas
     if (bidsData.length > 0) {
       const bidIds = bidsData.map(b => b.id);
       const { data: bidItemsData } = await supabase.from('bid_items').select('*').in('bid_id', bidIds);
@@ -134,6 +153,7 @@ export default function AdminDashboard() {
       setBidItemsMap(bItemsMap);
     }
 
+    // Mapeamento Agrupado de Propostas por Pedido
     const groupedBids = {};
     bidsData.forEach(bid => {
       const key1 = bid.order_id ? String(bid.order_id) : null;
@@ -156,7 +176,7 @@ export default function AdminDashboard() {
     if (ordersData) {
       const formattedOrders = ordersData.map(o => ({
         ...o,
-        cidade_nome_exibicao: citiesMap.get(String(o.cidade_id)) || o.cidade_nome || 'Não informada',
+        cidade_nome_exibicao: citiesMap.get(String(o.cidade_id)) || o.cidade_id || 'Não informada',
         cliente: pMap.get(String(o.cliente_id))
       }));
       setOrders(formattedOrders);
@@ -165,6 +185,7 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
+  // Helper de Cidades
   const saveCityIfNew = async (cityName) => {
     if (!cityName) return;
     const exists = cities.some(c => c.nome.toLowerCase() === cityName.trim().toLowerCase());
@@ -173,6 +194,7 @@ export default function AdminDashboard() {
     }
   };
 
+  // Funções da Aba de Lojistas
   const handleToggleAtivo = async (lojistaId, statusAtual) => {
     const novoStatus = !statusAtual;
     const { error } = await supabase.from('profiles').update({ ativo: novoStatus }).eq('id', lojistaId);
@@ -208,13 +230,13 @@ export default function AdminDashboard() {
       const userId = authData.user?.id;
       if (novaCidade) await saveCityIfNew(novaCidade);
 
-      const { error: profileError } = await supabase.from('profiles').insert([{ 
-        id: userId, 
-        tipo: 'lojista', 
-        name: novoNome, 
+      const { error: profileError } = await supabase.from('profiles').insert([{
+        id: userId,
+        tipo: 'lojista',
+        nome: novoNome,
         cidade: novaCidade,
         telefone: novoTelefone,
-        ativo: true 
+        ativo: true
       }]);
 
       if (profileError) throw profileError;
@@ -237,12 +259,12 @@ export default function AdminDashboard() {
     e.preventDefault();
     try {
       if (editCidade) await saveCityIfNew(editCidade);
-      const { error } = await supabase.from('profiles').update({ 
-        name: editNome,
+      const { error } = await supabase.from('profiles').update({
+        nome: editNome,
         cidade: editCidade,
         telefone: editTelefone
       }).eq('id', editingLojistaId);
-      
+
       if (error) throw error;
       alert('Dados atualizados com sucesso!');
       setIsEditModalOpen(false);
@@ -290,6 +312,7 @@ export default function AdminDashboard() {
     }
   };
 
+  // Filtro de Pedidos
   const filteredOrders = orders.filter(order => {
     if (selectedCity && String(order.cidade_id) !== String(selectedCity) && order.cidade_nome_exibicao !== selectedCity) return false;
     if (selectedClient && String(order.cliente_id) !== String(selectedClient)) return false;
@@ -301,7 +324,7 @@ export default function AdminDashboard() {
       const term = searchTerm.toLowerCase();
       const matchDesc = order.descricao?.toLowerCase().includes(term);
       const matchCodigo = order.codigo_pedido?.toLowerCase().includes(term);
-      const matchCliente = order.cliente?.name?.toLowerCase().includes(term);
+      const matchCliente = order.cliente?.nome?.toLowerCase().includes(term);
       if (!matchDesc && !matchCodigo && !matchCliente) return false;
     }
     return true;
@@ -313,6 +336,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-slate-100 p-8">
       <div className="max-w-6xl mx-auto space-y-6">
 
+        {/* Cabeçalho */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200 gap-4">
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Painel do Administrador</h2>
@@ -323,23 +347,37 @@ export default function AdminDashboard() {
           </button>
         </div>
 
+        {/* Seleção de Abas */}
         <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
-          <button onClick={() => setActiveTab('lojistas')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition ${activeTab === 'lojistas' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+          <button
+            onClick={() => setActiveTab('lojistas')}
+            className={`flex-1 py-3 text-sm font-bold rounded-xl transition ${activeTab === 'lojistas' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+          >
             Gestão de Lojistas & Categorias
           </button>
-          <button onClick={() => setActiveTab('pedidos')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition ${activeTab === 'pedidos' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+          <button
+            onClick={() => setActiveTab('pedidos')}
+            className={`flex-1 py-3 text-sm font-bold rounded-xl transition ${activeTab === 'pedidos' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+          >
             Monitoramento de Pedidos & Propostas
           </button>
         </div>
 
+        {/* ABA 1: GESTÃO DE LOJISTAS */}
         {activeTab === 'lojistas' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200">
               <div className="flex items-center gap-3">
                 <label className="text-sm font-bold text-slate-700">Filtrar por Cidade:</label>
-                <select value={selectedCityFilter} onChange={(e) => setSelectedCityFilter(e.target.value)} className="p-2 rounded-xl border border-slate-300 text-slate-800 bg-slate-50 text-sm font-medium">
+                <select
+                  value={selectedCityFilter}
+                  onChange={(e) => setSelectedCityFilter(e.target.value)}
+                  className="p-2 rounded-xl border border-slate-300 text-slate-800 bg-slate-50 text-sm font-medium"
+                >
                   <option value="">Todas as Cidades ({lojistas.length})</option>
-                  {cities.map((city) => <option key={city.id || city.nome} value={city.nome}>{city.nome}</option>)}
+                  {cities.map((city) => (
+                    <option key={city.id || city.nome} value={city.nome}>{city.nome}</option>
+                  ))}
                 </select>
               </div>
               <div className="flex gap-2">
@@ -353,7 +391,7 @@ export default function AdminDashboard() {
                 {lojistas.filter(l => !selectedCityFilter || l.cidade?.toLowerCase() === selectedCityFilter.toLowerCase()).map((lojista) => (
                   <div key={lojista.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
-                      <h3 className="font-bold text-lg text-slate-800">{lojista.name || lojista.nome || 'Lojista'}</h3>
+                      <h3 className="font-bold text-lg text-slate-800">{lojista.nome || 'Lojista'}</h3>
                       <p className="text-xs text-slate-500">Cidade: {lojista.cidade || 'Não informada'} | Tel: {lojista.telefone || 'Não informado'}</p>
                       <span className={`text-xs font-bold px-3 py-1 rounded-full inline-block mt-2 ${lojista.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {lojista.ativo ? 'Ativo (Liberado)' : 'Inadimplente (Bloqueado)'}
@@ -365,7 +403,12 @@ export default function AdminDashboard() {
                       <div className="grid grid-cols-2 gap-2">
                         {categories.map((cat) => (
                           <label key={cat.id} className="flex items-center space-x-2 text-xs text-slate-700">
-                            <input type="checkbox" checked={lojista.categoriasSelecionadas.includes(cat.id)} onChange={() => handleCategoryChange(lojista.id, cat.id)} className="w-4 h-4 text-teal-600 rounded" />
+                            <input
+                              type="checkbox"
+                              checked={lojista.categoriasSelecionadas.includes(cat.id)}
+                              onChange={() => handleCategoryChange(lojista.id, cat.id)}
+                              className="w-4 h-4 text-teal-600 rounded"
+                            />
                             <span>{cat.nome}</span>
                           </label>
                         ))}
@@ -375,7 +418,7 @@ export default function AdminDashboard() {
                     <div className="flex flex-col gap-2">
                       <button onClick={() => {
                         setEditingLojistaId(lojista.id);
-                        setEditNome(lojista.name || lojista.nome || '');
+                        setEditNome(lojista.nome || '');
                         setEditCidade(lojista.cidade || '');
                         setEditTelefone(lojista.telefone || '');
                         setIsEditModalOpen(true);
@@ -393,8 +436,10 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* ABA 2: MONITORAMENTO DE PEDIDOS */}
         {activeTab === 'pedidos' && (
           <div className="space-y-6">
+            {/* Filtros */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Cidade</label>
@@ -408,7 +453,7 @@ export default function AdminDashboard() {
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Cliente</label>
                 <select value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 bg-slate-50 text-sm">
                   <option value="">Todos os Clientes</option>
-                  {clients.map((cli) => <option key={cli.id} value={cli.id}>{cli.name || cli.nome || cli.email}</option>)}
+                  {clients.map((cli) => <option key={cli.id} value={cli.id}>{cli.nome || cli.email}</option>)}
                 </select>
               </div>
 
@@ -416,7 +461,7 @@ export default function AdminDashboard() {
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Lojista / Loja</label>
                 <select value={selectedStore} onChange={(e) => setSelectedStore(e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 bg-slate-50 text-sm">
                   <option value="">Todos os Lojistas</option>
-                  {stores.map((st) => <option key={st.id} value={st.id}>{st.name || st.nome || st.email}</option>)}
+                  {stores.map((st) => <option key={st.id} value={st.id}>{st.nome || st.email}</option>)}
                 </select>
               </div>
 
@@ -426,6 +471,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
+            {/* Lista de Cotações */}
             <div className="bg-white shadow-xl rounded-2xl border border-slate-200 p-6 space-y-4">
               <h3 className="text-xl font-bold text-slate-800">Cotações Encontradas ({filteredOrders.length})</h3>
 
@@ -437,9 +483,11 @@ export default function AdminDashboard() {
                   <div key={order.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-4">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-3 border-b border-slate-200">
                       <div>
-                        <span className="text-xs font-bold text-teal-800 bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg">Pedido #{order.codigo_pedido || order.id}</span>
+                        <span className="text-xs font-bold text-teal-800 bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg">
+                          Pedido #{order.codigo_pedido || order.id}
+                        </span>
                         <h4 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h4>
-                        <p className="text-xs text-slate-500 mt-0.5">Cliente: {order.cliente?.name || order.cliente?.nome || 'Não informado'} | Cidade: {order.cidade_nome_exibicao}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Cliente: {order.cliente?.nome || 'Não informado'} | Tel: {order.cliente?.telefone || 'Não informado'} | Cidade: {order.cidade_nome_exibicao}</p>
                       </div>
                       <button onClick={() => toggleDetails(order.id)} className="text-xs font-bold text-teal-700 bg-teal-50 px-3 py-1.5 rounded-lg border border-teal-200">
                         {showDetails[order.id] ? 'Ocultar Detalhes' : `Ver Detalhes (${orderBids.length} Propostas)`}
@@ -448,6 +496,7 @@ export default function AdminDashboard() {
 
                     {showDetails[order.id] && (
                       <div className="space-y-4 pt-2">
+                        {/* Itens do Cliente */}
                         <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2">
                           <p className="text-xs font-bold text-slate-500 uppercase">Itens da Cotação:</p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -460,6 +509,7 @@ export default function AdminDashboard() {
                           </div>
                         </div>
 
+                        {/* Propostas */}
                         <div className="space-y-2">
                           <p className="text-xs font-bold text-slate-500 uppercase">Propostas Enviadas:</p>
                           {orderBids.length === 0 ? <p className="text-xs text-slate-500 italic">Nenhuma proposta enviada ainda.</p> : orderBids.map((bid) => {
@@ -471,7 +521,8 @@ export default function AdminDashboard() {
                               <div key={bid.id} className={`p-4 rounded-xl border ${bid.status === 'Aceito' ? 'border-green-300 bg-green-50/50' : 'border-slate-200 bg-white'} space-y-2`}>
                                 <div className="flex justify-between items-center">
                                   <div>
-                                    <p className="font-bold text-slate-800 text-sm">Loja: {lojista?.name || lojista?.nome || `Lojista #${bid.lojista_id}`}</p>
+                                    <p className="font-bold text-slate-800 text-sm">Loja: {lojista?.nome || `Lojista #${bid.lojista_id}`}</p>
+                                    <p className="text-xs text-slate-500">Contato: {lojista?.telefone || 'Não informado'}</p>
                                   </div>
                                   <div className="text-right">
                                     <p className="text-base font-extrabold text-slate-900">Total: R$ {total.toFixed(2)}</p>
@@ -505,6 +556,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* Modal Ampliação de Imagem */}
         {activeImage && (
           <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setActiveImage(null)}>
             <div className="relative max-w-3xl max-h-[90vh] bg-white rounded-2xl overflow-hidden p-2" onClick={(e) => e.stopPropagation()}>
@@ -514,6 +566,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* Modal de Cadastro de Lojista */}
         {isModalOpen && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <form onSubmit={handleCreateLojista} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -521,7 +574,7 @@ export default function AdminDashboard() {
               <input type="text" placeholder="Nome da Loja" value={novoNome} onChange={(e) => setNovoNome(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="email" placeholder="E-mail" value={novoEmail} onChange={(e) => setNovoEmail(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="password" placeholder="Senha Inicial" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
-              <input type="text" placeholder="Cidade" value={novaCidade} onChange={(e) => setNovaCidade(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
+              <input type="text" placeholder="Cidade" value={novaCidade} onChange={(e) => setNovaCidade(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefone} onChange={(e) => setNovoTelefone(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
 
               <div>
@@ -529,10 +582,15 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border">
                   {categories.map((cat) => (
                     <label key={cat.id} className="flex items-center space-x-2 text-xs text-slate-700">
-                      <input type="checkbox" checked={novasCategoriasIds.includes(cat.id)} onChange={() => {
-                        if (novasCategoriasIds.includes(cat.id)) setNovasCategoriasIds(novasCategoriasIds.filter(id => id !== cat.id));
-                        else setNovasCategoriasIds([...novasCategoriasIds, cat.id]);
-                      }} className="w-4 h-4 text-teal-600 rounded" />
+                      <input
+                        type="checkbox"
+                        checked={novasCategoriasIds.includes(cat.id)}
+                        onChange={() => {
+                          if (novasCategoriasIds.includes(cat.id)) setNovasCategoriasIds(novasCategoriasIds.filter(id => id !== cat.id));
+                          else setNovasCategoriasIds([...novasCategoriasIds, cat.id]);
+                        }}
+                        className="w-4 h-4 text-teal-600 rounded"
+                      />
                       <span>{cat.nome}</span>
                     </label>
                   ))}
@@ -547,6 +605,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* Modal de Edição de Lojista */}
         {isEditModalOpen && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <form onSubmit={handleSaveEditLojista} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
@@ -578,6 +637,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* Modal de Gestão de Categorias */}
         {isCategoryModalOpen && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
