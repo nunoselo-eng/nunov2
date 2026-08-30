@@ -444,6 +444,26 @@ export default function AdminDashboard() {
 
   const toggleDetails = (id) => setShowDetails(prev => ({ ...prev, [id]: !prev[id] }));
 
+  // Formata data/hora curta, ex: 30/08 14:35
+  const formatDataHora = (dataStr) => {
+    if (!dataStr) return 'Não informado';
+    const d = new Date(dataStr);
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' +
+           d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Formata a diferença entre duas datas em texto tipo "2h 15min" ou "35min"
+  const formatDuracao = (inicioStr, fimStr) => {
+    if (!inicioStr || !fimStr) return null;
+    const diffMs = new Date(fimStr) - new Date(inicioStr);
+    if (isNaN(diffMs) || diffMs < 0) return null;
+    const totalMin = Math.floor(diffMs / 60000);
+    const horas = Math.floor(totalMin / 60);
+    const minutos = totalMin % 60;
+    if (horas > 0) return `${horas}h ${minutos}min`;
+    return `${minutos}min`;
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 p-8">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -615,6 +635,7 @@ export default function AdminDashboard() {
                         </span>
                         <h4 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h4>
                         <p className="text-xs text-slate-500 mt-0.5">Cliente: {order.cliente?.nome || 'Não informado'} | Tel: {order.cliente?.telefone || 'Não informado'} | Cidade: {order.cidade_nome_exibicao}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Pedido feito em: {formatDataHora(order.created_at)}</p>
                       </div>
                       <button onClick={() => toggleDetails(order.id)} className="text-xs font-bold text-teal-700 bg-teal-50 px-3 py-1.5 rounded-lg border border-teal-200">
                         {showDetails[order.id] ? 'Ocultar Detalhes' : `Ver Detalhes (${orderBids.length} Propostas)`}
@@ -650,6 +671,20 @@ export default function AdminDashboard() {
                                   <div>
                                     <p className="font-bold text-slate-800 text-sm">Loja: {lojista?.nome || `Lojista #${bid.lojista_id}`}</p>
                                     <p className="text-xs text-slate-500">Contato: {lojista?.telefone || 'Não informado'}</p>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                      Proposta enviada em: {formatDataHora(bid.created_at)}
+                                      {formatDuracao(order.created_at, bid.created_at) && (
+                                        <span> · lojista respondeu em {formatDuracao(order.created_at, bid.created_at)}</span>
+                                      )}
+                                    </p>
+                                    {bid.status === 'Aceito' && bid.accepted_at && (
+                                      <p className="text-xs text-emerald-600 font-semibold mt-0.5">
+                                        Cliente aceitou em: {formatDataHora(bid.accepted_at)}
+                                        {formatDuracao(bid.created_at, bid.accepted_at) && (
+                                          <span> · levou {formatDuracao(bid.created_at, bid.accepted_at)} para aceitar</span>
+                                        )}
+                                      </p>
+                                    )}
                                   </div>
                                   <div className="text-right">
                                     <p className="text-base font-extrabold text-slate-900">Total: R$ {total.toFixed(2)}</p>
