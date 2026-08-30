@@ -4,6 +4,7 @@ import ClientDashboard from './pages/ClientDashboard';
 import LojistaDashboard from './pages/LojistaDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import CreateRequest from './pages/CreateRequest';
+import ProtectedRoute from './components/ProtectedRoute';
 
 export default function App() {
   return (
@@ -14,16 +15,28 @@ export default function App() {
         <Route path="/login" element={<Login />} />
 
         {/* Rotas do Cliente */}
-        <Route path="/client-dashboard" element={<ClientDashboard />} />
-        <Route path="/my-requests" element={<ClientDashboard />} />
-        <Route path="/create-request" element={<CreateRequest />} />
+        <Route path="/client-dashboard" element={
+          <ProtectedRoute allowedRole="cliente"><ClientDashboard /></ProtectedRoute>
+        } />
+        <Route path="/my-requests" element={
+          <ProtectedRoute allowedRole="cliente"><ClientDashboard /></ProtectedRoute>
+        } />
+        <Route path="/create-request" element={
+          <ProtectedRoute allowedRole="cliente"><CreateRequest /></ProtectedRoute>
+        } />
 
         {/* Rotas do Lojista */}
-        <Route path="/lojista-dashboard" element={<LojistaDashboard />} />
+        <Route path="/lojista-dashboard" element={
+          <ProtectedRoute allowedRole="lojista"><LojistaDashboard /></ProtectedRoute>
+        } />
 
         {/* Rotas do Administrador */}
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin-dashboard" element={<AdminDashboard />} />
+        <Route path="/admin" element={
+          <ProtectedRoute allowedRole="admin"><AdminDashboard /></ProtectedRoute>
+        } />
+        <Route path="/admin-dashboard" element={
+          <ProtectedRoute allowedRole="admin"><AdminDashboard /></ProtectedRoute>
+        } />
 
         {/* Redirecionamento padrão */}
         <Route path="*" element={<Navigate to="/" replace />} />
