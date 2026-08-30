@@ -7,6 +7,7 @@ import logo from '../assets/logo.svg';
 export default function LojistaDashboard() {
   const [orders, setOrders] = useState([]);
   const [acceptedBids, setAcceptedBids] = useState([]);
+  const [pendingBids, setPendingBids] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
   const [bidItemsData, setBidItemsData] = useState([]);
@@ -88,6 +89,15 @@ export default function LojistaDashboard() {
       const { data: allowedCategories } = await supabase.from('lojista_categorias').select('categoria_id').eq('lojista_id', user.id);
       const categoryIds = allowedCategories?.map(c => c.categoria_id) || [];
 
+      // Busca TODAS as propostas já enviadas por este lojista (qualquer status),
+      // para não deixar orçar de novo um pedido já orçado.
+      const { data: myBids } = await supabase.from('bids').select('*').eq('lojista_id', user.id);
+      const bidOrderIds = new Set(
+        (myBids || [])
+          .map(b => Number(b.order_id || b.pedido_id))
+          .filter(id => !isNaN(id))
+      );
+
       if (categoryIds.length > 0) {
         const { data: catsData } = await supabase.from('categories').select('*');
         const { data: citiesData } = await supabase.from('cities').select('*');
@@ -102,28 +112,27 @@ export default function LojistaDashboard() {
           .order('created_at', { ascending: false });
 
         if (ordersData) {
-          const formatted = ordersData.map(o => ({
-            ...o,
-            categoria_nome_exibicao: catsMap.get(String(o.categoria_id)) || 'Geral',
-            cidade_nome_exibicao: citiesMap.get(String(o.cidade_id)) || 'Não informada'
-          }));
+          const formatted = ordersData
+            .filter(o => !bidOrderIds.has(Number(o.id))) // esconde pedidos que já receberam proposta deste lojista
+            .map(o => ({
+              ...o,
+              categoria_nome_exibicao: catsMap.get(String(o.categoria_id)) || 'Geral',
+              cidade_nome_exibicao: citiesMap.get(String(o.cidade_id)) || 'Não informada'
+            }));
           setOrders(formatted);
         }
       }
 
-      const { data: bidsAceitos } = await supabase.from('bids').select('*').eq('lojista_id', user.id).eq('status', 'Aceito');
+      if (myBids && myBids.length > 0) {
+        const numericOrderIds = Array.from(bidOrderIds);
 
-      if (bidsAceitos && bidsAceitos.length > 0) {
-        const rawOrderIds = bidsAceitos.map(b => b.order_id || b.pedido_id).filter(Boolean);
-        const numericOrderIds = rawOrderIds.map(id => Number(id)).filter(id => !isNaN(id));
-
-        let ordersAceitos = [];
+        let ordersDosBids = [];
         if (numericOrderIds.length > 0) {
           const { data: oData } = await supabase.from('orders').select('*').in('id', numericOrderIds);
-          if (oData) ordersAceitos = oData;
+          if (oData) ordersDosBids = oData;
         }
 
-        const clientIds = ordersAceitos.map(o => o.cliente_id).filter(Boolean);
+        const clientIds = ordersDosBids.map(o => o.cliente_id).filter(Boolean);
         let clientProfiles = [];
         if (clientIds.length > 0) {
           const { data: pData } = await supabase.from('profiles').select('id, nome, telefone').in('id', clientIds);
@@ -131,14 +140,18 @@ export default function LojistaDashboard() {
         }
 
         const clientMap = new Map(clientProfiles.map(p => [String(p.id), p]));
-        const orderMap = new Map(ordersAceitos.map(o => [String(o.id), { ...o, cliente: clientMap.get(String(o.cliente_id)) }]));
+        const orderMap = new Map(ordersDosBids.map(o => [String(o.id), { ...o, cliente: clientMap.get(String(o.cliente_id)) }]));
 
-        const formattedBids = bidsAceitos.map(b => ({
+        const formattedBids = myBids.map(b => ({
           ...b,
           pedido: orderMap.get(String(b.order_id || b.pedido_id))
         }));
 
-        setAcceptedBids(formattedBids);
+        setAcceptedBids(formattedBids.filter(b => b.status === 'Aceito'));
+        setPendingBids(formattedBids.filter(b => b.status !== 'Aceito'));
+      } else {
+        setAcceptedBids([]);
+        setPendingBids([]);
       }
     } catch (err) {
       console.error('Erro:', err);
@@ -189,6 +202,21 @@ export default function LojistaDashboard() {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
+
+      // Trava extra: garante que este lojista ainda não enviou proposta para este pedido
+      const { data: propostaExistente } = await supabase
+        .from('bids')
+        .select('id')
+        .eq('lojista_id', user?.id)
+        .or(`order_id.eq.${selectedOrder.id},pedido_id.eq.${selectedOrder.id}`)
+        .maybeSingle();
+
+      if (propostaExistente) {
+        alert('Você já enviou uma proposta para este pedido. Não é possível enviar outra.');
+        setSelectedOrder(null);
+        fetchLojistaData();
+        return;
+      }
 
       let totalProdutos = 0;
       let atendeuTodos = true;
@@ -373,6 +401,43 @@ export default function LojistaDashboard() {
                       <span>💬</span> Chamar no WhatsApp
                     </a>
                   )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Seção de Propostas Enviadas (aguardando resposta do cliente) */}
+        {pendingBids.length > 0 && (
+          <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-6 space-y-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📨</span>
+              <h2 className="text-lg font-bold text-indigo-900">Propostas Enviadas ({pendingBids.length})</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {pendingBids.map((bid) => (
+                <div key={bid.id} className="bg-white p-4 rounded-xl border border-indigo-200/80 shadow-xs space-y-2">
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
+                      Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
+                    </span>
+                    <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                      Aguardando Resposta
+                    </span>
+                  </div>
+
+                  <h3 className="font-bold text-slate-800 text-sm">{bid.pedido?.descricao}</h3>
+                  <p className="text-xs text-slate-600">
+                    <b>Total enviado:</b> R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
+                    {' '}<span className="text-slate-400">(Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})</span>
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {bid.is_completo ? 'Atendimento: 100%' : 'Atendimento: Parcial'}
+                  </p>
+                  <p className="text-[11px] text-slate-400 italic pt-1 border-t">
+                    Proposta enviada e travada — não pode ser editada.
+                  </p>
                 </div>
               ))}
             </div>
