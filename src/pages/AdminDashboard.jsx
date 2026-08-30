@@ -20,12 +20,33 @@ export default function AdminDashboard() {
   const [novaCidade, setNovaCidade] = useState('');
   const [novoTelefone, setNovoTelefone] = useState('');
   const [novasCategoriasIds, setNovasCategoriasIds] = useState([]);
+  const [novoHorarioAbertura, setNovoHorarioAbertura] = useState('08:00');
+  const [novoHorarioFechamento, setNovoHorarioFechamento] = useState('18:00');
+  const [novosDiasFuncionamento, setNovosDiasFuncionamento] = useState(['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingLojistaId, setEditingLojistaId] = useState(null);
   const [editNome, setEditNome] = useState('');
   const [editCidade, setEditCidade] = useState('');
   const [editTelefone, setEditTelefone] = useState('');
+  const [editHorarioAbertura, setEditHorarioAbertura] = useState('08:00');
+  const [editHorarioFechamento, setEditHorarioFechamento] = useState('18:00');
+  const [editDiasFuncionamento, setEditDiasFuncionamento] = useState(['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
+
+  const DIAS_SEMANA = [
+    { key: 'dom', label: 'Dom' },
+    { key: 'seg', label: 'Seg' },
+    { key: 'ter', label: 'Ter' },
+    { key: 'qua', label: 'Qua' },
+    { key: 'qui', label: 'Qui' },
+    { key: 'sex', label: 'Sex' },
+    { key: 'sab', label: 'Sáb' },
+  ];
+
+  const toggleDia = (dias, setDias, diaKey) => {
+    if (dias.includes(diaKey)) setDias(dias.filter(d => d !== diaKey));
+    else setDias([...dias, diaKey]);
+  };
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [novaCategoriaNome, setNovaCategoriaNome] = useState('');
@@ -236,7 +257,10 @@ export default function AdminDashboard() {
         nome: novoNome,
         cidade: novaCidade,
         telefone: novoTelefone,
-        ativo: true
+        ativo: true,
+        horario_abertura: novoHorarioAbertura,
+        horario_fechamento: novoHorarioFechamento,
+        dias_funcionamento: novosDiasFuncionamento
       }]);
 
       if (profileError) throw profileError;
@@ -249,6 +273,7 @@ export default function AdminDashboard() {
       alert('Lojista cadastrado com sucesso!');
       setIsModalOpen(false);
       setNovoNome(''); setNovoEmail(''); setNovaSenha(''); setNovaCidade(''); setNovoTelefone(''); setNovasCategoriasIds([]);
+      setNovoHorarioAbertura('08:00'); setNovoHorarioFechamento('18:00'); setNovosDiasFuncionamento(['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
       fetchAllData();
     } catch (err) {
       alert('Erro ao cadastrar lojista: ' + err.message);
@@ -262,7 +287,10 @@ export default function AdminDashboard() {
       const { error } = await supabase.from('profiles').update({
         nome: editNome,
         cidade: editCidade,
-        telefone: editTelefone
+        telefone: editTelefone,
+        horario_abertura: editHorarioAbertura,
+        horario_fechamento: editHorarioFechamento,
+        dias_funcionamento: editDiasFuncionamento
       }).eq('id', editingLojistaId);
 
       if (error) throw error;
@@ -421,6 +449,9 @@ export default function AdminDashboard() {
                         setEditNome(lojista.nome || '');
                         setEditCidade(lojista.cidade || '');
                         setEditTelefone(lojista.telefone || '');
+                        setEditHorarioAbertura((lojista.horario_abertura || '08:00:00').slice(0, 5));
+                        setEditHorarioFechamento((lojista.horario_fechamento || '18:00:00').slice(0, 5));
+                        setEditDiasFuncionamento(lojista.dias_funcionamento || ['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
                         setIsEditModalOpen(true);
                       }} className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
                         Editar Dados
@@ -578,6 +609,41 @@ export default function AdminDashboard() {
               <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefone} onChange={(e) => setNovoTelefone(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
 
               <div>
+                <label className="block text-xs font-bold text-slate-500 mb-2">Horário de Funcionamento</label>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="time"
+                    value={novoHorarioAbertura}
+                    onChange={(e) => setNovoHorarioAbertura(e.target.value)}
+                    className="flex-1 p-2 rounded-lg border text-sm"
+                  />
+                  <span className="text-xs text-slate-400">até</span>
+                  <input
+                    type="time"
+                    value={novoHorarioFechamento}
+                    onChange={(e) => setNovoHorarioFechamento(e.target.value)}
+                    className="flex-1 p-2 rounded-lg border text-sm"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {DIAS_SEMANA.map((dia) => (
+                    <button
+                      key={dia.key}
+                      type="button"
+                      onClick={() => toggleDia(novosDiasFuncionamento, setNovosDiasFuncionamento, dia.key)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
+                        novosDiasFuncionamento.includes(dia.key)
+                          ? 'bg-teal-600 text-white border-teal-600'
+                          : 'bg-slate-50 text-slate-500 border-slate-300'
+                      }`}
+                    >
+                      {dia.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-slate-500 mb-2">Categorias Atendidas</label>
                 <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border">
                   {categories.map((cat) => (
@@ -627,6 +693,41 @@ export default function AdminDashboard() {
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone / WhatsApp</label>
                 <input type="text" placeholder="Telefone" value={editTelefone} onChange={(e) => setEditTelefone(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Horário de Funcionamento</label>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="time"
+                    value={editHorarioAbertura}
+                    onChange={(e) => setEditHorarioAbertura(e.target.value)}
+                    className="flex-1 p-2 rounded-lg border text-sm"
+                  />
+                  <span className="text-xs text-slate-400">até</span>
+                  <input
+                    type="time"
+                    value={editHorarioFechamento}
+                    onChange={(e) => setEditHorarioFechamento(e.target.value)}
+                    className="flex-1 p-2 rounded-lg border text-sm"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {DIAS_SEMANA.map((dia) => (
+                    <button
+                      key={dia.key}
+                      type="button"
+                      onClick={() => toggleDia(editDiasFuncionamento, setEditDiasFuncionamento, dia.key)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
+                        editDiasFuncionamento.includes(dia.key)
+                          ? 'bg-teal-600 text-white border-teal-600'
+                          : 'bg-slate-50 text-slate-500 border-slate-300'
+                      }`}
+                    >
+                      {dia.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex space-x-3 pt-3 border-t">
