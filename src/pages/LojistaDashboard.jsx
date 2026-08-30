@@ -831,7 +831,9 @@ export default function LojistaDashboard() {
 
                         {!isCollapsed && bid.pedido?.cliente?.telefone && (
                           <a
-                            href={`https://wa.me/55${bid.pedido?.cliente?.telefone.replace(/\D/g, '')}`}
+                            href={`https://wa.me/55${bid.pedido?.cliente?.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                              `Olá, ${bid.pedido?.cliente?.nome || 'tudo bem'}! Sou da ${profile?.nome || 'loja'} e vamos continuar com o pedido do ${bid.pedido?.descricao || 'produto'} - ${bid.pedido?.codigo_pedido || bid.pedido?.id}.`
+                            )}`}
                             target="_blank"
                             rel="noreferrer"
                             className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
