@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('lojistas'); // 'lojistas' ou 'pedidos'
+  const [activeTab, setActiveTab] = useState('lojistas');
 
   // --- ESTADOS DA ABA LOJISTAS E CATEGORIAS ---
   const [lojistas, setLojistas] = useState([]);
@@ -41,13 +41,11 @@ export default function AdminDashboard() {
   const [orderItemsMap, setOrderItemsMap] = useState({});
   const [bidItemsMap, setBidItemsMap] = useState({});
 
-  // Filtros de Cotações
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedStore, setSelectedStore] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Modais de Imagem e Detalhes
   const [showDetails, setShowDetails] = useState({});
   const [activeImage, setActiveImage] = useState(null);
 
@@ -63,7 +61,6 @@ export default function AdminDashboard() {
   async function fetchAllData() {
     setLoading(true);
 
-    // 1. Perfis e Lojistas
     const { data: profilesData } = await supabase.from('profiles').select('*');
     const pMap = new Map((profilesData || []).map(p => [String(p.id), p]));
     setProfilesMap(pMap);
@@ -71,7 +68,6 @@ export default function AdminDashboard() {
     const lojistasList = (profilesData || []).filter(p => p.tipo === 'lojista');
     setClients(profilesData || []);
 
-    // 2. Categorias
     const { data: catsData } = await supabase.from('categories').select('*');
     const uniqueCategoriesMap = new Map();
     (catsData || []).forEach(cat => {
@@ -81,11 +77,9 @@ export default function AdminDashboard() {
       }
     });
 
-    // 3. Cidades
     const { data: citiesData } = await supabase.from('cities').select('*');
     const citiesMap = new Map((citiesData || []).map(c => [String(c.id), c.nome || c.name]));
 
-    // 4. Vínculos Lojista-Categorias
     const { data: vinculosData } = await supabase.from('lojista_categorias').select('*');
 
     const formattedLojistas = lojistasList.map(lojista => {
@@ -104,7 +98,6 @@ export default function AdminDashboard() {
     setCategories(Array.from(uniqueCategoriesMap.values()));
     setCities((citiesData || []).map(c => ({ ...c, nome: c.nome || c.name })));
 
-    // 5. Cotações e Itens
     const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
     const { data: orderItemsData } = await supabase.from('order_items').select('*');
     
@@ -115,7 +108,6 @@ export default function AdminDashboard() {
     });
     setOrderItemsMap(oItemsMap);
 
-    // 6. Propostas (Bids)
     let bidsData = [];
     if (ordersData && ordersData.length > 0) {
       const orderIds = ordersData.map(o => o.id);
@@ -173,6 +165,14 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
+  const saveCityIfNew = async (cityName) => {
+    if (!cityName) return;
+    const exists = cities.some(c => c.nome.toLowerCase() === cityName.trim().toLowerCase());
+    if (!exists) {
+      await supabase.from('cities').insert([{ nome: cityName.trim(), ativo: true }]);
+    }
+  };
+
   const handleToggleAtivo = async (lojistaId, statusAtual) => {
     const novoStatus = !statusAtual;
     const { error } = await supabase.from('profiles').update({ ativo: novoStatus }).eq('id', lojistaId);
@@ -206,6 +206,7 @@ export default function AdminDashboard() {
       if (authError) throw authError;
 
       const userId = authData.user?.id;
+      if (novaCidade) await saveCityIfNew(novaCidade);
 
       const { error: profileError } = await supabase.from('profiles').insert([{ 
         id: userId, 
@@ -235,6 +236,7 @@ export default function AdminDashboard() {
   const handleSaveEditLojista = async (e) => {
     e.preventDefault();
     try {
+      if (editCidade) await saveCityIfNew(editCidade);
       const { error } = await supabase.from('profiles').update({ 
         name: editNome,
         cidade: editCidade,
@@ -254,7 +256,7 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (!novaCategoriaNome.trim()) return;
     try {
-      await supabase.from('categories').insert([{ nome: novaCategoriaNome.trim() }]);
+      await supabase.from('categories').insert([{ nome: novaCategoriaNome.trim(), ativo: true }]);
       alert('Categoria cadastrada com sucesso!');
       setNovaCategoriaNome('');
       fetchAllData();
@@ -311,7 +313,6 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-slate-100 p-8">
       <div className="max-w-6xl mx-auto space-y-6">
 
-        {/* Cabeçalho */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200 gap-4">
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Painel do Administrador</h2>
@@ -322,37 +323,23 @@ export default function AdminDashboard() {
           </button>
         </div>
 
-        {/* Seleção de Abas */}
         <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
-          <button
-            onClick={() => setActiveTab('lojistas')}
-            className={`flex-1 py-3 text-sm font-bold rounded-xl transition ${activeTab === 'lojistas' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-          >
+          <button onClick={() => setActiveTab('lojistas')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition ${activeTab === 'lojistas' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
             Gestão de Lojistas & Categorias
           </button>
-          <button
-            onClick={() => setActiveTab('pedidos')}
-            className={`flex-1 py-3 text-sm font-bold rounded-xl transition ${activeTab === 'pedidos' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-          >
+          <button onClick={() => setActiveTab('pedidos')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition ${activeTab === 'pedidos' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
             Monitoramento de Pedidos & Propostas
           </button>
         </div>
 
-        {/* ABA 1: GESTÃO DE LOJISTAS */}
         {activeTab === 'lojistas' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200">
               <div className="flex items-center gap-3">
                 <label className="text-sm font-bold text-slate-700">Filtrar por Cidade:</label>
-                <select
-                  value={selectedCityFilter}
-                  onChange={(e) => setSelectedCityFilter(e.target.value)}
-                  className="p-2 rounded-xl border border-slate-300 text-slate-800 bg-slate-50 text-sm font-medium"
-                >
+                <select value={selectedCityFilter} onChange={(e) => setSelectedCityFilter(e.target.value)} className="p-2 rounded-xl border border-slate-300 text-slate-800 bg-slate-50 text-sm font-medium">
                   <option value="">Todas as Cidades ({lojistas.length})</option>
-                  {cities.map((city) => (
-                    <option key={city.id || city.nome} value={city.nome}>{city.nome}</option>
-                  ))}
+                  {cities.map((city) => <option key={city.id || city.nome} value={city.nome}>{city.nome}</option>)}
                 </select>
               </div>
               <div className="flex gap-2">
@@ -378,12 +365,7 @@ export default function AdminDashboard() {
                       <div className="grid grid-cols-2 gap-2">
                         {categories.map((cat) => (
                           <label key={cat.id} className="flex items-center space-x-2 text-xs text-slate-700">
-                            <input
-                              type="checkbox"
-                              checked={lojista.categoriasSelecionadas.includes(cat.id)}
-                              onChange={() => handleCategoryChange(lojista.id, cat.id)}
-                              className="w-4 h-4 text-teal-600 rounded"
-                            />
+                            <input type="checkbox" checked={lojista.categoriasSelecionadas.includes(cat.id)} onChange={() => handleCategoryChange(lojista.id, cat.id)} className="w-4 h-4 text-teal-600 rounded" />
                             <span>{cat.nome}</span>
                           </label>
                         ))}
@@ -411,7 +393,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ABA 2: MONITORAMENTO DE PEDIDOS */}
         {activeTab === 'pedidos' && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -456,9 +437,7 @@ export default function AdminDashboard() {
                   <div key={order.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-4">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-3 border-b border-slate-200">
                       <div>
-                        <span className="text-xs font-bold text-teal-800 bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg">
-                          Pedido #{order.codigo_pedido || order.id}
-                        </span>
+                        <span className="text-xs font-bold text-teal-800 bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg">Pedido #{order.codigo_pedido || order.id}</span>
                         <h4 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h4>
                         <p className="text-xs text-slate-500 mt-0.5">Cliente: {order.cliente?.name || order.cliente?.nome || 'Não informado'} | Cidade: {order.cidade_nome_exibicao}</p>
                       </div>
@@ -526,7 +505,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Modal Ampliação de Imagem */}
         {activeImage && (
           <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setActiveImage(null)}>
             <div className="relative max-w-3xl max-h-[90vh] bg-white rounded-2xl overflow-hidden p-2" onClick={(e) => e.stopPropagation()}>
@@ -536,7 +514,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Modal de Cadastro de Lojista */}
         {isModalOpen && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <form onSubmit={handleCreateLojista} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -552,15 +529,10 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border">
                   {categories.map((cat) => (
                     <label key={cat.id} className="flex items-center space-x-2 text-xs text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={novasCategoriasIds.includes(cat.id)}
-                        onChange={() => {
-                          if (novasCategoriasIds.includes(cat.id)) setNovasCategoriasIds(novasCategoriasIds.filter(id => id !== cat.id));
-                          else setNovasCategoriasIds([...novasCategoriasIds, cat.id]);
-                        }}
-                        className="w-4 h-4 text-teal-600 rounded"
-                      />
+                      <input type="checkbox" checked={novasCategoriasIds.includes(cat.id)} onChange={() => {
+                        if (novasCategoriasIds.includes(cat.id)) setNovasCategoriasIds(novasCategoriasIds.filter(id => id !== cat.id));
+                        else setNovasCategoriasIds([...novasCategoriasIds, cat.id]);
+                      }} className="w-4 h-4 text-teal-600 rounded" />
                       <span>{cat.nome}</span>
                     </label>
                   ))}
@@ -575,7 +547,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Modal de Edição de Lojista */}
         {isEditModalOpen && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <form onSubmit={handleSaveEditLojista} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
@@ -591,7 +562,7 @@ export default function AdminDashboard() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Cidade</label>
-                <input type="text" placeholder="Cidade" value={editCidade} onChange={(e) => setEditCidade(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" />
+                <input type="text" placeholder="Cidade (Ex: Campos dos Goytacazes)" value={editCidade} onChange={(e) => setEditCidade(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" />
               </div>
 
               <div>
@@ -607,7 +578,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Modal de Gestão de Categorias */}
         {isCategoryModalOpen && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
