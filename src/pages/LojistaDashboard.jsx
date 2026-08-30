@@ -224,11 +224,14 @@ export default function LojistaDashboard() {
         bid_id: newBid.id,
         order_item_id: bItem.order_item_id,
         preco_unitario: parseFloat(bItem.preco_unitario || 0),
+        price: parseFloat(bItem.preco_unitario || 0),
         atendido: bItem.atendido,
+        available: bItem.atendido,
         imagem_url: bItem.imagem_url
       }));
 
-      await supabase.from('bid_items').insert(itemsToInsert);
+      const { error: itemsErr } = await supabase.from('bid_items').insert(itemsToInsert);
+      if (itemsErr) throw itemsErr;
 
       alert('Orçamento enviado com sucesso!');
       setSelectedOrder(null);
