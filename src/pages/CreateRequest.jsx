@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { uploadImageToStorage } from '../utils/uploadImage';
+import { calcularMsUteisDecorridos, proximaAbertura } from '../utils/prazoUtils';
 
 export default function CreateRequest() {
   const [tipo, setTipo] = useState('unico');
@@ -13,6 +14,7 @@ export default function CreateRequest() {
   const [cityId, setCityId] = useState('');
   const [bairro, setBairro] = useState('');
   const [eligibleStoresCount, setEligibleStoresCount] = useState(null);
+  const [avisoPrazo, setAvisoPrazo] = useState(null);
   const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
 
@@ -84,7 +86,7 @@ export default function CreateRequest() {
           // 4. Busca perfis de lojistas ativos nessa cidade
           const { data: profiles, error: profErr } = await supabase
             .from('profiles')
-            .select('id, cidade, ativo, tipo')
+            .select('id, cidade, ativo, tipo, horario_abertura, horario_fechamento, dias_funcionamento')
             .in('id', lojistaIds);
 
           if (profErr) {
@@ -101,8 +103,37 @@ export default function CreateRequest() {
           });
 
           setEligibleStoresCount(eligible.length);
+
+          // Confere se o prazo escolhido cabe no horário comercial das
+          // lojas elegíveis, a partir de agora. Se não couber, avisa o
+          // cliente que o cronômetro pode pausar durante a noite.
+          let horasAdd = 6;
+          if (prazoOpcao === 'urgente') horasAdd = 1;
+          if (prazoOpcao === 'sem_pressa') horasAdd = 24;
+
+          if (eligible.length > 0) {
+            const agora = new Date();
+            const fimSimulado = new Date(agora.getTime() + horasAdd * 60 * 60 * 1000);
+            const msUteis = calcularMsUteisDecorridos(agora, fimSimulado, eligible);
+            const prazoTotalMs = horasAdd * 60 * 60 * 1000;
+
+            if (msUteis < prazoTotalMs) {
+              const proxima = proximaAbertura(eligible, agora);
+              const horaTexto = proxima
+                ? proxima.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                : null;
+              setAvisoPrazo(
+                `Como você está pedindo perto do horário de fechamento das lojas da sua região, o prazo pode pausar durante a noite${horaTexto ? ` e só volta a contar às ${horaTexto}` : ''}. Isso não significa que seu pedido foi esquecido.`
+              );
+            } else {
+              setAvisoPrazo(null);
+            }
+          } else {
+            setAvisoPrazo(null);
+          }
         } else {
           setEligibleStoresCount(0);
+          setAvisoPrazo(null);
         }
       } catch (err) {
         console.error('Erro ao calcular lojas:', err);
@@ -111,7 +142,7 @@ export default function CreateRequest() {
     }
 
     countEligibleStores();
-  }, [categoryId, cityId, categories, cities, allCategoriesRaw]);
+  }, [categoryId, cityId, categories, cities, allCategoriesRaw, prazoOpcao]);
 
   const handleImageUpload = async (index, file) => {
     if (!file) return;
@@ -288,6 +319,14 @@ export default function CreateRequest() {
                 ? `Existem ${eligibleStoresCount} loja(s) ativa(s) nesta cidade para receber sua solicitação.`
                 : 'Nenhuma loja cadastrada nesta categoria/cidade no momento. Sua solicitação ficará salva para quando houver lojistas.'}
             </span>
+          </div>
+        )}
+
+        {/* Aviso de possível pausa no prazo fora do horário comercial */}
+        {avisoPrazo && (
+          <div className="p-3 rounded-xl text-xs font-semibold flex items-start gap-2 border bg-blue-50 border-blue-200 text-blue-800">
+            <span>⏸️</span>
+            <span>{avisoPrazo}</span>
           </div>
         )}
 
