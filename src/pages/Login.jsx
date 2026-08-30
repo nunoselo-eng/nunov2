@@ -42,7 +42,7 @@ export default function Login() {
         navigate('/admin');
       } else if (profile?.tipo === 'lojista') {
         navigate('/lojista-dashboard');
-      } else if (profile?.tipo === 'representante') {
+      } else if (profile?.tipo === 'criador_de_contas') {
         navigate('/representante-dashboard');
       } else {
         navigate('/client-dashboard');
