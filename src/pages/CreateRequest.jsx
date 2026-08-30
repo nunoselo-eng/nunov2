@@ -252,7 +252,15 @@ export default function CreateRequest() {
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 flex justify-center items-center">
-      <form onSubmit={handleSubmit} className="p-8 bg-white shadow-xl rounded-2xl w-full max-w-2xl border border-slate-200 space-y-5 my-8">
+      <form onSubmit={handleSubmit} className="relative p-8 bg-white shadow-xl rounded-2xl w-full max-w-2xl border border-slate-200 space-y-5 my-8">
+        <button
+          type="button"
+          onClick={() => navigate('/client-dashboard')}
+          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 hover:bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold transition"
+          aria-label="Fechar e voltar ao painel do cliente"
+        >
+          ✕
+        </button>
         <h2 className="text-2xl font-bold text-slate-800 text-center">Criar Nova Cotação</h2>
 
         {/* Tipo de Pedido */}
@@ -260,14 +268,14 @@ export default function CreateRequest() {
           <button
             type="button"
             onClick={() => { setTipo('unico'); setItems([{ descricao: '', quantidade: 1, imagem_url: '' }]); }}
-            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition ${tipo === 'unico' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition ${tipo === 'unico' ? 'bg-white text-[#00068F] shadow-sm' : 'text-slate-500'}`}
           >
             Item Único
           </button>
           <button
             type="button"
             onClick={() => setTipo('lista')}
-            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition ${tipo === 'lista' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition ${tipo === 'lista' ? 'bg-white text-[#00068F] shadow-sm' : 'text-slate-500'}`}
           >
             Lista de Compras
           </button>
@@ -365,11 +373,11 @@ export default function CreateRequest() {
               onClick={() => setPrazoOpcao('padrao')}
               className={`p-3 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1 ${
                 prazoOpcao === 'padrao' 
-                  ? 'border-teal-600 bg-teal-50 text-teal-800 font-bold shadow-sm' 
+                  ? 'border-blue-600 bg-blue-50 text-blue-800 font-bold shadow-sm' 
                   : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
               }`}
             >
-              <span className="text-base">🟡 Padrão</span>
+              <span className="text-base">🔵 Padrão</span>
               <span className="text-xs font-normal">Até 6 horas</span>
             </button>
 
