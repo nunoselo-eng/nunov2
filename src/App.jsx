@@ -3,6 +3,7 @@ import Login from './pages/Login';
 import ClientDashboard from './pages/ClientDashboard';
 import LojistaDashboard from './pages/LojistaDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import RepresentanteDashboard from './pages/RepresentanteDashboard';
 import CreateRequest from './pages/CreateRequest';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -36,6 +37,11 @@ export default function App() {
         } />
         <Route path="/admin-dashboard" element={
           <ProtectedRoute allowedRole="admin"><AdminDashboard /></ProtectedRoute>
+        } />
+
+        {/* Rota do Representante Comercial */}
+        <Route path="/representante-dashboard" element={
+          <ProtectedRoute allowedRole="representante"><RepresentanteDashboard /></ProtectedRoute>
         } />
 
         {/* Redirecionamento padrão */}
