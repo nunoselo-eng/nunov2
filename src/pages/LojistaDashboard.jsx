@@ -38,6 +38,27 @@ export default function LojistaDashboard() {
   const [collapsedSections, setCollapsedSections] = useState({ abertas: false, fechadas: false, enviadas: false });
   const [collapsedCards, setCollapsedCards] = useState(new Set());
 
+  // Detalhes expandidos por card (itens, fotos, bairro, status da concorrência)
+  const [expandedDetails, setExpandedDetails] = useState(new Set());
+  const [pedidoItemsMap, setPedidoItemsMap] = useState({});
+  const [minhaPropostaItemsMap, setMinhaPropostaItemsMap] = useState({});
+  const [ordersFechadosComOutro, setOrdersFechadosComOutro] = useState(new Set());
+
+  // Paginação (10 pedidos por página em cada seção)
+  const ITENS_POR_PAGINA = 10;
+  const [paginaAbertas, setPaginaAbertas] = useState(1);
+  const [paginaFechadas, setPaginaFechadas] = useState(1);
+  const [paginaEnviadas, setPaginaEnviadas] = useState(1);
+
+  const toggleExpandedDetails = (cardKey) => {
+    setExpandedDetails(prev => {
+      const next = new Set(prev);
+      if (next.has(cardKey)) next.delete(cardKey);
+      else next.add(cardKey);
+      return next;
+    });
+  };
+
   const toggleSection = (key) => {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
@@ -78,6 +99,13 @@ export default function LojistaDashboard() {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Sempre que um filtro mudar, volta todas as seções pra página 1
+  useEffect(() => {
+    setPaginaAbertas(1);
+    setPaginaFechadas(1);
+    setPaginaEnviadas(1);
+  }, [statusFilter, searchTerm, dateFrom, dateTo, sortOrder]);
 
   useEffect(() => {
     fetchLojistaData();
@@ -164,6 +192,46 @@ export default function LojistaDashboard() {
         const clientMap = new Map(clientProfiles.map(p => [String(p.id), p]));
         const orderMap = new Map(ordersDosBids.map(o => [String(o.id), { ...o, cliente: clientMap.get(String(o.cliente_id)) }]));
 
+        // Itens de cada pedido (com foto do cliente), pro detalhamento ao expandir o card
+        let itemsPorPedido = {};
+        if (numericOrderIds.length > 0) {
+          const { data: itemsData } = await supabase.from('order_items').select('*').in('order_id', numericOrderIds);
+          (itemsData || []).forEach(item => {
+            if (!itemsPorPedido[item.order_id]) itemsPorPedido[item.order_id] = [];
+            itemsPorPedido[item.order_id].push(item);
+          });
+        }
+        setPedidoItemsMap(itemsPorPedido);
+
+        // Itens que este lojista enviou em cada proposta (com foto e preço enviados)
+        const myBidIds = myBids.map(b => b.id);
+        let itensPorProposta = {};
+        if (myBidIds.length > 0) {
+          const { data: bItemsData } = await supabase.from('bid_items').select('*').in('bid_id', myBidIds);
+          (bItemsData || []).forEach(item => {
+            if (!itensPorProposta[item.bid_id]) itensPorProposta[item.bid_id] = [];
+            itensPorProposta[item.bid_id].push(item);
+          });
+        }
+        setMinhaPropostaItemsMap(itensPorProposta);
+
+        // Todas as propostas (de qualquer lojista) para os mesmos pedidos,
+        // pra saber se o cliente já fechou com outro concorrente.
+        let pedidosFechadosComOutro = new Set();
+        if (numericOrderIds.length > 0) {
+          const { data: todasPropostas } = await supabase
+            .from('bids')
+            .select('order_id, pedido_id, lojista_id, status')
+            .in('order_id', numericOrderIds);
+
+          (todasPropostas || []).forEach(b => {
+            if (b.status === 'Aceito' && b.lojista_id !== user.id) {
+              pedidosFechadosComOutro.add(Number(b.order_id || b.pedido_id));
+            }
+          });
+        }
+        setOrdersFechadosComOutro(pedidosFechadosComOutro);
+
         const formattedBids = myBids.map(b => ({
           ...b,
           pedido: orderMap.get(String(b.order_id || b.pedido_id))
@@ -174,6 +242,9 @@ export default function LojistaDashboard() {
       } else {
         setAcceptedBids([]);
         setPendingBids([]);
+        setPedidoItemsMap({});
+        setMinhaPropostaItemsMap({});
+        setOrdersFechadosComOutro(new Set());
       }
     } catch (err) {
       console.error('Erro:', err);
@@ -348,6 +419,129 @@ export default function LojistaDashboard() {
   const acceptedBidsOrdenados = ordenarPorData(acceptedBids.filter(bid => dentroDoPeriodo(bid.created_at)));
   const pendingBidsOrdenados = ordenarPorData(pendingBids.filter(bid => dentroDoPeriodo(bid.created_at)));
 
+  // Paginação (10 por página) de cada seção
+  const totalPaginasAbertas = Math.max(1, Math.ceil(filteredOrders.length / ITENS_POR_PAGINA));
+  const totalPaginasFechadas = Math.max(1, Math.ceil(acceptedBidsOrdenados.length / ITENS_POR_PAGINA));
+  const totalPaginasEnviadas = Math.max(1, Math.ceil(pendingBidsOrdenados.length / ITENS_POR_PAGINA));
+
+  const paginatedAbertas = filteredOrders.slice((paginaAbertas - 1) * ITENS_POR_PAGINA, paginaAbertas * ITENS_POR_PAGINA);
+  const paginatedFechadas = acceptedBidsOrdenados.slice((paginaFechadas - 1) * ITENS_POR_PAGINA, paginaFechadas * ITENS_POR_PAGINA);
+  const paginatedEnviadas = pendingBidsOrdenados.slice((paginaEnviadas - 1) * ITENS_POR_PAGINA, paginaEnviadas * ITENS_POR_PAGINA);
+
+  // Controles de "Anterior / Próxima" reaproveitados nas 3 seções
+  const renderPaginacao = (paginaAtual, totalPaginas, setPagina) => {
+    if (totalPaginas <= 1) return null;
+    return (
+      <div className="flex items-center justify-center gap-3 pt-2">
+        <button
+          onClick={() => setPagina(p => Math.max(1, p - 1))}
+          disabled={paginaAtual === 1}
+          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition"
+        >
+          ← Anterior
+        </button>
+        <span className="text-xs font-semibold text-slate-500">
+          Página {paginaAtual} de {totalPaginas}
+        </span>
+        <button
+          onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+          disabled={paginaAtual === totalPaginas}
+          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition"
+        >
+          Próxima →
+        </button>
+      </div>
+    );
+  };
+
+  // Painel de detalhes expandido (bairro, itens com fotos e status da concorrência)
+  const renderDetalhesExpandido = (bid, cardKey, mostrarStatusConcorrencia) => {
+    const isExpanded = expandedDetails.has(cardKey);
+    const orderIdNum = Number(bid.order_id || bid.pedido_id);
+    const itensCliente = pedidoItemsMap[orderIdNum] || [];
+    const itensEnviados = minhaPropostaItemsMap[bid.id] || [];
+    const fechadoComOutro = ordersFechadosComOutro.has(orderIdNum);
+
+    return (
+      <>
+        <button
+          onClick={() => toggleExpandedDetails(cardKey)}
+          className="text-[11px] font-bold text-indigo-600 hover:underline mt-1"
+        >
+          {isExpanded ? '▾ Ocultar detalhes do pedido' : '▸ Ver detalhes do pedido'}
+        </button>
+
+        {isExpanded && (
+          <div className="mt-2 pt-2 border-t border-slate-100 space-y-2 text-xs text-slate-600">
+            <p><b>Bairro:</b> {bid.pedido?.bairro || 'Não informado'}</p>
+
+            {mostrarStatusConcorrencia && (
+              <p>
+                <b>Status:</b>{' '}
+                {fechadoComOutro ? (
+                  <span className="text-rose-600 font-bold">Cliente já fechou com outro lojista</span>
+                ) : (
+                  <span className="text-amber-700 font-bold">Aguardando resposta do cliente</span>
+                )}
+              </p>
+            )}
+
+            {itensCliente.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="font-bold text-slate-500 uppercase text-[10px]">Itens do Pedido</p>
+                {itensCliente.map((item) => {
+                  const enviado = itensEnviados.find(ei => ei.order_item_id === item.id);
+                  return (
+                    <div key={item.id} className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-200">
+                      <div>
+                        <p className="font-semibold text-slate-700">{item.descricao} (Qtd: {item.quantidade})</p>
+                        {enviado && (
+                          <p className={enviado.atendido ? 'text-emerald-600 font-semibold' : 'text-rose-600 font-bold'}>
+                            {enviado.atendido ? `Você enviou: R$ ${parseFloat(enviado.preco_unitario || 0).toFixed(2)} / unid` : 'Marcado como indisponível'}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        {item.imagem_url && (
+                          <div className="text-center">
+                            <p className="text-[9px] text-slate-400 font-medium mb-0.5">Cliente</p>
+                            <img
+                              src={item.imagem_url}
+                              alt="Foto do cliente"
+                              onClick={() => setActiveImage(item.imagem_url)}
+                              className="w-9 h-9 object-cover rounded border cursor-pointer hover:opacity-80"
+                            />
+                          </div>
+                        )}
+                        {enviado?.imagem_url && (
+                          <div className="text-center">
+                            <p className="text-[9px] text-indigo-500 font-bold mb-0.5">Sua foto</p>
+                            <img
+                              src={enviado.imagem_url}
+                              alt="Sua foto"
+                              onClick={() => setActiveImage(enviado.imagem_url)}
+                              className="w-9 h-9 object-cover rounded border cursor-pointer hover:opacity-80"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {mostrarStatusConcorrencia && (
+              <p className="text-[11px] text-slate-400 italic pt-1">
+                Proposta enviada e travada — não pode ser editada.
+              </p>
+            )}
+          </div>
+        )}
+      </>
+    );
+  };
+
   return (
     <div className="bg-[#f8f9fa] text-slate-700 min-h-screen flex flex-col justify-between font-sans">
       
@@ -505,7 +699,8 @@ export default function LojistaDashboard() {
                     Nenhuma cotação disponível no momento para suas categorias e filtros.
                   </div>
                 ) : (
-                  filteredOrders.map((order) => {
+                  <>
+                  {paginatedAbertas.map((order) => {
                     const tempo = getRemainingTime(order.expira_em);
                     const cardKey = `aberta-${order.id}`;
                     const isCollapsed = collapsedCards.has(cardKey);
@@ -571,7 +766,9 @@ export default function LojistaDashboard() {
                         </div>
                       </div>
                     );
-                  })
+                  })}
+                  {renderPaginacao(paginaAbertas, totalPaginasAbertas, setPaginaAbertas)}
+                  </>
                 )}
               </div>
             </div>
@@ -595,54 +792,58 @@ export default function LojistaDashboard() {
             </button>
 
             {!collapsedSections.fechadas && (
-              <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-                {acceptedBidsOrdenados.map((bid) => {
-                  const cardKey = `fechada-${bid.id}`;
-                  const isCollapsed = collapsedCards.has(cardKey);
+              <div className="px-6 pb-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {paginatedFechadas.map((bid) => {
+                    const cardKey = `fechada-${bid.id}`;
+                    const isCollapsed = collapsedCards.has(cardKey);
 
-                  return (
-                    <div key={bid.id} className="bg-white p-4 rounded-xl border border-emerald-200/80 shadow-xs flex flex-col justify-between gap-3">
-                      <div>
-                        <div className="flex justify-between items-start gap-2">
-                          <span className="flex items-center gap-2">
-                            <button
-                              onClick={() => toggleCard(cardKey)}
-                              className="text-slate-400 hover:text-slate-600 text-xs w-4"
-                              title={isCollapsed ? 'Expandir' : 'Encolher'}
-                            >
-                              {isCollapsed ? '▸' : '▾'}
-                            </button>
-                            <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                              Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
+                    return (
+                      <div key={bid.id} className="bg-white p-4 rounded-xl border border-emerald-200/80 shadow-xs flex flex-col justify-between gap-3">
+                        <div>
+                          <div className="flex justify-between items-start gap-2">
+                            <span className="flex items-center gap-2">
+                              <button
+                                onClick={() => toggleCard(cardKey)}
+                                className="text-slate-400 hover:text-slate-600 text-xs w-4"
+                                title={isCollapsed ? 'Expandir' : 'Encolher'}
+                              >
+                                {isCollapsed ? '▸' : '▾'}
+                              </button>
+                              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
+                                Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
+                              </span>
                             </span>
-                          </span>
-                          <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                            Confirmado
-                          </span>
+                            <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                              Confirmado
+                            </span>
+                          </div>
+
+                          {!isCollapsed && (
+                            <>
+                              <h3 className="font-bold text-slate-800 mt-2 text-sm">{bid.pedido?.descricao}</h3>
+                              <p className="text-xs text-slate-600 mt-1"><b>Cliente:</b> {bid.pedido?.cliente?.nome || 'Cliente'}</p>
+                              <p className="text-xs text-slate-600"><b>WhatsApp:</b> {bid.pedido?.cliente?.telefone || 'Não informado'}</p>
+                              {renderDetalhesExpandido(bid, cardKey, false)}
+                            </>
+                          )}
                         </div>
 
-                        {!isCollapsed && (
-                          <>
-                            <h3 className="font-bold text-slate-800 mt-2 text-sm">{bid.pedido?.descricao}</h3>
-                            <p className="text-xs text-slate-600 mt-1"><b>Cliente:</b> {bid.pedido?.cliente?.nome || 'Cliente'}</p>
-                            <p className="text-xs text-slate-600"><b>WhatsApp:</b> {bid.pedido?.cliente?.telefone || 'Não informado'}</p>
-                          </>
+                        {!isCollapsed && bid.pedido?.cliente?.telefone && (
+                          <a
+                            href={`https://wa.me/55${bid.pedido?.cliente?.telefone.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
+                          >
+                            <span>💬</span> Chamar no WhatsApp
+                          </a>
                         )}
                       </div>
-
-                      {!isCollapsed && bid.pedido?.cliente?.telefone && (
-                        <a
-                          href={`https://wa.me/55${bid.pedido?.cliente?.telefone.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
-                        >
-                          <span>💬</span> Chamar no WhatsApp
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+                {renderPaginacao(paginaFechadas, totalPaginasFechadas, setPaginaFechadas)}
               </div>
             )}
           </div>
@@ -665,49 +866,58 @@ export default function LojistaDashboard() {
             </button>
 
             {!collapsedSections.enviadas && (
-              <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-                {pendingBidsOrdenados.map((bid) => {
-                  const cardKey = `enviada-${bid.id}`;
-                  const isCollapsed = collapsedCards.has(cardKey);
+              <div className="px-6 pb-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {paginatedEnviadas.map((bid) => {
+                    const cardKey = `enviada-${bid.id}`;
+                    const isCollapsed = collapsedCards.has(cardKey);
+                    const orderIdNum = Number(bid.order_id || bid.pedido_id);
+                    const fechadoComOutro = ordersFechadosComOutro.has(orderIdNum);
 
-                  return (
-                    <div key={bid.id} className="bg-white p-4 rounded-xl border border-indigo-200/80 shadow-xs space-y-2">
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="flex items-center gap-2">
-                          <button
-                            onClick={() => toggleCard(cardKey)}
-                            className="text-slate-400 hover:text-slate-600 text-xs w-4"
-                            title={isCollapsed ? 'Expandir' : 'Encolher'}
-                          >
-                            {isCollapsed ? '▸' : '▾'}
-                          </button>
-                          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                            Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
+                    return (
+                      <div key={bid.id} className="bg-white p-4 rounded-xl border border-indigo-200/80 shadow-xs space-y-2">
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="flex items-center gap-2">
+                            <button
+                              onClick={() => toggleCard(cardKey)}
+                              className="text-slate-400 hover:text-slate-600 text-xs w-4"
+                              title={isCollapsed ? 'Expandir' : 'Encolher'}
+                            >
+                              {isCollapsed ? '▸' : '▾'}
+                            </button>
+                            <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
+                              Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
+                            </span>
                           </span>
-                        </span>
-                        <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                          Aguardando Resposta
-                        </span>
-                      </div>
+                          {fechadoComOutro ? (
+                            <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
+                              Fechado com Outro Lojista
+                            </span>
+                          ) : (
+                            <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                              Aguardando Resposta
+                            </span>
+                          )}
+                        </div>
 
-                      {!isCollapsed && (
-                        <>
-                          <h3 className="font-bold text-slate-800 text-sm">{bid.pedido?.descricao}</h3>
-                          <p className="text-xs text-slate-600">
-                            <b>Total enviado:</b> R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
-                            {' '}<span className="text-slate-400">(Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})</span>
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {bid.is_completo ? 'Atendimento: 100%' : 'Atendimento: Parcial'}
-                          </p>
-                          <p className="text-[11px] text-slate-400 italic pt-1 border-t">
-                            Proposta enviada e travada — não pode ser editada.
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
+                        {!isCollapsed && (
+                          <>
+                            <h3 className="font-bold text-slate-800 text-sm">{bid.pedido?.descricao}</h3>
+                            <p className="text-xs text-slate-600">
+                              <b>Total enviado:</b> R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
+                              {' '}<span className="text-slate-400">(Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})</span>
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {bid.is_completo ? 'Atendimento: 100%' : 'Atendimento: Parcial'}
+                            </p>
+                            {renderDetalhesExpandido(bid, cardKey, true)}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {renderPaginacao(paginaEnviadas, totalPaginasEnviadas, setPaginaEnviadas)}
               </div>
             )}
           </div>
