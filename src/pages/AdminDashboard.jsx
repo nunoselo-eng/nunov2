@@ -421,6 +421,16 @@ export default function AdminDashboard() {
                     <div>
                       <h3 className="font-bold text-lg text-slate-800">{lojista.nome || 'Lojista'}</h3>
                       <p className="text-xs text-slate-500">Cidade: {lojista.cidade || 'Não informada'} | Tel: {lojista.telefone || 'Não informado'}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        <b>Horário:</b>{' '}
+                        {lojista.horario_abertura && lojista.horario_fechamento
+                          ? `${lojista.horario_abertura.slice(0, 5)} às ${lojista.horario_fechamento.slice(0, 5)}`
+                          : 'Não definido'}
+                        {' · '}
+                        {lojista.dias_funcionamento && lojista.dias_funcionamento.length > 0
+                          ? DIAS_SEMANA.filter(d => lojista.dias_funcionamento.includes(d.key)).map(d => d.label).join(', ')
+                          : 'Dias não definidos'}
+                      </p>
                       <span className={`text-xs font-bold px-3 py-1 rounded-full inline-block mt-2 ${lojista.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {lojista.ativo ? 'Ativo (Liberado)' : 'Inadimplente (Bloqueado)'}
                       </span>
@@ -674,7 +684,7 @@ export default function AdminDashboard() {
         {/* Modal de Edição de Lojista */}
         {isEditModalOpen && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <form onSubmit={handleSaveEditLojista} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
+            <form onSubmit={handleSaveEditLojista} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center pb-2 border-b">
                 <h3 className="text-xl font-bold text-slate-800">Editar Dados do Lojista</h3>
                 <button type="button" onClick={() => setIsEditModalOpen(false)} className="text-slate-400 font-bold">✕</button>
