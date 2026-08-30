@@ -556,17 +556,20 @@ export default function ClientDashboard() {
       <main className="max-w-5xl mx-auto w-full px-4 sm:px-6 py-8 space-y-6 flex-1">
 
         {/* Card de Boas-vindas com Botão de Nova Cotação Maior */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div
+          className="p-6 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 overflow-hidden"
+          style={{ background: 'linear-gradient(100deg, #9d6bf0 0%, #9d6bf0 5%, #160b5e 12%, #140a52 52%, #6d28d9 60%, #7c3aed 100%)' }}
+        >
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Painel do Cliente</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Gerencie suas cotações e orçamentos recebidos</p>
+            <h1 className="text-2xl font-bold text-white tracking-tight">Painel do Cliente</h1>
+            <p className="text-sm text-indigo-100 mt-0.5">Gerencie suas cotações e orçamentos recebidos</p>
           </div>
           
           <Link
             to="/create-request"
-            className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-6 py-3.5 rounded-2xl text-sm sm:text-base font-extrabold transition shadow-md hover:shadow-indigo-200 flex items-center justify-center gap-2"
+            className="w-full md:w-auto bg-white hover:bg-slate-50 active:bg-slate-100 text-indigo-900 px-6 py-3.5 rounded-2xl text-sm sm:text-base font-extrabold italic transition shadow-md flex items-center justify-center gap-2"
           >
-            <span className="text-lg leading-none">+</span> Nova Cotação
+            <span className="text-lg leading-none not-italic">+</span> Nova Cotação
           </Link>
         </div>
 
