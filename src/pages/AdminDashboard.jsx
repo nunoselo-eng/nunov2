@@ -24,6 +24,20 @@ export default function AdminDashboard() {
   const [novoHorarioFechamento, setNovoHorarioFechamento] = useState('18:00');
   const [novosDiasFuncionamento, setNovosDiasFuncionamento] = useState(['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
 
+  // Modal de Cadastro de Cliente
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [novoNomeCliente, setNovoNomeCliente] = useState('');
+  const [novoEmailCliente, setNovoEmailCliente] = useState('');
+  const [novaSenhaCliente, setNovaSenhaCliente] = useState('');
+  const [novoTelefoneCliente, setNovoTelefoneCliente] = useState('');
+  const [novaCidadeCliente, setNovaCidadeCliente] = useState('');
+
+  // Modal de Cadastro de Representante Comercial
+  const [isRepModalOpen, setIsRepModalOpen] = useState(false);
+  const [novoNomeRep, setNovoNomeRep] = useState('');
+  const [novoEmailRep, setNovoEmailRep] = useState('');
+  const [novaSenhaRep, setNovaSenhaRep] = useState('');
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingLojistaId, setEditingLojistaId] = useState(null);
   const [editNome, setEditNome] = useState('');
@@ -280,6 +294,69 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleCreateCliente = async (e) => {
+    e.preventDefault();
+    try {
+      const supabaseUrl = supabase.supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = supabase.supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const tempClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
+      const { data: authData, error: authError } = await tempClient.auth.signUp({ email: novoEmailCliente, password: novaSenhaCliente });
+      if (authError) throw authError;
+
+      const userId = authData.user?.id;
+      if (novaCidadeCliente) await saveCityIfNew(novaCidadeCliente);
+
+      const { error: profileError } = await supabase.from('profiles').insert([{
+        id: userId,
+        tipo: 'cliente',
+        nome: novoNomeCliente,
+        cidade: novaCidadeCliente,
+        telefone: novoTelefoneCliente,
+        ativo: true
+      }]);
+
+      if (profileError) throw profileError;
+
+      alert('Cliente cadastrado com sucesso!');
+      setIsClientModalOpen(false);
+      setNovoNomeCliente(''); setNovoEmailCliente(''); setNovaSenhaCliente(''); setNovaCidadeCliente(''); setNovoTelefoneCliente('');
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao cadastrar cliente: ' + err.message);
+    }
+  };
+
+  const handleCreateRepresentante = async (e) => {
+    e.preventDefault();
+    try {
+      const supabaseUrl = supabase.supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = supabase.supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const tempClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
+      const { data: authData, error: authError } = await tempClient.auth.signUp({ email: novoEmailRep, password: novaSenhaRep });
+      if (authError) throw authError;
+
+      const userId = authData.user?.id;
+
+      const { error: profileError } = await supabase.from('profiles').insert([{
+        id: userId,
+        tipo: 'representante',
+        nome: novoNomeRep,
+        ativo: true
+      }]);
+
+      if (profileError) throw profileError;
+
+      alert('Representante cadastrado com sucesso!');
+      setIsRepModalOpen(false);
+      setNovoNomeRep(''); setNovoEmailRep(''); setNovaSenhaRep('');
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao cadastrar representante: ' + err.message);
+    }
+  };
+
   const handleSaveEditLojista = async (e) => {
     e.preventDefault();
     try {
@@ -410,6 +487,8 @@ export default function AdminDashboard() {
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setIsCategoryModalOpen(true)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-semibold">Gerenciar Categorias</button>
+                <button onClick={() => setIsClientModalOpen(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Cadastrar Cliente</button>
+                <button onClick={() => setIsRepModalOpen(true)} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Cadastrar Representante</button>
                 <button onClick={() => setIsModalOpen(true)} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Cadastrar Lojista</button>
               </div>
             </div>
@@ -604,6 +683,48 @@ export default function AdminDashboard() {
               <button type="button" onClick={() => setActiveImage(null)} className="absolute top-3 right-3 bg-slate-800 text-white w-8 h-8 rounded-full font-bold">✕</button>
               <img src={activeImage} alt="Ampliada" className="max-w-full max-h-[80vh] object-contain rounded-xl" />
             </div>
+          </div>
+        )}
+
+        {/* Modal de Cadastro de Cliente */}
+        {isClientModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <form onSubmit={handleCreateCliente} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center pb-2 border-b">
+                <h3 className="text-xl font-bold text-slate-800">Cadastrar Novo Cliente</h3>
+                <button type="button" onClick={() => setIsClientModalOpen(false)} className="text-slate-400 font-bold">✕</button>
+              </div>
+              <input type="text" placeholder="Nome do Cliente" value={novoNomeCliente} onChange={(e) => setNovoNomeCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
+              <input type="email" placeholder="E-mail" value={novoEmailCliente} onChange={(e) => setNovoEmailCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
+              <input type="password" placeholder="Senha Inicial" value={novaSenhaCliente} onChange={(e) => setNovaSenhaCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
+              <input type="text" placeholder="Cidade" value={novaCidadeCliente} onChange={(e) => setNovaCidadeCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
+              <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefoneCliente} onChange={(e) => setNovoTelefoneCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
+
+              <div className="flex space-x-3 pt-3">
+                <button type="button" onClick={() => setIsClientModalOpen(false)} className="w-1/2 bg-slate-200 text-slate-700 p-2 rounded-xl font-semibold text-sm">Cancelar</button>
+                <button type="submit" className="w-1/2 bg-indigo-600 text-white p-2 rounded-xl font-semibold text-sm">Salvar</button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Modal de Cadastro de Representante Comercial */}
+        {isRepModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <form onSubmit={handleCreateRepresentante} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center pb-2 border-b">
+                <h3 className="text-xl font-bold text-slate-800">Cadastrar Novo Representante</h3>
+                <button type="button" onClick={() => setIsRepModalOpen(false)} className="text-slate-400 font-bold">✕</button>
+              </div>
+              <input type="text" placeholder="Nome do Representante" value={novoNomeRep} onChange={(e) => setNovoNomeRep(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
+              <input type="email" placeholder="E-mail" value={novoEmailRep} onChange={(e) => setNovoEmailRep(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
+              <input type="password" placeholder="Senha Inicial" value={novaSenhaRep} onChange={(e) => setNovaSenhaRep(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
+
+              <div className="flex space-x-3 pt-3">
+                <button type="button" onClick={() => setIsRepModalOpen(false)} className="w-1/2 bg-slate-200 text-slate-700 p-2 rounded-xl font-semibold text-sm">Cancelar</button>
+                <button type="submit" className="w-1/2 bg-purple-600 text-white p-2 rounded-xl font-semibold text-sm">Salvar</button>
+              </div>
+            </form>
           </div>
         )}
 
