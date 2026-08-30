@@ -69,7 +69,7 @@ export default function ProtectedRoute({ allowedRole, children }) {
         ? 'admin'
         : profile.tipo === 'lojista'
           ? 'lojista'
-          : profile.tipo === 'representante'
+          : profile.tipo === 'criador_de_contas'
             ? 'representante'
             : 'cliente';
 
