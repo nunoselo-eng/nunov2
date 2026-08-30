@@ -14,6 +14,11 @@ export default function ClientDashboard() {
   const [statusFilter, setStatusFilter] = useState('todas');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Filtro por data e ordenação (padrão: mais recentes primeiro)
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = mais recentes primeiro, 'asc' = mais antigos primeiro
+
   // Modais e Detalhes
   const [showDetails, setShowDetails] = useState({});
   const [activeImage, setActiveImage] = useState(null);
@@ -225,9 +230,31 @@ export default function ClientDashboard() {
     return matchCodigo || matchDesc || matchItem;
   };
 
-  const abertasOrders = orders.filter(o => classifyOrder(o) === 'abertas' && matchesSearch(o));
-  const confirmadasOrders = orders.filter(o => classifyOrder(o) === 'confirmadas' && matchesSearch(o));
-  const encerradasOrders = orders.filter(o => classifyOrder(o) === 'encerradas' && matchesSearch(o));
+  // Verifica se um pedido cai dentro do período (data) selecionado
+  const matchesDate = (order) => {
+    if (!dateFrom && !dateTo) return true;
+    const dataRef = order.created_at || order.criado_em;
+    if (!dataRef) return true;
+    const data = new Date(dataRef);
+    if (dateFrom && data < new Date(dateFrom + 'T00:00:00')) return false;
+    if (dateTo && data > new Date(dateTo + 'T23:59:59')) return false;
+    return true;
+  };
+
+  // Ordena uma lista de pedidos pela data de criação, respeitando o sortOrder
+  const ordenarPorData = (lista) => {
+    const copia = [...lista];
+    copia.sort((a, b) => {
+      const dataA = new Date(a.created_at || a.criado_em || 0).getTime();
+      const dataB = new Date(b.created_at || b.criado_em || 0).getTime();
+      return sortOrder === 'asc' ? dataA - dataB : dataB - dataA;
+    });
+    return copia;
+  };
+
+  const abertasOrders = ordenarPorData(orders.filter(o => classifyOrder(o) === 'abertas' && matchesSearch(o) && matchesDate(o)));
+  const confirmadasOrders = ordenarPorData(orders.filter(o => classifyOrder(o) === 'confirmadas' && matchesSearch(o) && matchesDate(o)));
+  const encerradasOrders = ordenarPorData(orders.filter(o => classifyOrder(o) === 'encerradas' && matchesSearch(o) && matchesDate(o)));
 
   const renderOrderCard = (order) => {
     const orderBids = bidsByOrder[String(order.id)] || [];
@@ -511,6 +538,43 @@ export default function ClientDashboard() {
             />
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
           </div>
+        </div>
+
+        {/* Filtro por Data e Ordenação */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <span>📅 Período:</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 bg-slate-50"
+            />
+            <span className="text-slate-400">até</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 bg-slate-50"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => { setDateFrom(''); setDateTo(''); }}
+                className="text-rose-600 font-bold hover:underline"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+
+          <div className="flex-1" />
+
+          <button
+            onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+          >
+            {sortOrder === 'desc' ? '⬇ Mais recentes primeiro' : '⬆ Mais antigos primeiro'}
+          </button>
         </div>
 
         {/* Lista de Cotações, organizada por prioridade: Abertas > Confirmadas > Encerradas */}
