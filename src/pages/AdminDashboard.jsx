@@ -333,8 +333,13 @@ export default function AdminDashboard() {
       const supabaseUrl = supabase.supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = supabase.supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+      // O representante não usa e-mail de verdade: montamos um e-mail interno
+      // a partir do usuário escolhido, só pra satisfazer o Supabase Auth.
+      const usuarioLimpo = novoEmailRep.trim().toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9._-]/g, '');
+      const emailInterno = `${usuarioLimpo}@interno.nunoselo.app`;
+
       const tempClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
-      const { data: authData, error: authError } = await tempClient.auth.signUp({ email: novoEmailRep, password: novaSenhaRep });
+      const { data: authData, error: authError } = await tempClient.auth.signUp({ email: emailInterno, password: novaSenhaRep });
       if (authError) throw authError;
 
       const userId = authData.user?.id;
@@ -348,7 +353,7 @@ export default function AdminDashboard() {
 
       if (profileError) throw profileError;
 
-      alert('Representante cadastrado com sucesso!');
+      alert(`Representante cadastrado! Usuário para login: ${usuarioLimpo}`);
       setIsRepModalOpen(false);
       setNovoNomeRep(''); setNovoEmailRep(''); setNovaSenhaRep('');
       fetchAllData();
@@ -717,7 +722,7 @@ export default function AdminDashboard() {
                 <button type="button" onClick={() => setIsRepModalOpen(false)} className="text-slate-400 font-bold">✕</button>
               </div>
               <input type="text" placeholder="Nome do Representante" value={novoNomeRep} onChange={(e) => setNovoNomeRep(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
-              <input type="email" placeholder="E-mail" value={novoEmailRep} onChange={(e) => setNovoEmailRep(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
+              <input type="text" placeholder="Usuário (ex: joao.comercial)" value={novoEmailRep} onChange={(e) => setNovoEmailRep(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="password" placeholder="Senha Inicial" value={novaSenhaRep} onChange={(e) => setNovaSenhaRep(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
 
               <div className="flex space-x-3 pt-3">
