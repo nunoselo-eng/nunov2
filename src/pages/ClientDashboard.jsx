@@ -556,21 +556,33 @@ export default function ClientDashboard() {
       <main className="max-w-5xl mx-auto w-full px-4 sm:px-6 py-8 space-y-6 flex-1">
 
         {/* Card de Boas-vindas com Botão de Nova Cotação Maior */}
-        <div
-          className="p-6 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 overflow-hidden"
-          style={{ background: 'linear-gradient(100deg, #9d6bf0 0%, #9d6bf0 5%, #160b5e 12%, #140a52 52%, #6d28d9 60%, #7c3aed 100%)' }}
-        >
-          <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Painel do Cliente</h1>
-            <p className="text-sm text-indigo-100 mt-0.5">Gerencie suas cotações e orçamentos recebidos</p>
+        <div className="relative p-6 rounded-2xl shadow-sm overflow-hidden">
+          {/* Camada base: roxo */}
+          <div className="absolute inset-0" style={{ backgroundColor: '#7c3aed' }} />
+          {/* Camada do meio: azul-marinho, recortada em ângulo */}
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: '#140a52', clipPath: 'polygon(4% 0, 62% 0, 54% 100%, -4% 100%)' }}
+          />
+          {/* Faixa fina roxo-clara na borda esquerda, mesmo ângulo */}
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: '#9d6bf0', clipPath: 'polygon(0 0, 4% 0, -4% 100%, -8% 100%)' }}
+          />
+
+          <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Painel do Cliente</h1>
+              <p className="text-sm text-indigo-100 mt-0.5">Gerencie suas cotações e orçamentos recebidos</p>
+            </div>
+
+            <Link
+              to="/create-request"
+              className="w-full md:w-auto bg-white hover:bg-slate-50 active:bg-slate-100 text-indigo-900 px-6 py-3.5 rounded-2xl text-sm sm:text-base font-extrabold italic transition shadow-md flex items-center justify-center gap-2"
+            >
+              <span className="text-lg leading-none not-italic">+</span> Nova Cotação
+            </Link>
           </div>
-          
-          <Link
-            to="/create-request"
-            className="w-full md:w-auto bg-white hover:bg-slate-50 active:bg-slate-100 text-indigo-900 px-6 py-3.5 rounded-2xl text-sm sm:text-base font-extrabold italic transition shadow-md flex items-center justify-center gap-2"
-          >
-            <span className="text-lg leading-none not-italic">+</span> Nova Cotação
-          </Link>
         </div>
 
         {/* Filtros e Busca */}
