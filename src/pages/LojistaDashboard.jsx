@@ -486,6 +486,10 @@ export default function LojistaDashboard() {
               </p>
             )}
 
+            {bid.observacao && (
+              <p><b>Sua observação:</b> {bid.observacao}</p>
+            )}
+
             {itensCliente.length > 0 && (
               <div className="space-y-1.5">
                 <p className="font-bold text-slate-500 uppercase text-[10px]">Itens do Pedido</p>
