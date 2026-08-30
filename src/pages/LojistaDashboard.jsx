@@ -29,6 +29,23 @@ export default function LojistaDashboard() {
   const [now, setNow] = useState(Date.now());
   const [newOrderAlert, setNewOrderAlert] = useState(false);
 
+  // Encolher/expandir seções e cards individuais
+  const [collapsedSections, setCollapsedSections] = useState({ abertas: false, fechadas: false, enviadas: false });
+  const [collapsedCards, setCollapsedCards] = useState(new Set());
+
+  const toggleSection = (key) => {
+    setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const toggleCard = (cardKey) => {
+    setCollapsedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(cardKey)) next.delete(cardKey);
+      else next.add(cardKey);
+      return next;
+    });
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = '/';
@@ -365,176 +382,270 @@ export default function LojistaDashboard() {
           </div>
         </div>
 
-        {/* Seção de Vendas Confirmadas */}
-        {acceptedBids.length > 0 && (
-          <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-6 space-y-4 shadow-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🎉</span>
-              <h2 className="text-lg font-bold text-emerald-900">Vendas Confirmadas ({acceptedBids.length})</h2>
-            </div>
+        {/* ================= SEÇÃO 1: ABERTAS (prioridade máxima) ================= */}
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm">
+          <button
+            onClick={() => toggleSection('abertas')}
+            className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
+          >
+            <span className="flex items-center gap-2">
+              <span className="text-lg">📋</span>
+              <h2 className="text-lg font-bold text-slate-800">Cotações Abertas ({filteredOrders.length})</h2>
+            </span>
+            <span className="text-slate-400 text-xs font-semibold">
+              {collapsedSections.abertas ? '▸ Expandir' : '▾ Encolher'}
+            </span>
+          </button>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {acceptedBids.map((bid) => (
-                <div key={bid.id} className="bg-white p-4 rounded-xl border border-emerald-200/80 shadow-xs flex flex-col justify-between gap-3">
-                  <div>
-                    <div className="flex justify-between items-start gap-2">
-                      <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                        Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
-                      </span>
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                        Confirmado
-                      </span>
-                    </div>
-
-                    <h3 className="font-bold text-slate-800 mt-2 text-sm">{bid.pedido?.descricao}</h3>
-                    <p className="text-xs text-slate-600 mt-1"><b>Cliente:</b> {bid.pedido?.cliente?.nome || 'Cliente'}</p>
-                    <p className="text-xs text-slate-600"><b>WhatsApp:</b> {bid.pedido?.cliente?.telefone || 'Não informado'}</p>
-                  </div>
-
-                  {bid.pedido?.cliente?.telefone && (
-                    <a
-                      href={`https://wa.me/55${bid.pedido?.cliente?.telefone.replace(/\D/g, '')}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <span>💬</span> Chamar no WhatsApp
-                    </a>
-                  )}
+          {!collapsedSections.abertas && (
+            <div className="px-6 pb-6 space-y-4">
+              {/* Filtros e Busca */}
+              <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 overflow-x-auto">
+                  <button
+                    onClick={() => setStatusFilter('todas')}
+                    className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'todas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-white'}`}
+                  >
+                    Todas ({orders.length})
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('urgentes')}
+                    className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'urgentes' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-white'}`}
+                  >
+                    🔴 Urgentes (1h)
+                  </button>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Seção de Propostas Enviadas (aguardando resposta do cliente) */}
-        {pendingBids.length > 0 && (
-          <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-6 space-y-4 shadow-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">📨</span>
-              <h2 className="text-lg font-bold text-indigo-900">Propostas Enviadas ({pendingBids.length})</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {pendingBids.map((bid) => (
-                <div key={bid.id} className="bg-white p-4 rounded-xl border border-indigo-200/80 shadow-xs space-y-2">
-                  <div className="flex justify-between items-start gap-2">
-                    <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                      Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
-                    </span>
-                    <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                      Aguardando Resposta
-                    </span>
-                  </div>
-
-                  <h3 className="font-bold text-slate-800 text-sm">{bid.pedido?.descricao}</h3>
-                  <p className="text-xs text-slate-600">
-                    <b>Total enviado:</b> R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
-                    {' '}<span className="text-slate-400">(Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})</span>
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {bid.is_completo ? 'Atendimento: 100%' : 'Atendimento: Parcial'}
-                  </p>
-                  <p className="text-[11px] text-slate-400 italic pt-1 border-t">
-                    Proposta enviada e travada — não pode ser editada.
-                  </p>
+                <div className="relative min-w-[240px]">
+                  <input
+                    type="text"
+                    placeholder="Buscar por pedido, item ou bairro..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
                 </div>
-              ))}
+              </div>
+
+              {/* Lista de Cotações Disponíveis */}
+              <div className="space-y-3">
+                {loading ? (
+                  <div className="bg-slate-50 rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
+                    Carregando cotações disponíveis...
+                  </div>
+                ) : filteredOrders.length === 0 ? (
+                  <div className="bg-slate-50 rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
+                    Nenhuma cotação disponível no momento para suas categorias e filtros.
+                  </div>
+                ) : (
+                  filteredOrders.map((order) => {
+                    const tempo = getRemainingTime(order.expira_em);
+                    const cardKey = `aberta-${order.id}`;
+                    const isCollapsed = collapsedCards.has(cardKey);
+
+                    return (
+                      <div key={order.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                          <div className="space-y-1 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                onClick={() => toggleCard(cardKey)}
+                                className="text-slate-400 hover:text-slate-600 text-xs w-4"
+                                title={isCollapsed ? 'Expandir' : 'Encolher'}
+                              >
+                                {isCollapsed ? '▸' : '▾'}
+                              </button>
+
+                              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
+                                Pedido #{order.codigo_pedido || order.id}
+                              </span>
+
+                              {order.prazo_opcao === 'urgente' && (
+                                <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md animate-pulse">
+                                  🔴 URGENTE (1h)
+                                </span>
+                              )}
+
+                              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                                tempo.expirado ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                ⏱️ {tempo.texto}
+                              </span>
+
+                              {isCollapsed && (
+                                <span className="text-xs font-semibold text-slate-600 truncate">{order.descricao}</span>
+                              )}
+                            </div>
+
+                            {!isCollapsed && (
+                              <>
+                                <h2 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h2>
+                                <p className="text-xs text-slate-500">
+                                  <b>Categoria:</b> {order.categoria_nome_exibicao} | <b>Cidade:</b> {order.cidade_nome_exibicao} {order.bairro && `(${order.bairro})`}
+                                </p>
+                              </>
+                            )}
+                          </div>
+
+                          <div>
+                            {tempo.expirado ? (
+                              <span className="text-xs font-bold text-slate-400 bg-slate-100 px-4 py-2.5 rounded-xl cursor-not-allowed inline-block">
+                                Prazo Encerrado
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => openBidModal(order)}
+                                className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center gap-1.5"
+                              >
+                                Preencher Orçamento
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Filtros e Busca */}
-        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 overflow-x-auto">
-            <button
-              onClick={() => setStatusFilter('todas')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'todas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
-            >
-              Todas ({orders.length})
-            </button>
-            <button
-              onClick={() => setStatusFilter('urgentes')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'urgentes' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
-            >
-              🔴 Urgentes (1h)
-            </button>
-          </div>
-
-          <div className="relative min-w-[240px]">
-            <input
-              type="text"
-              placeholder="Buscar por pedido, item ou bairro..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-            />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
-          </div>
+          )}
         </div>
 
-        {/* Lista de Cotações Disponíveis */}
-        <div className="space-y-4">
-          {loading ? (
-            <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
-              Carregando cotações disponíveis...
-            </div>
-          ) : filteredOrders.length === 0 ? (
-            <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
-              Nenhuma cotação disponível no momento para suas categorias e filtros.
-            </div>
-          ) : (
-            filteredOrders.map((order) => {
-              const tempo = getRemainingTime(order.expira_em);
+        {/* ================= SEÇÃO 2: FECHADAS (vendas confirmadas) ================= */}
+        {acceptedBids.length > 0 && (
+          <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl shadow-sm">
+            <button
+              onClick={() => toggleSection('fechadas')}
+              className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
+            >
+              <span className="flex items-center gap-2">
+                <span className="text-lg">🎉</span>
+                <h2 className="text-lg font-bold text-emerald-900">Vendas Confirmadas ({acceptedBids.length})</h2>
+              </span>
+              <span className="text-emerald-700/60 text-xs font-semibold">
+                {collapsedSections.fechadas ? '▸ Expandir' : '▾ Encolher'}
+              </span>
+            </button>
 
-              return (
-                <div key={order.id} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
-                          Pedido #{order.codigo_pedido || order.id}
-                        </span>
+            {!collapsedSections.fechadas && (
+              <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {acceptedBids.map((bid) => {
+                  const cardKey = `fechada-${bid.id}`;
+                  const isCollapsed = collapsedCards.has(cardKey);
 
-                        {order.prazo_opcao === 'urgente' && (
-                          <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md animate-pulse">
-                            🔴 URGENTE (1h)
+                  return (
+                    <div key={bid.id} className="bg-white p-4 rounded-xl border border-emerald-200/80 shadow-xs flex flex-col justify-between gap-3">
+                      <div>
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="flex items-center gap-2">
+                            <button
+                              onClick={() => toggleCard(cardKey)}
+                              className="text-slate-400 hover:text-slate-600 text-xs w-4"
+                              title={isCollapsed ? 'Expandir' : 'Encolher'}
+                            >
+                              {isCollapsed ? '▸' : '▾'}
+                            </button>
+                            <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
+                              Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
+                            </span>
                           </span>
-                        )}
+                          <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                            Confirmado
+                          </span>
+                        </div>
 
-                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                          tempo.expirado ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          ⏱️ {tempo.texto}
+                        {!isCollapsed && (
+                          <>
+                            <h3 className="font-bold text-slate-800 mt-2 text-sm">{bid.pedido?.descricao}</h3>
+                            <p className="text-xs text-slate-600 mt-1"><b>Cliente:</b> {bid.pedido?.cliente?.nome || 'Cliente'}</p>
+                            <p className="text-xs text-slate-600"><b>WhatsApp:</b> {bid.pedido?.cliente?.telefone || 'Não informado'}</p>
+                          </>
+                        )}
+                      </div>
+
+                      {!isCollapsed && bid.pedido?.cliente?.telefone && (
+                        <a
+                          href={`https://wa.me/55${bid.pedido?.cliente?.telefone.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <span>💬</span> Chamar no WhatsApp
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ================= SEÇÃO 3: ENVIADAS (aguardando resposta do cliente) ================= */}
+        {pendingBids.length > 0 && (
+          <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl shadow-sm">
+            <button
+              onClick={() => toggleSection('enviadas')}
+              className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
+            >
+              <span className="flex items-center gap-2">
+                <span className="text-lg">📨</span>
+                <h2 className="text-lg font-bold text-indigo-900">Propostas Enviadas ({pendingBids.length})</h2>
+              </span>
+              <span className="text-indigo-700/60 text-xs font-semibold">
+                {collapsedSections.enviadas ? '▸ Expandir' : '▾ Encolher'}
+              </span>
+            </button>
+
+            {!collapsedSections.enviadas && (
+              <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {pendingBids.map((bid) => {
+                  const cardKey = `enviada-${bid.id}`;
+                  const isCollapsed = collapsedCards.has(cardKey);
+
+                  return (
+                    <div key={bid.id} className="bg-white p-4 rounded-xl border border-indigo-200/80 shadow-xs space-y-2">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="flex items-center gap-2">
+                          <button
+                            onClick={() => toggleCard(cardKey)}
+                            className="text-slate-400 hover:text-slate-600 text-xs w-4"
+                            title={isCollapsed ? 'Expandir' : 'Encolher'}
+                          >
+                            {isCollapsed ? '▸' : '▾'}
+                          </button>
+                          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
+                            Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
+                          </span>
+                        </span>
+                        <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                          Aguardando Resposta
                         </span>
                       </div>
 
-                      <h2 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h2>
-                      <p className="text-xs text-slate-500">
-                        <b>Categoria:</b> {order.categoria_nome_exibicao} | <b>Cidade:</b> {order.cidade_nome_exibicao} {order.bairro && `(${order.bairro})`}
-                      </p>
-                    </div>
-
-                    <div>
-                      {tempo.expirado ? (
-                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-4 py-2.5 rounded-xl cursor-not-allowed inline-block">
-                          Prazo Encerrado
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => openBidModal(order)}
-                          className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center gap-1.5"
-                        >
-                          Preencher Orçamento
-                        </button>
+                      {!isCollapsed && (
+                        <>
+                          <h3 className="font-bold text-slate-800 text-sm">{bid.pedido?.descricao}</h3>
+                          <p className="text-xs text-slate-600">
+                            <b>Total enviado:</b> R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
+                            {' '}<span className="text-slate-400">(Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})</span>
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {bid.is_completo ? 'Atendimento: 100%' : 'Atendimento: Parcial'}
+                          </p>
+                          <p className="text-[11px] text-slate-400 italic pt-1 border-t">
+                            Proposta enviada e travada — não pode ser editada.
+                          </p>
+                        </>
                       )}
                     </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
       </main>
 
