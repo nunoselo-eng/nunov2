@@ -296,7 +296,7 @@ export default function ClientDashboard() {
             if (lojistaIds.length > 0) {
               const { data: lojistasData } = await supabase
                 .from('profiles')
-                .select('id, nome, telefone')
+                .select('id, nome, telefone, reputacao_media, total_avaliacoes, logo_url')
                 .in('id', lojistaIds);
 
               const lojistaMap = {};
@@ -430,7 +430,11 @@ export default function ClientDashboard() {
   const encerradasOrders = ordenarPorData(orders.filter(o => classifyOrder(o) === 'encerradas' && matchesSearch(o) && matchesDate(o)));
 
   const renderOrderCard = (order) => {
-    const orderBids = bidsByOrder[String(order.id)] || [];
+    const todasPropostas = bidsByOrder[String(order.id)] || [];
+    const hasAcceptedBid = todasPropostas.some(b => b.status === 'Aceito');
+    // Depois que uma proposta é aprovada, as outras ficam travadas — só
+    // mostra a aceita. Pra ver outras opções, precisa criar uma cotação nova.
+    const orderBids = hasAcceptedBid ? todasPropostas.filter(b => b.status === 'Aceito') : todasPropostas;
     const items = orderItemsMap[order.id] || [];
     const tempo = getRemainingTime(order);
     const isCardCollapsed = collapsedCards.has(order.id);
@@ -476,7 +480,12 @@ export default function ClientDashboard() {
               </p>
             ) : (
               <>
-              {orderBids.length > 1 && (
+              {hasAcceptedBid && todasPropostas.length > 1 && (
+                <p className="text-[11px] text-slate-400 italic bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                  🔒 As outras {todasPropostas.length - 1} proposta(s) deste pedido ficaram ocultas após a aprovação. Para comparar outras opções, crie uma nova cotação.
+                </p>
+              )}
+              {!hasAcceptedBid && orderBids.length > 1 && (
                 <div className="flex items-center gap-2 text-xs">
                   <span className="text-slate-500 font-semibold">Ordenar por:</span>
                   <button
@@ -533,6 +542,31 @@ export default function ClientDashboard() {
                             </span>
                           )}
                         </div>
+
+                        {isAccepted ? (
+                          <div className="flex items-center gap-2 mt-1.5">
+                            {lojistaPorBid[bid.lojista_id]?.logo_url && (
+                              <img
+                                src={lojistaPorBid[bid.lojista_id].logo_url}
+                                alt="Logo da loja"
+                                className="w-8 h-8 rounded-lg object-cover border border-slate-200"
+                              />
+                            )}
+                            <div>
+                              <p className="text-sm font-bold text-slate-800">{lojistaPorBid[bid.lojista_id]?.nome || 'Loja'}</p>
+                              <p className="text-[11px] font-semibold text-amber-600">
+                                ⭐ {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
+                                <span className="text-slate-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações)</span>
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] font-semibold text-amber-600 mt-1">
+                            ⭐ {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
+                            <span className="text-slate-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações) · loja revelada após aprovar</span>
+                          </p>
+                        )}
+
                         <p className="text-xl font-bold text-slate-900 mt-1">
                           Total: R$ {total.toFixed(2)}{' '}
                           <span className="text-xs text-slate-500 font-normal">
