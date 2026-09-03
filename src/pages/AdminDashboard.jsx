@@ -44,6 +44,13 @@ export default function AdminDashboard() {
   const [enviandoSom, setEnviandoSom] = useState(false);
   const [somAtualUrl, setSomAtualUrl] = useState(null);
 
+  // Modal de Avaliações (contestações e correções de reputação)
+  const [isAvaliacoesModalOpen, setIsAvaliacoesModalOpen] = useState(false);
+  const [avaliacoes, setAvaliacoes] = useState([]);
+  const [filtroAvaliacoes, setFiltroAvaliacoes] = useState('contestadas');
+  const [avaliacaoEditando, setAvaliacaoEditando] = useState(null);
+  const [notaEditada, setNotaEditada] = useState('');
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingLojistaId, setEditingLojistaId] = useState(null);
   const [editNome, setEditNome] = useState('');
@@ -405,6 +412,53 @@ export default function AdminDashboard() {
     }
   };
 
+  const carregarAvaliacoes = async (filtro) => {
+    setFiltroAvaliacoes(filtro);
+    let query = supabase.from('avaliacoes').select('*').order('criado_em', { ascending: false });
+    if (filtro === 'contestadas') query = query.eq('contestada', true).eq('desconsiderada', false);
+    const { data: avaliacoesData } = await query;
+
+    const ids = Array.from(new Set((avaliacoesData || []).flatMap(a => [a.avaliador_id, a.avaliado_id]).filter(Boolean)));
+    let nomesMap = {};
+    if (ids.length > 0) {
+      const { data: perfis } = await supabase.from('profiles').select('id, nome').in('id', ids);
+      (perfis || []).forEach(p => { nomesMap[p.id] = p.nome; });
+    }
+
+    setAvaliacoes((avaliacoesData || []).map(a => ({
+      ...a,
+      nomeAvaliador: nomesMap[a.avaliador_id] || 'Desconhecido',
+      nomeAvaliado: nomesMap[a.avaliado_id] || 'Desconhecido',
+    })));
+  };
+
+  const handleSalvarNotaEditada = async (avaliacaoId) => {
+    const nota = parseInt(notaEditada);
+    if (!nota || nota < 1 || nota > 5) {
+      alert('A nota precisa ser de 1 a 5.');
+      return;
+    }
+    try {
+      const { error } = await supabase.from('avaliacoes').update({ nota, contestada: false }).eq('id', avaliacaoId);
+      if (error) throw error;
+      alert('Nota corrigida! A média foi recalculada automaticamente.');
+      setAvaliacaoEditando(null);
+      carregarAvaliacoes(filtroAvaliacoes);
+    } catch (err) {
+      alert('Erro ao corrigir nota: ' + err.message);
+    }
+  };
+
+  const handleDesconsiderarAvaliacao = async (avaliacaoId, desconsiderar) => {
+    try {
+      const { error } = await supabase.from('avaliacoes').update({ desconsiderada: desconsiderar, contestada: false }).eq('id', avaliacaoId);
+      if (error) throw error;
+      carregarAvaliacoes(filtroAvaliacoes);
+    } catch (err) {
+      alert('Erro: ' + err.message);
+    }
+  };
+
   const handleSaveEditLojista = async (e) => {
     e.preventDefault();
     try {
@@ -557,6 +611,7 @@ export default function AdminDashboard() {
               <div className="flex gap-2">
                 <button onClick={() => setIsCategoryModalOpen(true)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-semibold">Gerenciar Categorias</button>
                 <button onClick={() => { carregarSomAtual(); setIsSomModalOpen(true); }} className="bg-amber-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">🔊 Som de Notificação</button>
+                <button onClick={() => { carregarAvaliacoes('contestadas'); setIsAvaliacoesModalOpen(true); }} className="bg-rose-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">⭐ Avaliações</button>
                 <button onClick={() => setIsClientModalOpen(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Cadastrar Cliente</button>
                 <button onClick={() => setIsRepModalOpen(true)} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Cadastrar Representante</button>
                 <button onClick={() => setIsModalOpen(true)} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Cadastrar Lojista</button>
@@ -830,6 +885,89 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* Modal de Avaliações (contestações e correções) */}
+        {isAvaliacoesModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center pb-2 border-b">
+                <h3 className="text-xl font-bold text-slate-800">⭐ Avaliações</h3>
+                <button type="button" onClick={() => setIsAvaliacoesModalOpen(false)} className="text-slate-400 font-bold">✕</button>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => carregarAvaliacoes('contestadas')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${filtroAvaliacoes === 'contestadas' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                >
+                  Contestadas
+                </button>
+                <button
+                  onClick={() => carregarAvaliacoes('todas')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${filtroAvaliacoes === 'todas' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                >
+                  Todas
+                </button>
+              </div>
+
+              {avaliacoes.length === 0 ? (
+                <p className="text-sm text-slate-500 text-center py-6">Nenhuma avaliação encontrada com esse filtro.</p>
+              ) : (
+                <div className="space-y-2">
+                  {avaliacoes.map((av) => (
+                    <div key={av.id} className={`p-3 rounded-xl border space-y-2 ${av.desconsiderada ? 'border-slate-200 bg-slate-50 opacity-60' : av.contestada ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-white'}`}>
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <p className="text-xs text-slate-500"><b>Lojista avaliado:</b> {av.nomeAvaliado}</p>
+                          <p className="text-xs text-slate-500"><b>Cliente:</b> {av.nomeAvaliador}</p>
+                          {avaliacaoEditando === av.id ? (
+                            <div className="flex items-center gap-2 mt-1">
+                              <input
+                                type="number"
+                                min="1"
+                                max="5"
+                                value={notaEditada}
+                                onChange={(e) => setNotaEditada(e.target.value)}
+                                className="w-16 p-1.5 rounded-lg border text-sm"
+                              />
+                              <button onClick={() => handleSalvarNotaEditada(av.id)} className="text-xs font-bold text-emerald-600">Salvar</button>
+                              <button onClick={() => setAvaliacaoEditando(null)} className="text-xs font-bold text-slate-500">Cancelar</button>
+                            </div>
+                          ) : (
+                            <p className="text-sm font-bold text-amber-600 mt-1">{'⭐'.repeat(av.nota)}{'☆'.repeat(5 - av.nota)}</p>
+                          )}
+                          {av.comentario && <p className="text-xs text-slate-600 mt-1">{av.comentario}</p>}
+                          <p className="text-[11px] text-slate-400 mt-1">{new Date(av.criado_em).toLocaleDateString('pt-BR')}</p>
+                        </div>
+                        <div className="flex flex-col gap-1 items-end">
+                          {av.contestada && !av.desconsiderada && (
+                            <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">Contestada</span>
+                          )}
+                          {av.desconsiderada && (
+                            <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full">Desconsiderada</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-3 pt-1 border-t border-slate-100">
+                        {avaliacaoEditando !== av.id && (
+                          <button onClick={() => { setAvaliacaoEditando(av.id); setNotaEditada(String(av.nota)); }} className="text-xs font-bold text-indigo-600">
+                            Corrigir nota
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDesconsiderarAvaliacao(av.id, !av.desconsiderada)}
+                          className="text-xs font-bold text-slate-600"
+                        >
+                          {av.desconsiderada ? 'Reconsiderar' : 'Desconsiderar'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
