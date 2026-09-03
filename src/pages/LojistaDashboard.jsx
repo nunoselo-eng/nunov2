@@ -14,6 +14,28 @@ export default function LojistaDashboard() {
   const [bidItemsData, setBidItemsData] = useState([]);
   const [frete, setFrete] = useState('');
   const [observacao, setObservacao] = useState('');
+  const [prazoEntrega, setPrazoEntrega] = useState('');
+  const [garantia, setGarantia] = useState('');
+  const [formasPagamento, setFormasPagamento] = useState([]);
+
+  const OPCOES_PRAZO_ENTREGA = [
+    { value: 'em_2h', label: 'Em até 2 horas', peso: 2 },
+    { value: 'hoje', label: 'Ainda hoje', peso: 12 },
+    { value: 'amanha', label: 'Amanhã', peso: 24 },
+    { value: '2_3_dias', label: '2 a 3 dias', peso: 72 },
+  ];
+
+  const OPCOES_PAGAMENTO = [
+    { value: 'cartao', label: 'Cartão' },
+    { value: 'a_vista', label: 'À vista' },
+    { value: 'faturado', label: 'Faturado (você aprova o cadastro do cliente)' },
+  ];
+
+  const toggleFormaPagamento = (value) => {
+    setFormasPagamento(prev =>
+      prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+    );
+  };
   const [loading, setLoading] = useState(true);
 
   // Filtros e Busca
@@ -504,7 +526,10 @@ export default function LojistaDashboard() {
           frete: parseFloat(frete || 0),
           observacao: observacao,
           status: 'Enviado',
-          is_completo: atendeuTodos
+          is_completo: atendeuTodos,
+          prazo_entrega: prazoEntrega || null,
+          garantia: garantia || null,
+          formas_pagamento: formasPagamento.length > 0 ? formasPagamento : null
         }])
         .select()
         .single();
@@ -528,6 +553,9 @@ export default function LojistaDashboard() {
       setSelectedOrder(null);
       setFrete('');
       setObservacao('');
+      setPrazoEntrega('');
+      setGarantia('');
+      setFormasPagamento([]);
       setNovosPedidosCount(prev => {
         const novo = Math.max(0, prev - 1);
         if (novo === 0) setNewOrderAlert(false);
@@ -1249,11 +1277,59 @@ export default function LojistaDashboard() {
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Observações</label>
                 <input
                   type="text"
-                  placeholder="Ex: Marcas, garantia, prazo de entrega..."
+                  placeholder="Ex: Marcas, cores disponíveis..."
                   value={observacao}
                   onChange={(e) => setObservacao(e.target.value)}
                   className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
                 />
+              </div>
+            </div>
+
+            {/* Prazo de Entrega e Garantia */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Prazo de Entrega</label>
+                <select
+                  value={prazoEntrega}
+                  onChange={(e) => setPrazoEntrega(e.target.value)}
+                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
+                >
+                  <option value="">Selecione...</option>
+                  {OPCOES_PRAZO_ENTREGA.map(op => (
+                    <option key={op.value} value={op.value}>{op.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Garantia (opcional)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: 3 meses, 1 ano..."
+                  value={garantia}
+                  onChange={(e) => setGarantia(e.target.value)}
+                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
+                />
+              </div>
+            </div>
+
+            {/* Formas de Pagamento */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Formas de Pagamento Aceitas</label>
+              <div className="flex flex-wrap gap-2">
+                {OPCOES_PAGAMENTO.map(op => (
+                  <button
+                    key={op.value}
+                    type="button"
+                    onClick={() => toggleFormaPagamento(op.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                      formasPagamento.includes(op.value)
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-600 border-slate-300'
+                    }`}
+                  >
+                    {op.label}
+                  </button>
+                ))}
               </div>
             </div>
 
