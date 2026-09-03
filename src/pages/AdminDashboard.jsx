@@ -96,6 +96,8 @@ export default function AdminDashboard() {
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedStore, setSelectedStore] = useState('');
+  const [dataFiltroDe, setDataFiltroDe] = useState('');
+  const [dataFiltroAte, setDataFiltroAte] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modais de Imagem e Detalhes
@@ -587,6 +589,8 @@ export default function AdminDashboard() {
       const orderBids = bidsByOrder[String(order.id)] || [];
       if (!orderBids.some(b => String(b.lojista_id) === String(selectedStore))) return false;
     }
+    if (dataFiltroDe && new Date(order.created_at) < new Date(dataFiltroDe + 'T00:00:00')) return false;
+    if (dataFiltroAte && new Date(order.created_at) > new Date(dataFiltroAte + 'T23:59:59')) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       const matchDesc = order.descricao?.toLowerCase().includes(term);
@@ -596,6 +600,44 @@ export default function AdminDashboard() {
     }
     return true;
   });
+
+  // Exporta os pedidos filtrados (respeitando cidade/cliente/lojista/data/busca) em CSV
+  const handleExportarCSV = () => {
+    const linhas = [
+      ['Codigo Pedido', 'Data', 'Cliente', 'Cidade', 'Descricao', 'Status', 'Lojista Aceito', 'Valor Total'].join(';')
+    ];
+
+    filteredOrders.forEach((order) => {
+      const orderBids = bidsByOrder[String(order.id)] || [];
+      const bidAceito = orderBids.find(b => b.status === 'Aceito');
+      const lojistaAceito = bidAceito ? (stores.find(st => String(st.id) === String(bidAceito.lojista_id))?.nome || '') : '';
+      const valorTotal = bidAceito ? (parseFloat(bidAceito.preco || 0) + parseFloat(bidAceito.frete || 0)).toFixed(2) : '';
+
+      const linha = [
+        order.codigo_pedido || order.id,
+        formatDataHora(order.created_at),
+        order.cliente?.nome || '',
+        order.cidade_nome_exibicao || '',
+        (order.descricao || '').replace(/;/g, ','),
+        order.status || '',
+        lojistaAceito,
+        valorTotal
+      ].map(campo => `"${String(campo).replace(/"/g, '""')}"`).join(';');
+
+      linhas.push(linha);
+    });
+
+    const csvContent = '\uFEFF' + linhas.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `pedidos_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const toggleDetails = (id) => setShowDetails(prev => ({ ...prev, [id]: !prev[id] }));
 
@@ -681,22 +723,35 @@ export default function AdminDashboard() {
               <div className="space-y-4">
                 {lojistas.filter(l => !selectedCityFilter || l.cidade?.toLowerCase() === selectedCityFilter.toLowerCase()).map((lojista) => (
                   <div key={lojista.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    <div>
-                      <h3 className="font-bold text-lg text-slate-800">{lojista.nome || 'Lojista'}</h3>
-                      <p className="text-xs text-slate-500">Cidade: {lojista.cidade || 'Não informada'} | Tel: {lojista.telefone || 'Não informado'}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        <b>Horário:</b>{' '}
-                        {lojista.horario_abertura && lojista.horario_fechamento
-                          ? `${lojista.horario_abertura.slice(0, 5)} às ${lojista.horario_fechamento.slice(0, 5)}`
-                          : 'Não definido'}
-                        {' · '}
-                        {lojista.dias_funcionamento && lojista.dias_funcionamento.length > 0
-                          ? DIAS_SEMANA.filter(d => lojista.dias_funcionamento.includes(d.key)).map(d => d.label).join(', ')
-                          : 'Dias não definidos'}
-                      </p>
-                      <span className={`text-xs font-bold px-3 py-1 rounded-full inline-block mt-2 ${lojista.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {lojista.ativo ? 'Ativo (Liberado)' : 'Inadimplente (Bloqueado)'}
-                      </span>
+                    <div className="flex gap-3">
+                      {lojista.logo_url ? (
+                        <img src={lojista.logo_url} alt={lojista.nome} className="w-14 h-14 rounded-xl object-cover border border-slate-200 flex-shrink-0" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-xl flex-shrink-0">🏬</div>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-lg text-slate-800">{lojista.nome || 'Lojista'}</h3>
+                          <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                            ⭐ {lojista.reputacao_media != null ? Number(lojista.reputacao_media).toFixed(1) : '5.0'}
+                            <span className="text-slate-400 font-normal"> ({lojista.total_avaliacoes || 0})</span>
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500">Cidade: {lojista.cidade || 'Não informada'} | Tel: {lojista.telefone || 'Não informado'}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          <b>Horário:</b>{' '}
+                          {lojista.horario_abertura && lojista.horario_fechamento
+                            ? `${lojista.horario_abertura.slice(0, 5)} às ${lojista.horario_fechamento.slice(0, 5)}`
+                            : 'Não definido'}
+                          {' · '}
+                          {lojista.dias_funcionamento && lojista.dias_funcionamento.length > 0
+                            ? DIAS_SEMANA.filter(d => lojista.dias_funcionamento.includes(d.key)).map(d => d.label).join(', ')
+                            : 'Dias não definidos'}
+                        </p>
+                        <span className={`text-xs font-bold px-3 py-1 rounded-full inline-block mt-2 ${lojista.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {lojista.ativo ? 'Ativo (Liberado)' : 'Inadimplente (Bloqueado)'}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex-1">
@@ -774,6 +829,34 @@ export default function AdminDashboard() {
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Buscar por Código / Nome</label>
                 <input type="text" placeholder="Ex: #855-1..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 bg-slate-50 text-sm" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">De</label>
+                <input type="date" value={dataFiltroDe} onChange={(e) => setDataFiltroDe(e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 bg-slate-50 text-sm" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Até</label>
+                <input type="date" value={dataFiltroAte} onChange={(e) => setDataFiltroAte(e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 bg-slate-50 text-sm" />
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  onClick={() => { setSelectedCity(''); setSelectedClient(''); setSelectedStore(''); setSearchTerm(''); setDataFiltroDe(''); setDataFiltroAte(''); }}
+                  className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-600 bg-white text-sm font-semibold hover:bg-slate-50"
+                >
+                  Limpar Filtros
+                </button>
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  onClick={handleExportarCSV}
+                  className="w-full p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                >
+                  ⬇ Exportar CSV
+                </button>
               </div>
             </div>
 
