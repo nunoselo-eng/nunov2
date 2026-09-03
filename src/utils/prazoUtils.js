@@ -138,6 +138,33 @@ export function getStatusPrazo(order, lojistas, agora = new Date()) {
 
 // Busca no Supabase os lojistas elegíveis (ativos, da categoria e cidade
 // informadas) já com os campos de horário necessários.
+// Aplica uma penalidade automática de reputação (-0,5) pra um pedido que
+// expirou sem resposta — de cliente (recebeu proposta e ignorou) ou de
+// lojista (pedido era elegível e ele nunca orçou). Idempotente: cada
+// combinação pedido+tipo+pessoa só é processada uma vez, graças à
+// restrição única na tabela `penalidades_processadas`.
+export async function aplicarPenalidadeSeNecessario(supabase, orderId, tipo, usuarioId) {
+  if (!orderId || !usuarioId) return;
+  try {
+    const { data: existente } = await supabase
+      .from('penalidades_processadas')
+      .select('id')
+      .eq('order_id', orderId)
+      .eq('tipo', tipo)
+      .eq('usuario_id', usuarioId)
+      .maybeSingle();
+
+    if (existente) return;
+
+    await supabase
+      .from('penalidades_processadas')
+      .insert([{ order_id: orderId, tipo, usuario_id: usuarioId }]);
+    // A média é recalculada automaticamente por um gatilho no banco.
+  } catch (e) {
+    console.error('Erro ao aplicar penalidade automática:', e);
+  }
+}
+
 export async function buscarLojistasElegiveis(supabase, categoriaId, cidadeNome) {
   if (!categoriaId) return [];
 
