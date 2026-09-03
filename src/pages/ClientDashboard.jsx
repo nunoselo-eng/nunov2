@@ -36,6 +36,22 @@ export default function ClientDashboard() {
   const [pedidosComPropostaNova, setPedidosComPropostaNova] = useState(new Set());
   const ordersIdsRef = useRef([]);
 
+  // Ordenação das propostas dentro de cada pedido: por preço ou por prazo de entrega
+  const [ordenarPropostasPor, setOrdenarPropostasPor] = useState('preco');
+
+  const LABEL_PRAZO_ENTREGA = {
+    em_2h: 'Em até 2 horas',
+    hoje: 'Ainda hoje',
+    amanha: 'Amanhã',
+    '2_3_dias': '2 a 3 dias',
+  };
+  const PESO_PRAZO_ENTREGA = { em_2h: 2, hoje: 12, amanha: 24, '2_3_dias': 72 };
+  const LABEL_FORMA_PAGAMENTO = {
+    cartao: 'Cartão',
+    a_vista: 'À vista',
+    faturado: 'Faturado',
+  };
+
   const toggleSection = (key) => {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
@@ -401,7 +417,35 @@ export default function ClientDashboard() {
                 {tempo.expirado ? 'Nenhuma proposta foi enviada durante o prazo.' : 'Aguardando propostas dos lojistas...'}
               </p>
             ) : (
-              orderBids.map((bid, index) => {
+              <>
+              {orderBids.length > 1 && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-500 font-semibold">Ordenar por:</span>
+                  <button
+                    onClick={() => setOrdenarPropostasPor('preco')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold border ${ordenarPropostasPor === 'preco' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                  >
+                    Menor preço
+                  </button>
+                  <button
+                    onClick={() => setOrdenarPropostasPor('prazo')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold border ${ordenarPropostasPor === 'prazo' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                  >
+                    Entrega mais rápida
+                  </button>
+                </div>
+              )}
+              {[...orderBids].sort((a, b) => {
+                if (a.is_completo !== b.is_completo) return a.is_completo ? -1 : 1;
+                if (ordenarPropostasPor === 'prazo') {
+                  const pesoA = PESO_PRAZO_ENTREGA[a.prazo_entrega] ?? 999;
+                  const pesoB = PESO_PRAZO_ENTREGA[b.prazo_entrega] ?? 999;
+                  if (pesoA !== pesoB) return pesoA - pesoB;
+                }
+                const totalA = (parseFloat(a.preco || 0)) + (parseFloat(a.frete || 0));
+                const totalB = (parseFloat(b.preco || 0)) + (parseFloat(b.frete || 0));
+                return totalA - totalB;
+              }).map((bid, index) => {
                 const total = (parseFloat(bid.preco || 0)) + (parseFloat(bid.frete || 0));
                 const bItems = bidItemsMap[bid.id] || [];
                 const isAccepted = bid.status === 'Aceito';
@@ -437,6 +481,25 @@ export default function ClientDashboard() {
                             (Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})
                           </span>
                         </p>
+                        {(bid.prazo_entrega || bid.garantia || (bid.formas_pagamento && bid.formas_pagamento.length > 0)) && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {bid.prazo_entrega && (
+                              <span className="text-[11px] font-semibold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
+                                🚚 {LABEL_PRAZO_ENTREGA[bid.prazo_entrega] || bid.prazo_entrega}
+                              </span>
+                            )}
+                            {bid.garantia && (
+                              <span className="text-[11px] font-semibold bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full">
+                                🛡️ Garantia: {bid.garantia}
+                              </span>
+                            )}
+                            {(bid.formas_pagamento || []).map(fp => (
+                              <span key={fp} className="text-[11px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                                💳 {LABEL_FORMA_PAGAMENTO[fp] || fp}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2.5">
@@ -525,7 +588,8 @@ export default function ClientDashboard() {
 
                   </div>
                 );
-              })
+              })}
+              </>
             )}
           </div>
         )}
