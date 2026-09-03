@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { createClient } from '@supabase/supabase-js';
+import { Link } from 'react-router-dom';
+import logo from '../assets/logo.svg';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('lojistas'); // 'lojistas' ou 'pedidos'
@@ -11,6 +13,7 @@ export default function AdminDashboard() {
   const [cities, setCities] = useState([]);
   const [selectedCityFilter, setSelectedCityFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState('');
 
   // Modais de Lojista e Categoria
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -115,6 +118,9 @@ export default function AdminDashboard() {
 
   async function fetchAllData() {
     setLoading(true);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) setUserEmail(user.email || '');
 
     // 1. Perfis e Lojistas
     const { data: profilesData } = await supabase.from('profiles').select('*');
@@ -662,18 +668,53 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-8">
+    <div className="min-h-screen bg-slate-100">
+
+      {/* Cabeçalho Principal (Header) */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+
+          <Link to="/" className="flex items-center hover:opacity-90 transition">
+            <img src={logo} alt="Logo" className="h-10 w-auto object-contain" />
+          </Link>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              {userEmail || 'admin@nunoselo.com'}
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg transition"
+            >
+              Sair
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="p-8">
       <div className="max-w-6xl mx-auto space-y-6">
 
         {/* Cabeçalho */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200 gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800">Painel do Administrador</h2>
-            <p className="text-sm text-slate-500">Gerenciamento Geral da Plataforma</p>
+        <div className="relative p-6 rounded-2xl shadow-sm overflow-hidden">
+          <div className="absolute inset-0" style={{ backgroundColor: '#5E17EB' }} />
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: '#00068F', clipPath: 'polygon(4% 0, 62% 0, 54% 100%, -4% 100%)' }}
+          />
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: '#935DFF', clipPath: 'polygon(0 0, 4% 0, -4% 100%, -8% 100%)' }}
+          />
+
+          <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-white tracking-tight">Painel do Administrador</h2>
+              <p className="text-sm text-indigo-100 mt-0.5">Gerenciamento Geral da Plataforma</p>
+            </div>
           </div>
-          <button onClick={handleLogout} className="bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-300 transition">
-            Sair
-          </button>
         </div>
 
         {/* Seleção de Abas */}
@@ -1358,6 +1399,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
+      </div>
       </div>
     </div>
   );
