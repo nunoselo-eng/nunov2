@@ -35,6 +35,8 @@ export default function LojistaDashboard() {
   const [now, setNow] = useState(Date.now());
   const [newOrderAlert, setNewOrderAlert] = useState(false);
   const [novosPedidosCount, setNovosPedidosCount] = useState(0);
+  const [novaVendaConfirmadaCount, setNovaVendaConfirmadaCount] = useState(0);
+  const [showVendaConfirmadaBanner, setShowVendaConfirmadaBanner] = useState(false);
 
   // Encolher/expandir seções e cards individuais
   const [collapsedSections, setCollapsedSections] = useState({ abertas: false, fechadas: false, enviadas: false });
@@ -63,7 +65,14 @@ export default function LojistaDashboard() {
   };
 
   const toggleSection = (key) => {
-    setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
+    setCollapsedSections(prev => {
+      const vaiExpandir = prev[key]; // estava colapsado, vai abrir agora
+      if (key === 'fechadas' && vaiExpandir) {
+        setNovaVendaConfirmadaCount(0);
+        setShowVendaConfirmadaBanner(false);
+      }
+      return { ...prev, [key]: !prev[key] };
+    });
   };
 
   const toggleCard = (cardKey) => {
@@ -209,6 +218,39 @@ export default function LojistaDashboard() {
 
     return () => {
       supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Avisa o lojista, com banner fixo, quando um cliente confirma uma
+  // proposta dele (transição de status pra 'Aceito').
+  useEffect(() => {
+    let channel;
+
+    async function setupVendaConfirmadaChannel() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      channel = supabase
+        .channel('realtime-bids-lojista')
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'bids', filter: `lojista_id=eq.${user.id}` },
+          (payload) => {
+            if (payload?.new?.status === 'Aceito') {
+              playNotificationSound();
+              setNovaVendaConfirmadaCount(prev => prev + 1);
+              setShowVendaConfirmadaBanner(true);
+              fetchLojistaData();
+            }
+          }
+        )
+        .subscribe();
+    }
+
+    setupVendaConfirmadaChannel();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
     };
   }, []);
 
@@ -716,6 +758,23 @@ export default function LojistaDashboard() {
             {novosPedidosCount > 1
               ? `${novosPedidosCount} novas cotações recebidas! Responda para atualizar o aviso.`
               : 'Nova cotação recebida agora! Responda para atualizar o aviso.'}
+          </div>
+        )}
+
+        {/* Alerta Visual de Venda Confirmada — fica fixo até ver "Vendas Confirmadas" ou fechar manualmente */}
+        {showVendaConfirmadaBanner && (
+          <div className="bg-emerald-600 text-white p-4 rounded-2xl shadow-lg font-bold text-center flex items-center justify-center gap-2 text-sm relative">
+            <span>🎉</span>
+            {novaVendaConfirmadaCount > 1
+              ? `O cliente confirmou ${novaVendaConfirmadaCount} vendas! Confira em Vendas Confirmadas.`
+              : 'O cliente confirmou uma venda! Confira em Vendas Confirmadas.'}
+            <button
+              onClick={() => { setShowVendaConfirmadaBanner(false); setNovaVendaConfirmadaCount(0); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-lg font-bold"
+              aria-label="Fechar aviso"
+            >
+              ✕
+            </button>
           </div>
         )}
 
