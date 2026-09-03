@@ -51,6 +51,8 @@ export default function LojistaDashboard() {
   const [activeImage, setActiveImage] = useState(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [minhasAvaliacoes, setMinhasAvaliacoes] = useState([]);
+  const [collapsedAvaliacoes, setCollapsedAvaliacoes] = useState(true);
   const [userEmail, setUserEmail] = useState('');
   const [uploadingImageIndex, setUploadingImageIndex] = useState(null);
 
@@ -287,6 +289,13 @@ export default function LojistaDashboard() {
       const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       if (profileData) setProfile(profileData);
 
+      const { data: avaliacoesData } = await supabase
+        .from('avaliacoes')
+        .select('*')
+        .eq('avaliado_id', user.id)
+        .order('criado_em', { ascending: false });
+      setMinhasAvaliacoes(avaliacoesData || []);
+
       const { data: allowedCategories } = await supabase.from('lojista_categorias').select('categoria_id').eq('lojista_id', user.id);
       const categoryIds = allowedCategories?.map(c => c.categoria_id) || [];
       categoryIdsRef.current = categoryIds;
@@ -473,6 +482,33 @@ export default function LojistaDashboard() {
       alert('Erro no envio da foto: ' + err.message);
     } finally {
       setUploadingImageIndex(null);
+    }
+  };
+
+  const handleContestarAvaliacao = async (avaliacaoId) => {
+    const motivo = window.prompt('Por que essa avaliação parece injusta? (opcional, ajuda o administrador a decidir)');
+    try {
+      const { error } = await supabase
+        .from('avaliacoes')
+        .update({ contestada: true, comentario: motivo ? `[Contestação do lojista] ${motivo}` : undefined })
+        .eq('id', avaliacaoId);
+      if (error) throw error;
+      alert('Contestação enviada! O administrador vai revisar essa avaliação.');
+      fetchLojistaData();
+    } catch (err) {
+      alert('Erro ao contestar avaliação: ' + err.message);
+    }
+  };
+
+  const handleMarcarEntregue = async (bidId) => {
+    const confirmar = window.confirm('Confirma que o cliente comprou e recebeu o pedido? Isso vai disparar a pesquisa de avaliação para ele.');
+    if (!confirmar) return;
+    try {
+      const { error } = await supabase.from('bids').update({ entregue_em: new Date().toISOString() }).eq('id', bidId);
+      if (error) throw error;
+      fetchLojistaData();
+    } catch (err) {
+      alert('Erro ao marcar como entregue: ' + err.message);
     }
   };
 
@@ -822,6 +858,10 @@ export default function LojistaDashboard() {
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight">Painel do Lojista</h1>
               <p className="text-sm text-indigo-100 mt-0.5">Acompanhe e envie orçamentos para cotações da sua região</p>
+              <p className="text-xs font-bold text-amber-300 mt-1.5">
+                ⭐ {profile?.reputacao_media != null ? Number(profile.reputacao_media).toFixed(1) : '5.0'}
+                <span className="text-indigo-100 font-normal"> ({profile?.total_avaliacoes || 0} avaliações)</span>
+              </p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1052,6 +1092,10 @@ export default function LojistaDashboard() {
                           {!isCollapsed && (
                             <>
                               <h3 className="font-bold text-slate-800 mt-2 text-sm">{bid.pedido?.descricao}</h3>
+                              <p className="text-sm font-extrabold text-emerald-700 mt-1">
+                                Total: R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
+                                <span className="text-xs text-slate-400 font-normal"> (Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})</span>
+                              </p>
                               <p className="text-xs text-slate-600 mt-1"><b>Cliente:</b> {bid.pedido?.cliente?.nome || 'Cliente'}</p>
                               <p className="text-xs text-slate-600"><b>WhatsApp:</b> {bid.pedido?.cliente?.telefone || 'Não informado'}</p>
                               {renderDetalhesExpandido(bid, cardKey, false)}
@@ -1070,6 +1114,21 @@ export default function LojistaDashboard() {
                           >
                             <span>💬</span> Chamar no WhatsApp
                           </a>
+                        )}
+
+                        {!isCollapsed && (
+                          bid.entregue_em ? (
+                            <span className="w-full text-center text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 py-2 px-3 rounded-xl">
+                              ✅ Entregue em {new Date(bid.entregue_em).toLocaleDateString('pt-BR')}
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleMarcarEntregue(bid.id)}
+                              className="w-full bg-slate-800 hover:bg-slate-900 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
+                            >
+                              ✅ Cliente comprou e recebeu
+                            </button>
+                          )
                         )}
                       </div>
                     );
@@ -1150,6 +1209,50 @@ export default function LojistaDashboard() {
                   })}
                 </div>
                 {renderPaginacao(paginaEnviadas, totalPaginasEnviadas, setPaginaEnviadas)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ================= SEÇÃO: MINHAS AVALIAÇÕES ================= */}
+        {minhasAvaliacoes.length > 0 && (
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm">
+            <button
+              onClick={() => setCollapsedAvaliacoes(prev => !prev)}
+              className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
+            >
+              <span className="flex items-center gap-2">
+                <span className="text-lg">⭐</span>
+                <h2 className="text-lg font-bold text-slate-800">Minhas Avaliações ({minhasAvaliacoes.length})</h2>
+              </span>
+              <span className="text-slate-400 text-xs font-semibold">
+                {collapsedAvaliacoes ? '▸ Expandir' : '▾ Encolher'}
+              </span>
+            </button>
+
+            {!collapsedAvaliacoes && (
+              <div className="px-6 pb-6 space-y-2">
+                {minhasAvaliacoes.map((av) => (
+                  <div key={av.id} className={`p-3 rounded-xl border flex items-start justify-between gap-3 ${av.desconsiderada ? 'border-slate-200 bg-slate-50 opacity-60' : 'border-slate-200 bg-white'}`}>
+                    <div>
+                      <p className="text-sm font-bold text-amber-600">{'⭐'.repeat(av.nota)}{'☆'.repeat(5 - av.nota)}</p>
+                      {av.comentario && <p className="text-xs text-slate-600 mt-1">{av.comentario}</p>}
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        {new Date(av.criado_em).toLocaleDateString('pt-BR')}
+                        {av.desconsiderada && ' · Desconsiderada pelo administrador'}
+                        {av.contestada && !av.desconsiderada && ' · Contestação em análise'}
+                      </p>
+                    </div>
+                    {!av.contestada && !av.desconsiderada && (
+                      <button
+                        onClick={() => handleContestarAvaliacao(av.id)}
+                        className="text-xs font-bold text-rose-600 hover:underline whitespace-nowrap"
+                      >
+                        Contestar
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
