@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { uploadImageToStorage } from '../utils/uploadImage';
-import { calcularMsUteisDecorridos, proximaAbertura } from '../utils/prazoUtils';
+import { calcularMsUteisDecorridos, proximaAbertura, estaAbertoAgora } from '../utils/prazoUtils';
 
 export default function CreateRequest() {
   const [tipo, setTipo] = useState('unico');
@@ -14,7 +14,6 @@ export default function CreateRequest() {
   const [cityId, setCityId] = useState('');
   const [bairro, setBairro] = useState('');
   const [eligibleStoresCount, setEligibleStoresCount] = useState(null);
-  const [avisoPrazo, setAvisoPrazo] = useState(null);
   const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
 
@@ -45,6 +44,42 @@ export default function CreateRequest() {
     loadData();
   }, []);
 
+  // Busca os lojistas elegíveis (mesma categoria + cidade) com os dados de
+  // horário. Reaproveitada tanto pelo contador da tela quanto pelo envio.
+  const buscarLojistasElegiveisAgora = async (catId, cidId) => {
+    if (!catId || !cidId) return [];
+
+    const selectedCat = categories.find(c => String(c.id) === String(catId));
+    const catName = selectedCat ? selectedCat.nome?.trim().toLowerCase() : '';
+    const matchingCatIds = allCategoriesRaw
+      .filter(c => c.nome?.trim().toLowerCase() === catName)
+      .map(c => c.id);
+    if (matchingCatIds.length === 0) matchingCatIds.push(catId);
+
+    const cityObj = cities.find(c => String(c.id) === String(cidId) || c.nome === cidId);
+    const cityName = (cityObj ? cityObj.nome : cidId).trim();
+
+    const { data: lojistaCats } = await supabase
+      .from('lojista_categorias')
+      .select('lojista_id')
+      .in('categoria_id', matchingCatIds);
+
+    const lojistaIds = Array.from(new Set((lojistaCats || []).map(lc => lc.lojista_id).filter(Boolean)));
+    if (lojistaIds.length === 0) return [];
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, cidade, ativo, tipo, horario_abertura, horario_fechamento, dias_funcionamento')
+      .in('id', lojistaIds);
+
+    return (profiles || []).filter(p => {
+      const isLojista = p.tipo === 'lojista' || !p.tipo;
+      const isAtivo = p.ativo !== false;
+      const sameCity = p.cidade && p.cidade.trim().toLowerCase().includes(cityName.toLowerCase());
+      return isLojista && isAtivo && sameCity;
+    });
+  };
+
   // Contagem de lojas elegíveis
   useEffect(() => {
     async function countEligibleStores() {
@@ -52,89 +87,9 @@ export default function CreateRequest() {
         setEligibleStoresCount(null);
         return;
       }
-
       try {
-        // 1. Identifica o nome da categoria selecionada e todos os IDs com o mesmo nome
-        const selectedCat = categories.find(c => String(c.id) === String(categoryId));
-        const catName = selectedCat ? selectedCat.nome?.trim().toLowerCase() : '';
-
-        const matchingCatIds = allCategoriesRaw
-          .filter(c => c.nome?.trim().toLowerCase() === catName)
-          .map(c => c.id);
-
-        if (matchingCatIds.length === 0) matchingCatIds.push(categoryId);
-
-        // 2. Identifica o nome da cidade selecionada
-        const cityObj = cities.find(c => String(c.id) === String(cityId) || c.nome === cityId);
-        const cityName = (cityObj ? cityObj.nome : cityId).trim();
-
-        // 3. Busca lojistas vinculados a qualquer ID dessa categoria
-        const { data: lojistaCats, error: lcErr } = await supabase
-          .from('lojista_categorias')
-          .select('lojista_id')
-          .in('categoria_id', matchingCatIds);
-
-        if (lcErr) {
-          console.error('Erro ao buscar lojista_categorias:', lcErr);
-          setEligibleStoresCount(0);
-          return;
-        }
-
-        const lojistaIds = Array.from(new Set((lojistaCats || []).map(lc => lc.lojista_id).filter(Boolean)));
-
-        if (lojistaIds.length > 0) {
-          // 4. Busca perfis de lojistas ativos nessa cidade
-          const { data: profiles, error: profErr } = await supabase
-            .from('profiles')
-            .select('id, cidade, ativo, tipo, horario_abertura, horario_fechamento, dias_funcionamento')
-            .in('id', lojistaIds);
-
-          if (profErr) {
-            console.error('Erro ao buscar perfis:', profErr);
-            setEligibleStoresCount(0);
-            return;
-          }
-
-          const eligible = (profiles || []).filter(p => {
-            const isLojista = p.tipo === 'lojista' || !p.tipo;
-            const isAtivo = p.ativo !== false;
-            const sameCity = p.cidade && p.cidade.trim().toLowerCase().includes(cityName.toLowerCase());
-            return isLojista && isAtivo && sameCity;
-          });
-
-          setEligibleStoresCount(eligible.length);
-
-          // Confere se o prazo escolhido cabe no horário comercial das
-          // lojas elegíveis, a partir de agora. Se não couber, avisa o
-          // cliente que o cronômetro pode pausar durante a noite.
-          let horasAdd = 6;
-          if (prazoOpcao === 'urgente') horasAdd = 1;
-          if (prazoOpcao === 'sem_pressa') horasAdd = 24;
-
-          if (eligible.length > 0) {
-            const agora = new Date();
-            const fimSimulado = new Date(agora.getTime() + horasAdd * 60 * 60 * 1000);
-            const msUteis = calcularMsUteisDecorridos(agora, fimSimulado, eligible);
-            const prazoTotalMs = horasAdd * 60 * 60 * 1000;
-
-            if (msUteis < prazoTotalMs) {
-              const proxima = proximaAbertura(eligible, agora);
-              const horaTexto = proxima
-                ? proxima.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-                : null;
-              setAvisoPrazo(
-                `Como você está pedindo perto do horário de fechamento das lojas da sua região, o prazo pode pausar durante a noite${horaTexto ? ` e só volta a contar às ${horaTexto}` : ''}. Isso não significa que seu pedido foi esquecido.`
-              );
-            } else {
-              setAvisoPrazo(null);
-            }
-          } else {
-            setAvisoPrazo(null);
-          }
-        } else {
-          setEligibleStoresCount(0);
-          setAvisoPrazo(null);
-        }
+        const eligible = await buscarLojistasElegiveisAgora(categoryId, cityId);
+        setEligibleStoresCount(eligible.length);
       } catch (err) {
         console.error('Erro ao calcular lojas:', err);
         setEligibleStoresCount(0);
@@ -142,7 +97,7 @@ export default function CreateRequest() {
     }
 
     countEligibleStores();
-  }, [categoryId, cityId, categories, cities, allCategoriesRaw, prazoOpcao]);
+  }, [categoryId, cityId, categories, cities, allCategoriesRaw]);
 
   const handleImageUpload = async (index, file) => {
     if (!file) return;
@@ -246,7 +201,32 @@ export default function CreateRequest() {
       return;
     }
 
-    alert(`Pedido #${codigoPedido} criado com sucesso!`);
+    // Confere a situação das lojas elegíveis NESTE momento, pra incluir um
+    // aviso sobre o prazo (se fizer sentido) junto da confirmação de envio.
+    let avisoFinal = '';
+    try {
+      const eligible = await buscarLojistasElegiveisAgora(categoryId, cityId);
+      if (eligible.length > 0) {
+        const agora = new Date();
+        if (!estaAbertoAgora(eligible, agora)) {
+          const proxima = proximaAbertura(eligible, agora);
+          avisoFinal = proxima
+            ? `\n\nAs lojas da sua região estão fora do horário de atendimento agora. Seu prazo começa a contar junto com o horário de funcionamento da primeira loja que abrir.`
+            : '';
+        } else {
+          const fimSimulado = new Date(agora.getTime() + horasAdd * 60 * 60 * 1000);
+          const msUteis = calcularMsUteisDecorridos(agora, fimSimulado, eligible);
+          const prazoTotalMs = horasAdd * 60 * 60 * 1000;
+          if (msUteis < prazoTotalMs) {
+            avisoFinal = `\n\nVocê está pedindo perto do horário de fechamento das lojas da sua região. Se não houver resposta até lá, o prazo pausa e volta a contar quando a primeira loja reabrir.`;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao calcular aviso de prazo:', err);
+    }
+
+    alert(`Pedido #${codigoPedido} criado com sucesso!${avisoFinal}`);
     navigate('/client-dashboard');
   };
 
@@ -324,17 +304,9 @@ export default function CreateRequest() {
             <span>🏪</span>
             <span>
               {eligibleStoresCount > 0 
-                ? `Existem ${eligibleStoresCount} loja(s) ativa(s) nesta cidade para receber sua solicitação.`
+                ? `Iremos enviar sua cotação para ${eligibleStoresCount} loja(s) desta região.`
                 : 'Nenhuma loja cadastrada nesta categoria/cidade no momento. Sua solicitação ficará salva para quando houver lojistas.'}
             </span>
-          </div>
-        )}
-
-        {/* Aviso de possível pausa no prazo fora do horário comercial */}
-        {avisoPrazo && (
-          <div className="p-3 rounded-xl text-xs font-semibold flex items-start gap-2 border bg-blue-50 border-blue-200 text-blue-800">
-            <span>⏸️</span>
-            <span>{avisoPrazo}</span>
           </div>
         )}
 
