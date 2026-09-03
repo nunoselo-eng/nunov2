@@ -89,6 +89,9 @@ export default function LojistaDashboard() {
   // ele no primeiro clique/tecla e reaproveitamos sempre o mesmo contexto.
   const audioCtxRef = useRef(null);
 
+  // Elemento de áudio reaproveitado pra tocar o som (MP3) que o admin subiu.
+  const notifAudioRef = useRef(null);
+
   useEffect(() => {
     const destravarAudio = () => {
       if (!audioCtxRef.current) {
@@ -97,6 +100,18 @@ export default function LojistaDashboard() {
       if (audioCtxRef.current.state === 'suspended') {
         audioCtxRef.current.resume();
       }
+
+      // "Destrava" também o elemento de áudio pro navegador aceitar tocar
+      // depois, sem precisar de outro clique.
+      if (!notifAudioRef.current) {
+        notifAudioRef.current = new Audio();
+      }
+      notifAudioRef.current.muted = true;
+      notifAudioRef.current.play().then(() => {
+        notifAudioRef.current.pause();
+        notifAudioRef.current.currentTime = 0;
+        notifAudioRef.current.muted = false;
+      }).catch(() => {});
     };
     window.addEventListener('click', destravarAudio);
     window.addEventListener('keydown', destravarAudio);
@@ -140,6 +155,29 @@ export default function LojistaDashboard() {
     }
   };
 
+  // Toca o som personalizado que o admin subiu (bucket 'audio'). Se não
+  // existir ainda ou falhar por qualquer motivo, cai pro bipe sintetizado.
+  const playNotificationSound = () => {
+    try {
+      const { data } = supabase.storage.from('audio').getPublicUrl('notificacao-lojista');
+      const url = data?.publicUrl;
+      if (!url) {
+        playBeep();
+        return;
+      }
+
+      if (!notifAudioRef.current) {
+        notifAudioRef.current = new Audio();
+      }
+      const audio = notifAudioRef.current;
+      audio.muted = false;
+      audio.src = `${url}?t=${Date.now()}`;
+      audio.play().catch(() => playBeep());
+    } catch (e) {
+      playBeep();
+    }
+  };
+
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -162,7 +200,7 @@ export default function LojistaDashboard() {
         const relevantePraEsteLojista = categoryIdsRef.current.includes(categoriaDoNovoPedido);
         if (!relevantePraEsteLojista) return;
 
-        playBeep();
+        playNotificationSound();
         setNewOrderAlert(true);
         setNovosPedidosCount(prev => prev + 1);
         fetchLojistaData();
