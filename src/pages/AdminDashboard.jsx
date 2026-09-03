@@ -89,6 +89,8 @@ export default function AdminDashboard() {
   // --- ESTADOS DA ABA COTAÇÕES E PROPOSTAS ---
   const [orders, setOrders] = useState([]);
   const [bidsByOrder, setBidsByOrder] = useState({});
+  const [penalidadesPorUsuario, setPenalidadesPorUsuario] = useState({});
+  const [lojistaExpandidoId, setLojistaExpandidoId] = useState(null);
   const [clients, setClients] = useState([]);
   const [stores, setStores] = useState([]);
   const [profilesMap, setProfilesMap] = useState(new Map());
@@ -228,6 +230,14 @@ export default function AdminDashboard() {
       }
     });
     setBidsByOrder(groupedBids);
+
+    // Contagem de penalidades automáticas por pessoa (usada no detalhe do lojista)
+    const { data: penalidadesData } = await supabase.from('penalidades_processadas').select('usuario_id, tipo');
+    const contagemPenalidades = {};
+    (penalidadesData || []).forEach(p => {
+      contagemPenalidades[p.usuario_id] = (contagemPenalidades[p.usuario_id] || 0) + 1;
+    });
+    setPenalidadesPorUsuario(contagemPenalidades);
 
     const lojistaIdsInBids = Array.from(new Set(bidsData.map(b => b.lojista_id).filter(Boolean)));
     setStores((profilesData || []).filter(p => lojistaIdsInBids.includes(p.id)));
@@ -645,6 +655,39 @@ export default function AdminDashboard() {
     URL.revokeObjectURL(url);
   };
 
+  // Estatísticas de desempenho de um lojista (usado no card expandido)
+  const getEstatisticasLojista = (lojistaId) => {
+    const todosBids = Object.values(bidsByOrder).flat();
+    const bidsDoLojista = todosBids.filter(b => String(b.lojista_id) === String(lojistaId));
+
+    const totalEnviadas = bidsDoLojista.length;
+    const confirmadas = bidsDoLojista.filter(b => b.status === 'Aceito').length;
+    const perdidas = totalEnviadas - confirmadas;
+    const penalidades = penalidadesPorUsuario[lojistaId] || 0;
+
+    const temposResposta = bidsDoLojista
+      .map(b => {
+        const pedido = orders.find(o => String(o.id) === String(b.order_id || b.pedido_id));
+        if (!pedido?.created_at || !b.created_at) return null;
+        const diffMin = (new Date(b.created_at) - new Date(pedido.created_at)) / 60000;
+        return diffMin >= 0 ? diffMin : null;
+      })
+      .filter(v => v != null);
+
+    const tempoMedioMin = temposResposta.length > 0
+      ? temposResposta.reduce((soma, v) => soma + v, 0) / temposResposta.length
+      : null;
+
+    let tempoMedioTexto = 'Sem dados ainda';
+    if (tempoMedioMin != null) {
+      const horas = Math.floor(tempoMedioMin / 60);
+      const minutos = Math.round(tempoMedioMin % 60);
+      tempoMedioTexto = horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
+    }
+
+    return { totalEnviadas, confirmadas, perdidas, penalidades, tempoMedioTexto };
+  };
+
   const toggleDetails = (id) => setShowDetails(prev => ({ ...prev, [id]: !prev[id] }));
 
   // Formata data/hora curta, ex: 30/08 14:35
@@ -763,7 +806,8 @@ export default function AdminDashboard() {
             {loading ? <p className="text-center py-8 text-slate-500">Carregando...</p> : (
               <div className="space-y-4">
                 {lojistas.filter(l => !selectedCityFilter || l.cidade?.toLowerCase() === selectedCityFilter.toLowerCase()).map((lojista) => (
-                  <div key={lojista.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                  <div key={lojista.id} className="bg-white rounded-2xl shadow-sm border border-slate-200">
+                  <div className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div className="flex gap-3">
                       {lojista.logo_url ? (
                         <img src={lojista.logo_url} alt={lojista.nome} className="w-14 h-14 rounded-xl object-cover border border-slate-200 flex-shrink-0" />
@@ -830,7 +874,42 @@ export default function AdminDashboard() {
                       <button onClick={() => handleToggleAtivo(lojista.id, lojista.ativo)} className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${lojista.ativo ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-600 text-white'}`}>
                         {lojista.ativo ? 'Bloquear Acesso' : 'Liberar Acesso'}
                       </button>
+                      <button
+                        onClick={() => setLojistaExpandidoId(prev => prev === lojista.id ? null : lojista.id)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200"
+                      >
+                        {lojistaExpandidoId === lojista.id ? '▾ Ocultar Estatísticas' : '▸ Ver Estatísticas'}
+                      </button>
                     </div>
+                  </div>
+
+                  {lojistaExpandidoId === lojista.id && (() => {
+                    const stats = getEstatisticasLojista(lojista.id);
+                    return (
+                      <div className="px-6 pb-6 pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-5 gap-3">
+                        <div className="bg-slate-50 rounded-xl p-3 text-center">
+                          <p className="text-lg font-bold text-slate-800">{stats.tempoMedioTexto}</p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">Tempo médio de resposta</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-xl p-3 text-center">
+                          <p className="text-lg font-bold text-slate-800">{stats.totalEnviadas}</p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">Cotações enviadas</p>
+                        </div>
+                        <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                          <p className="text-lg font-bold text-emerald-700">{stats.confirmadas}</p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">Confirmadas</p>
+                        </div>
+                        <div className="bg-amber-50 rounded-xl p-3 text-center">
+                          <p className="text-lg font-bold text-amber-700">{stats.perdidas}</p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">Perdidas</p>
+                        </div>
+                        <div className="bg-rose-50 rounded-xl p-3 text-center">
+                          <p className="text-lg font-bold text-rose-700">{stats.penalidades}</p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">Penalidades (não respondeu)</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   </div>
                 ))}
               </div>
