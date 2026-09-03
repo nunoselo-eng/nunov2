@@ -60,6 +60,8 @@ export default function AdminDashboard() {
   const [editHorarioAbertura, setEditHorarioAbertura] = useState('08:00');
   const [editHorarioFechamento, setEditHorarioFechamento] = useState('18:00');
   const [editDiasFuncionamento, setEditDiasFuncionamento] = useState(['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
+  const [arquivoLogo, setArquivoLogo] = useState(null);
+  const [logoAtualUrl, setLogoAtualUrl] = useState(null);
 
   const DIAS_SEMANA = [
     { key: 'dom', label: 'Dom' },
@@ -503,18 +505,35 @@ export default function AdminDashboard() {
     e.preventDefault();
     try {
       if (editCidade) await saveCityIfNew(editCidade);
-      const { error } = await supabase.from('profiles').update({
+
+      let logoUrl;
+      if (arquivoLogo) {
+        const extensao = arquivoLogo.name.split('.').pop();
+        const caminho = `${editingLojistaId}.${extensao}`;
+        const { error: uploadErr } = await supabase.storage
+          .from('logos')
+          .upload(caminho, arquivoLogo, { upsert: true, contentType: arquivoLogo.type });
+        if (uploadErr) throw uploadErr;
+        const { data: urlData } = supabase.storage.from('logos').getPublicUrl(caminho);
+        logoUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      }
+
+      const dadosParaAtualizar = {
         nome: editNome,
         cidade: editCidade,
         telefone: editTelefone,
         horario_abertura: editHorarioAbertura,
         horario_fechamento: editHorarioFechamento,
-        dias_funcionamento: editDiasFuncionamento
-      }).eq('id', editingLojistaId);
+        dias_funcionamento: editDiasFuncionamento,
+      };
+      if (logoUrl) dadosParaAtualizar.logo_url = logoUrl;
+
+      const { error } = await supabase.from('profiles').update(dadosParaAtualizar).eq('id', editingLojistaId);
 
       if (error) throw error;
       alert('Dados atualizados com sucesso!');
       setIsEditModalOpen(false);
+      setArquivoLogo(null);
       fetchAllData();
     } catch (err) {
       alert('Erro ao atualizar dados: ' + err.message);
@@ -706,6 +725,8 @@ export default function AdminDashboard() {
                         setEditHorarioAbertura((lojista.horario_abertura || '08:00:00').slice(0, 5));
                         setEditHorarioFechamento((lojista.horario_fechamento || '18:00:00').slice(0, 5));
                         setEditDiasFuncionamento(lojista.dias_funcionamento || ['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
+                        setLogoAtualUrl(lojista.logo_url || null);
+                        setArquivoLogo(null);
                         setIsEditModalOpen(true);
                       }} className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
                         Editar Dados
@@ -1141,6 +1162,22 @@ export default function AdminDashboard() {
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Nome da Loja</label>
                 <input type="text" placeholder="Nome da Loja" value={editNome} onChange={(e) => setEditNome(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" required />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Logo da Loja</label>
+                <div className="flex items-center gap-3">
+                  {logoAtualUrl && (
+                    <img src={logoAtualUrl} alt="Logo atual" className="w-12 h-12 rounded-lg object-cover border border-slate-200" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setArquivoLogo(e.target.files?.[0] || null)}
+                    className="flex-1 text-xs p-2 rounded-lg border bg-slate-50"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">Só aparece pro cliente depois que ele confirma a proposta desse lojista.</p>
               </div>
 
               <div>
