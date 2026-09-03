@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo.svg';
@@ -31,6 +31,11 @@ export default function ClientDashboard() {
   const [collapsedSections, setCollapsedSections] = useState({ abertas: false, confirmadas: false, encerradas: false });
   const [collapsedCards, setCollapsedCards] = useState(new Set());
 
+  // Avisa o cliente, com banner fixo, quando chega uma proposta nova.
+  // Guarda o CONJUNTO de pedidos com proposta ainda não vista.
+  const [pedidosComPropostaNova, setPedidosComPropostaNova] = useState(new Set());
+  const ordersIdsRef = useRef([]);
+
   const toggleSection = (key) => {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
@@ -38,8 +43,19 @@ export default function ClientDashboard() {
   const toggleCard = (orderId) => {
     setCollapsedCards(prev => {
       const next = new Set(prev);
-      if (next.has(orderId)) next.delete(orderId);
-      else next.add(orderId);
+      const estavaColapsado = next.has(orderId);
+      if (estavaColapsado) {
+        next.delete(orderId);
+        // Expandindo o card: se esse pedido tinha proposta nova, marca como visto.
+        setPedidosComPropostaNova(prevSet => {
+          if (!prevSet.has(orderId)) return prevSet;
+          const novoSet = new Set(prevSet);
+          novoSet.delete(orderId);
+          return novoSet;
+        });
+      } else {
+        next.add(orderId);
+      }
       return next;
     });
   };
@@ -64,6 +80,32 @@ export default function ClientDashboard() {
 
   useEffect(() => {
     fetchClientData();
+  }, []);
+
+  // Mantém a referência de "quais pedidos são meus" sempre atualizada,
+  // pra conferir a relevância de uma proposta nova assim que ela chega.
+  useEffect(() => {
+    ordersIdsRef.current = orders.map(o => o.id);
+  }, [orders]);
+
+  // Avisa o cliente, com banner fixo, quando um lojista envia uma proposta
+  // nova pra algum dos pedidos dele.
+  useEffect(() => {
+    const channel = supabase
+      .channel('realtime-bids-cliente')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids' }, (payload) => {
+        const orderIdDaProposta = Number(payload?.new?.order_id || payload?.new?.pedido_id);
+        const relevante = ordersIdsRef.current.includes(orderIdDaProposta);
+        if (!relevante) return;
+
+        setPedidosComPropostaNova(prev => new Set(prev).add(orderIdDaProposta));
+        fetchClientData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   async function fetchClientData() {
@@ -554,6 +596,23 @@ export default function ClientDashboard() {
 
       {/* Conteúdo Principal */}
       <main className="max-w-5xl mx-auto w-full px-4 sm:px-6 py-8 space-y-6 flex-1">
+
+        {/* Alerta Visual de Proposta Nova — fica fixo até expandir o pedido ou fechar manualmente */}
+        {pedidosComPropostaNova.size > 0 && (
+          <div className="bg-indigo-600 text-white p-4 rounded-2xl shadow-lg font-bold text-center flex items-center justify-center gap-2 text-sm relative">
+            <span>📨</span>
+            {pedidosComPropostaNova.size > 1
+              ? `Você recebeu novas propostas em ${pedidosComPropostaNova.size} pedidos!`
+              : 'Você recebeu uma nova proposta!'}
+            <button
+              onClick={() => setPedidosComPropostaNova(new Set())}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-lg font-bold"
+              aria-label="Fechar aviso"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Card de Boas-vindas com Botão de Nova Cotação Maior */}
         <div className="relative p-6 rounded-2xl shadow-sm overflow-hidden">
