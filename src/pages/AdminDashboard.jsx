@@ -38,6 +38,12 @@ export default function AdminDashboard() {
   const [novoEmailRep, setNovoEmailRep] = useState('');
   const [novaSenhaRep, setNovaSenhaRep] = useState('');
 
+  // Modal de Som de Notificação do Lojista
+  const [isSomModalOpen, setIsSomModalOpen] = useState(false);
+  const [arquivoSom, setArquivoSom] = useState(null);
+  const [enviandoSom, setEnviandoSom] = useState(false);
+  const [somAtualUrl, setSomAtualUrl] = useState(null);
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingLojistaId, setEditingLojistaId] = useState(null);
   const [editNome, setEditNome] = useState('');
@@ -363,6 +369,42 @@ export default function AdminDashboard() {
     }
   };
 
+  // Caminho fixo do arquivo dentro do bucket 'audio' — sempre sobrescreve
+  // o mesmo arquivo, então o lojista sempre busca a versão mais recente.
+  const CAMINHO_SOM_NOTIFICACAO = 'notificacao-lojista';
+
+  const carregarSomAtual = () => {
+    const { data } = supabase.storage.from('audio').getPublicUrl(CAMINHO_SOM_NOTIFICACAO);
+    setSomAtualUrl(data?.publicUrl ? `${data.publicUrl}?t=${Date.now()}` : null);
+  };
+
+  const handleUploadSom = async (e) => {
+    e.preventDefault();
+    if (!arquivoSom) {
+      alert('Escolha um arquivo de som primeiro.');
+      return;
+    }
+    setEnviandoSom(true);
+    try {
+      const { error } = await supabase.storage
+        .from('audio')
+        .upload(CAMINHO_SOM_NOTIFICACAO, arquivoSom, {
+          upsert: true,
+          contentType: arquivoSom.type || 'audio/mpeg',
+        });
+
+      if (error) throw error;
+
+      alert('Som de notificação atualizado! Já vale para todos os lojistas.');
+      setArquivoSom(null);
+      carregarSomAtual();
+    } catch (err) {
+      alert('Erro ao enviar o som: ' + err.message);
+    } finally {
+      setEnviandoSom(false);
+    }
+  };
+
   const handleSaveEditLojista = async (e) => {
     e.preventDefault();
     try {
@@ -514,6 +556,7 @@ export default function AdminDashboard() {
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setIsCategoryModalOpen(true)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-semibold">Gerenciar Categorias</button>
+                <button onClick={() => { carregarSomAtual(); setIsSomModalOpen(true); }} className="bg-amber-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">🔊 Som de Notificação</button>
                 <button onClick={() => setIsClientModalOpen(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Cadastrar Cliente</button>
                 <button onClick={() => setIsRepModalOpen(true)} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Cadastrar Representante</button>
                 <button onClick={() => setIsModalOpen(true)} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Cadastrar Lojista</button>
@@ -745,6 +788,46 @@ export default function AdminDashboard() {
               <div className="flex space-x-3 pt-3">
                 <button type="button" onClick={() => setIsClientModalOpen(false)} className="w-1/2 bg-slate-200 text-slate-700 p-2 rounded-xl font-semibold text-sm">Cancelar</button>
                 <button type="submit" className="w-1/2 bg-indigo-600 text-white p-2 rounded-xl font-semibold text-sm">Salvar</button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Modal de Som de Notificação do Lojista */}
+        {isSomModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <form onSubmit={handleUploadSom} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b">
+                <h3 className="text-xl font-bold text-slate-800">🔊 Som de Notificação do Lojista</h3>
+                <button type="button" onClick={() => setIsSomModalOpen(false)} className="text-slate-400 font-bold">✕</button>
+              </div>
+
+              <p className="text-xs text-slate-500">
+                Esse som toca automaticamente pra todos os lojistas quando chega um pedido novo relevante pra categoria deles. Envie um arquivo MP3 (recomendo 2 a 5 segundos, bem audível).
+              </p>
+
+              {somAtualUrl && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-slate-600">Som atual:</p>
+                  <audio controls src={somAtualUrl} className="w-full h-10" />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-2">Novo arquivo (MP3)</label>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  onChange={(e) => setArquivoSom(e.target.files?.[0] || null)}
+                  className="w-full text-sm p-2 rounded-lg border bg-slate-50"
+                />
+              </div>
+
+              <div className="flex space-x-3 pt-3">
+                <button type="button" onClick={() => setIsSomModalOpen(false)} className="w-1/2 bg-slate-200 text-slate-700 p-2 rounded-xl font-semibold text-sm">Cancelar</button>
+                <button type="submit" disabled={enviandoSom} className="w-1/2 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white p-2 rounded-xl font-semibold text-sm">
+                  {enviandoSom ? 'Enviando...' : 'Salvar Som'}
+                </button>
               </div>
             </form>
           </div>
