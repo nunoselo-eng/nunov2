@@ -52,6 +52,12 @@ export default function ClientDashboard() {
     faturado: 'Faturado',
   };
 
+  // Avaliações já enviadas pelo cliente (bid_id -> true), pra saber quais
+  // pedidos entregues ainda precisam de pesquisa de satisfação.
+  const [bidsJaAvaliados, setBidsJaAvaliados] = useState(new Set());
+  const [notaSelecionada, setNotaSelecionada] = useState({});
+  const [enviandoAvaliacao, setEnviandoAvaliacao] = useState(null);
+
   const toggleSection = (key) => {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
@@ -131,6 +137,12 @@ export default function ClientDashboard() {
 
       if (user) {
         setUserEmail(user.email || '');
+
+        const { data: avaliacoesFeitas } = await supabase
+          .from('avaliacoes')
+          .select('bid_id')
+          .eq('avaliador_id', user.id);
+        setBidsJaAvaliados(new Set((avaliacoesFeitas || []).map(a => a.bid_id)));
 
         const { data: profileData } = await supabase
           .from('profiles')
@@ -296,6 +308,31 @@ export default function ClientDashboard() {
       setIsProfileModalOpen(false);
     } catch (err) {
       alert('Erro ao atualizar perfil: ' + err.message);
+    }
+  };
+
+  const handleAvaliarLojista = async (bid) => {
+    const nota = notaSelecionada[bid.id];
+    if (!nota) {
+      alert('Selecione de 1 a 5 estrelas antes de enviar.');
+      return;
+    }
+    setEnviandoAvaliacao(bid.id);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from('avaliacoes').insert([{
+        bid_id: bid.id,
+        avaliador_id: user.id,
+        avaliado_id: bid.lojista_id,
+        nota: nota,
+      }]);
+      if (error) throw error;
+      alert('Obrigado pela avaliação!');
+      setBidsJaAvaliados(prev => new Set(prev).add(bid.id));
+    } catch (err) {
+      alert('Erro ao enviar avaliação: ' + err.message);
+    } finally {
+      setEnviandoAvaliacao(null);
     }
   };
 
@@ -538,6 +575,31 @@ export default function ClientDashboard() {
                         )}
                       </div>
                     </div>
+
+                    {isAccepted && bid.entregue_em && !bidsJaAvaliados.has(bid.id) && (
+                      <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-2">
+                        <p className="text-xs font-bold text-amber-800">Como foi sua experiência com esse lojista?</p>
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((estrela) => (
+                            <button
+                              key={estrela}
+                              type="button"
+                              onClick={() => setNotaSelecionada(prev => ({ ...prev, [bid.id]: estrela }))}
+                              className="text-2xl leading-none"
+                            >
+                              {(notaSelecionada[bid.id] || 0) >= estrela ? '⭐' : '☆'}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => handleAvaliarLojista(bid)}
+                          disabled={enviandoAvaliacao === bid.id}
+                          className="bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white px-4 py-1.5 rounded-xl text-xs font-bold transition"
+                        >
+                          {enviandoAvaliacao === bid.id ? 'Enviando...' : 'Enviar Avaliação'}
+                        </button>
+                      </div>
+                    )}
 
                     {/* Detalhes Expansíveis dos Itens */}
                     {showDetails[bid.id] && (
