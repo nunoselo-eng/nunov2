@@ -48,6 +48,7 @@ export default function AdminDashboard() {
   const [isAvaliacoesModalOpen, setIsAvaliacoesModalOpen] = useState(false);
   const [avaliacoes, setAvaliacoes] = useState([]);
   const [filtroAvaliacoes, setFiltroAvaliacoes] = useState('contestadas');
+  const [penalidadesAutomaticas, setPenalidadesAutomaticas] = useState([]);
   const [avaliacaoEditando, setAvaliacaoEditando] = useState(null);
   const [notaEditada, setNotaEditada] = useState('');
 
@@ -456,6 +457,45 @@ export default function AdminDashboard() {
       carregarAvaliacoes(filtroAvaliacoes);
     } catch (err) {
       alert('Erro: ' + err.message);
+    }
+  };
+
+  const carregarPenalidades = async () => {
+    setFiltroAvaliacoes('penalidades');
+    const { data: penalidadesData } = await supabase
+      .from('penalidades_processadas')
+      .select('*')
+      .order('criado_em', { ascending: false });
+
+    const ids = Array.from(new Set((penalidadesData || []).map(p => p.usuario_id).filter(Boolean)));
+    const orderIds = Array.from(new Set((penalidadesData || []).map(p => p.order_id).filter(Boolean)));
+
+    let nomesMap = {};
+    if (ids.length > 0) {
+      const { data: perfis } = await supabase.from('profiles').select('id, nome').in('id', ids);
+      (perfis || []).forEach(p => { nomesMap[p.id] = p.nome; });
+    }
+    let pedidosMap = {};
+    if (orderIds.length > 0) {
+      const { data: pedidos } = await supabase.from('orders').select('id, codigo_pedido').in('id', orderIds);
+      (pedidos || []).forEach(o => { pedidosMap[o.id] = o.codigo_pedido; });
+    }
+
+    setPenalidadesAutomaticas((penalidadesData || []).map(p => ({
+      ...p,
+      nomeUsuario: nomesMap[p.usuario_id] || 'Desconhecido',
+      codigoPedido: pedidosMap[p.order_id] || p.order_id,
+    })));
+  };
+
+  const handleReverterPenalidade = async (penalidadeId) => {
+    if (!window.confirm('Reverter essa penalidade automática? A reputação da pessoa volta a subir.')) return;
+    try {
+      const { error } = await supabase.from('penalidades_processadas').delete().eq('id', penalidadeId);
+      if (error) throw error;
+      carregarPenalidades();
+    } catch (err) {
+      alert('Erro ao reverter: ' + err.message);
     }
   };
 
@@ -910,9 +950,33 @@ export default function AdminDashboard() {
                 >
                   Todas
                 </button>
+                <button
+                  onClick={() => carregarPenalidades()}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${filtroAvaliacoes === 'penalidades' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                >
+                  Penalidades Automáticas
+                </button>
               </div>
 
-              {avaliacoes.length === 0 ? (
+              {filtroAvaliacoes === 'penalidades' ? (
+                penalidadesAutomaticas.length === 0 ? (
+                  <p className="text-sm text-slate-500 text-center py-6">Nenhuma penalidade automática registrada.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {penalidadesAutomaticas.map((p) => (
+                      <div key={p.id} className="p-3 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">{p.nomeUsuario} <span className="text-xs font-normal text-slate-500">({p.tipo})</span></p>
+                          <p className="text-xs text-slate-500">Pedido #{p.codigoPedido} · {new Date(p.criado_em).toLocaleDateString('pt-BR')}</p>
+                        </div>
+                        <button onClick={() => handleReverterPenalidade(p.id)} className="text-xs font-bold text-emerald-600 whitespace-nowrap">
+                          Reverter
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : avaliacoes.length === 0 ? (
                 <p className="text-sm text-slate-500 text-center py-6">Nenhuma avaliação encontrada com esse filtro.</p>
               ) : (
                 <div className="space-y-2">
