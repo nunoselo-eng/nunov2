@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 import { uploadImageToStorage } from '../utils/uploadImage';
 import logo from '../assets/logo.svg';
-import { getStatusPrazo } from '../utils/prazoUtils';
+import { getStatusPrazo, aplicarPenalidadeSeNecessario } from '../utils/prazoUtils';
 
 export default function LojistaDashboard() {
   const [orders, setOrders] = useState([]);
@@ -72,6 +72,7 @@ export default function LojistaDashboard() {
   const [minhaPropostaItemsMap, setMinhaPropostaItemsMap] = useState({});
   const [ordersFechadosComOutro, setOrdersFechadosComOutro] = useState(new Set());
   const [lojistasElegiveisPorPedido, setLojistasElegiveisPorPedido] = useState({});
+  const [reputacaoClientesPorPedido, setReputacaoClientesPorPedido] = useState({});
 
   // Paginação (10 pedidos por página em cada seção)
   const ITENS_POR_PAGINA = 10;
@@ -223,6 +224,19 @@ export default function LojistaDashboard() {
     setPaginaEnviadas(1);
   }, [statusFilter, searchTerm, dateFrom, dateTo, sortOrder]);
 
+  // Penalidade automática: pedido era elegível pra este lojista e expirou
+  // sem que ele enviasse proposta nenhuma — perde 0,5 na reputação (uma única vez).
+  useEffect(() => {
+    if (!profile?.id || orders.length === 0) return;
+
+    orders.forEach((order) => {
+      const status = getStatusPrazo(order, lojistasElegiveisPorPedido[order.id] || [], new Date());
+      if (status.expirado) {
+        aplicarPenalidadeSeNecessario(supabase, order.id, 'lojista', profile.id);
+      }
+    });
+  }, [orders, lojistasElegiveisPorPedido, profile]);
+
   useEffect(() => {
     fetchLojistaData();
 
@@ -331,6 +345,25 @@ export default function LojistaDashboard() {
               cidade_nome_exibicao: citiesMap.get(String(o.cidade_id)) || 'Não informada'
             }));
           setOrders(formatted);
+
+          // Reputação do cliente de cada pedido aberto, pro lojista decidir
+          // se vale a pena orçar (cliente com histórico de sumir, por ex.)
+          const clienteIds = Array.from(new Set(formatted.map(o => o.cliente_id).filter(Boolean)));
+          if (clienteIds.length > 0) {
+            const { data: clientesData } = await supabase
+              .from('profiles')
+              .select('id, reputacao_media, total_avaliacoes')
+              .in('id', clienteIds);
+            const mapaReputacao = {};
+            (clientesData || []).forEach(c => {
+              mapaReputacao[c.id] = c;
+            });
+            const reputacaoPorPedido = {};
+            formatted.forEach(o => {
+              reputacaoPorPedido[o.id] = mapaReputacao[o.cliente_id] || null;
+            });
+            setReputacaoClientesPorPedido(reputacaoPorPedido);
+          }
 
           // Lojistas elegíveis (mesma categoria + cidade) de cada pedido,
           // pra saber se o prazo está correndo ou pausado (horário comercial).
@@ -1003,6 +1036,19 @@ export default function LojistaDashboard() {
                               }`}>
                                 {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
                               </span>
+
+                              {reputacaoClientesPorPedido[order.id] && (
+                                <span
+                                  className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                                    Number(reputacaoClientesPorPedido[order.id].reputacao_media) < 4
+                                      ? 'bg-rose-100 text-rose-700'
+                                      : 'bg-emerald-100 text-emerald-700'
+                                  }`}
+                                  title="Reputação deste cliente"
+                                >
+                                  ⭐ {Number(reputacaoClientesPorPedido[order.id].reputacao_media).toFixed(1)}
+                                </span>
+                              )}
 
                               {isCollapsed && (
                                 <span className="text-xs font-semibold text-slate-600 truncate">{order.descricao}</span>
