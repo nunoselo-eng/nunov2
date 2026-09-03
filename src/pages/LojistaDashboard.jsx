@@ -34,6 +34,7 @@ export default function LojistaDashboard() {
 
   const [now, setNow] = useState(Date.now());
   const [newOrderAlert, setNewOrderAlert] = useState(false);
+  const [novosPedidosCount, setNovosPedidosCount] = useState(0);
 
   // Encolher/expandir seções e cards individuais
   const [collapsedSections, setCollapsedSections] = useState({ abertas: false, fechadas: false, enviadas: false });
@@ -114,16 +115,26 @@ export default function LojistaDashboard() {
       if (ctx.state === 'suspended') {
         ctx.resume();
       }
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.6);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.6);
+
+      // 5 bipes espaçados ao longo de ~3 segundos, bem mais audível que um tom único.
+      const qtdBipes = 5;
+      const duracaoBipe = 0.35;
+      const intervaloEntreBipes = 0.7;
+
+      for (let i = 0; i < qtdBipes; i++) {
+        const inicio = ctx.currentTime + i * intervaloEntreBipes;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(988, inicio);
+        gain.gain.setValueAtTime(0.001, inicio);
+        gain.gain.exponentialRampToValueAtTime(0.6, inicio + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.00001, inicio + duracaoBipe);
+        osc.start(inicio);
+        osc.stop(inicio + duracaoBipe);
+      }
     } catch (e) {
       console.error('Erro áudio:', e);
     }
@@ -153,8 +164,8 @@ export default function LojistaDashboard() {
 
         playBeep();
         setNewOrderAlert(true);
+        setNovosPedidosCount(prev => prev + 1);
         fetchLojistaData();
-        setTimeout(() => setNewOrderAlert(false), 5000);
       })
       .subscribe();
 
@@ -437,6 +448,11 @@ export default function LojistaDashboard() {
       setSelectedOrder(null);
       setFrete('');
       setObservacao('');
+      setNovosPedidosCount(prev => {
+        const novo = Math.max(0, prev - 1);
+        if (novo === 0) setNewOrderAlert(false);
+        return novo;
+      });
       fetchLojistaData();
     } catch (err) {
       alert('Erro ao enviar orçamento: ' + err.message);
@@ -655,10 +671,13 @@ export default function LojistaDashboard() {
       {/* Conteúdo Principal */}
       <main className="max-w-5xl mx-auto w-full px-4 sm:px-6 py-8 space-y-6 flex-1">
 
-        {/* Alerta Visual de Novo Pedido em Tempo Real */}
+        {/* Alerta Visual de Novo Pedido em Tempo Real — fica fixo até o lojista responder */}
         {newOrderAlert && (
           <div className="bg-amber-500 text-white p-4 rounded-2xl shadow-lg font-bold text-center animate-bounce flex items-center justify-center gap-2 text-sm">
-            <span>🔔</span> Nova cotação recebida agora! A lista foi atualizada automaticamente.
+            <span>🔔</span>
+            {novosPedidosCount > 1
+              ? `${novosPedidosCount} novas cotações recebidas! Responda para atualizar o aviso.`
+              : 'Nova cotação recebida agora! Responda para atualizar o aviso.'}
           </div>
         )}
 
