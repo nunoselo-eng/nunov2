@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo.svg';
-import { getStatusPrazo } from '../utils/prazoUtils';
+import { getStatusPrazo, aplicarPenalidadeSeNecessario } from '../utils/prazoUtils';
 
 export default function ClientDashboard() {
   const [orders, setOrders] = useState([]);
@@ -85,6 +85,7 @@ export default function ClientDashboard() {
   // Dados do Perfil
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [userEmail, setUserEmail] = useState('');
+  const [userId, setUserId] = useState(null);
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [cidade, setCidade] = useState('');
@@ -109,6 +110,25 @@ export default function ClientDashboard() {
   useEffect(() => {
     ordersIdsRef.current = orders.map(o => o.id);
   }, [orders]);
+
+  // Penalidade automática: pedido expirou, teve pelo menos uma proposta,
+  // e o cliente não aceitou nenhuma — perde 0,5 na reputação (uma única vez).
+  useEffect(() => {
+    if (!userId || orders.length === 0) return;
+
+    orders.forEach((order) => {
+      const status = getStatusPrazo(order, lojistasElegiveisPorPedido[order.id] || [], new Date());
+      if (!status.expirado) return;
+
+      const bids = bidsByOrder[String(order.id)] || [];
+      const teveProposta = bids.length > 0;
+      const aceitouAlguma = bids.some(b => b.status === 'Aceito');
+
+      if (teveProposta && !aceitouAlguma) {
+        aplicarPenalidadeSeNecessario(supabase, order.id, 'cliente', userId);
+      }
+    });
+  }, [orders, bidsByOrder, lojistasElegiveisPorPedido, userId]);
 
   // Avisa o cliente, com banner fixo, quando um lojista envia uma proposta
   // nova pra algum dos pedidos dele.
@@ -137,6 +157,7 @@ export default function ClientDashboard() {
 
       if (user) {
         setUserEmail(user.email || '');
+        setUserId(user.id);
 
         const { data: avaliacoesFeitas } = await supabase
           .from('avaliacoes')
