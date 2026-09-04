@@ -6,6 +6,7 @@ import logo from '../assets/logo.svg';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('lojistas'); // 'lojistas' ou 'pedidos'
+  const [sidebarColapsada, setSidebarColapsada] = useState(false);
 
   // --- ESTADOS DA ABA LOJISTAS E CATEGORIAS ---
   const [lojistas, setLojistas] = useState([]);
@@ -760,21 +761,89 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Seleção de Abas */}
-        <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
-          <button
-            onClick={() => setActiveTab('lojistas')}
-            className={`flex-1 py-3 text-sm font-bold rounded-xl transition ${activeTab === 'lojistas' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            Gestão de Lojistas & Categorias
-          </button>
-          <button
-            onClick={() => setActiveTab('pedidos')}
-            className={`flex-1 py-3 text-sm font-bold rounded-xl transition ${activeTab === 'pedidos' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            Monitoramento de Pedidos & Propostas
-          </button>
-        </div>
+        {/* Corpo: menu lateral + conteúdo */}
+        <div className="flex gap-6 items-start">
+
+          {/* Menu Lateral (recolhível) */}
+          <aside className={`bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0 sticky top-24 transition-all duration-200 ${sidebarColapsada ? 'w-16' : 'w-64'}`}>
+            <div className="p-2 flex justify-end border-b border-slate-100">
+              <button
+                onClick={() => setSidebarColapsada(prev => !prev)}
+                className="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-lg hover:bg-slate-50 flex items-center justify-center text-sm font-bold"
+                title={sidebarColapsada ? 'Expandir menu' : 'Recolher menu'}
+              >
+                {sidebarColapsada ? '»' : '«'}
+              </button>
+            </div>
+
+            <nav className="p-2 space-y-1">
+              <button
+                onClick={() => setActiveTab('lojistas')}
+                title="Gestão de Lojistas & Categorias"
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition ${activeTab === 'lojistas' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
+              >
+                <span>🏬</span> {!sidebarColapsada && <span className="truncate">Gestão de Lojistas</span>}
+              </button>
+              <button
+                onClick={() => setActiveTab('pedidos')}
+                title="Monitoramento de Pedidos & Propostas"
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition ${activeTab === 'pedidos' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
+              >
+                <span>📦</span> {!sidebarColapsada && <span className="truncate">Monitoramento de Pedidos</span>}
+              </button>
+
+              <div className="pt-2 mt-2 border-t border-slate-100 space-y-1">
+                <button
+                  onClick={() => setIsCategoryModalOpen(true)}
+                  title="Gerenciar Categorias"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  <span>🗂️</span> {!sidebarColapsada && <span className="truncate">Gerenciar Categorias</span>}
+                </button>
+                <button
+                  onClick={() => { carregarSomAtual(); setIsSomModalOpen(true); }}
+                  title="Som de Notificação"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  <span>🔊</span> {!sidebarColapsada && <span className="truncate">Som de Notificação</span>}
+                </button>
+                <button
+                  onClick={() => { carregarAvaliacoes('contestadas'); setIsAvaliacoesModalOpen(true); }}
+                  title="Avaliações"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  <span>⭐</span> {!sidebarColapsada && <span className="truncate">Avaliações</span>}
+                </button>
+              </div>
+
+              <div className="pt-2 mt-2 border-t border-slate-100 space-y-1">
+                <button
+                  onClick={() => setIsClientModalOpen(true)}
+                  title="Cadastrar Cliente"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-indigo-700 hover:bg-indigo-50 transition"
+                >
+                  <span>+</span> {!sidebarColapsada && <span className="truncate">Cadastrar Cliente</span>}
+                </button>
+                <button
+                  onClick={() => setIsRepModalOpen(true)}
+                  title="Cadastrar Representante"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-purple-700 hover:bg-purple-50 transition"
+                >
+                  <span>+</span> {!sidebarColapsada && <span className="truncate">Cadastrar Representante</span>}
+                </button>
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  title="Cadastrar Lojista"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-teal-700 hover:bg-teal-50 transition"
+                >
+                  <span>+</span> {!sidebarColapsada && <span className="truncate">Cadastrar Lojista</span>}
+                </button>
+              </div>
+            </nav>
+          </aside>
+
+          {/* Conteúdo Principal */}
+          <div className="flex-1 min-w-0 space-y-6">
 
         {/* ABA 1: GESTÃO DE LOJISTAS */}
         {activeTab === 'lojistas' && (
@@ -792,14 +861,6 @@ export default function AdminDashboard() {
                     <option key={city.id || city.nome} value={city.nome}>{city.nome}</option>
                   ))}
                 </select>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setIsCategoryModalOpen(true)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-semibold">Gerenciar Categorias</button>
-                <button onClick={() => { carregarSomAtual(); setIsSomModalOpen(true); }} className="bg-amber-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">🔊 Som de Notificação</button>
-                <button onClick={() => { carregarAvaliacoes('contestadas'); setIsAvaliacoesModalOpen(true); }} className="bg-rose-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">⭐ Avaliações</button>
-                <button onClick={() => setIsClientModalOpen(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Cadastrar Cliente</button>
-                <button onClick={() => setIsRepModalOpen(true)} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Cadastrar Representante</button>
-                <button onClick={() => setIsModalOpen(true)} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Cadastrar Lojista</button>
               </div>
             </div>
 
@@ -1079,6 +1140,9 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+          </div>
+        </div>
 
         {/* Modal Ampliação de Imagem */}
         {activeImage && (
