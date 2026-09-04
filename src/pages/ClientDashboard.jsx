@@ -86,6 +86,7 @@ export default function ClientDashboard() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState(null);
+  const [cashbackAtivo, setCashbackAtivo] = useState(false);
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [cidade, setCidade] = useState('');
@@ -158,6 +159,9 @@ export default function ClientDashboard() {
       if (user) {
         setUserEmail(user.email || '');
         setUserId(user.id);
+
+        const { data: cashbackConfig } = await supabase.from('configuracoes_cashback').select('ativo').eq('id', 1).single();
+        setCashbackAtivo(cashbackConfig?.ativo || false);
 
         const { data: avaliacoesFeitas } = await supabase
           .from('avaliacoes')
@@ -573,7 +577,7 @@ export default function ClientDashboard() {
                             (Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})
                           </span>
                         </p>
-                        {(bid.prazo_entrega || bid.garantia || (bid.formas_pagamento && bid.formas_pagamento.length > 0)) && (
+                        {(bid.prazo_entrega || bid.garantia || (bid.formas_pagamento && bid.formas_pagamento.length > 0) || (cashbackAtivo && (bid.oferece_cashback || bid.aceita_cashback))) && (
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {bid.prazo_entrega && (
                               <span className="text-[11px] font-semibold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
@@ -590,6 +594,16 @@ export default function ClientDashboard() {
                                 💳 {LABEL_FORMA_PAGAMENTO[fp] || fp}
                               </span>
                             ))}
+                            {cashbackAtivo && bid.oferece_cashback && bid.valor_cashback_oferecido > 0 && (
+                              <span className="text-[11px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                                💰 Cashback: R$ {parseFloat(bid.valor_cashback_oferecido).toFixed(2)}
+                              </span>
+                            )}
+                            {cashbackAtivo && bid.aceita_cashback && (
+                              <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                🪙 Aceita cashback como pagamento
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
