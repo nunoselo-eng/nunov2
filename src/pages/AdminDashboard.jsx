@@ -43,6 +43,11 @@ export default function AdminDashboard() {
   const [editClienteCidade, setEditClienteCidade] = useState('');
   const [editClienteTelefone, setEditClienteTelefone] = useState('');
 
+  // Modal de Gerenciar Cashback (Fase A: só configuração geral por enquanto)
+  const [isCashbackModalOpen, setIsCashbackModalOpen] = useState(false);
+  const [configCashback, setConfigCashback] = useState(null);
+  const [salvandoCashback, setSalvandoCashback] = useState(false);
+
   // Modal de Cadastro de Representante Comercial
   const [isRepModalOpen, setIsRepModalOpen] = useState(false);
   const [novoNomeRep, setNovoNomeRep] = useState('');
@@ -559,6 +564,52 @@ export default function AdminDashboard() {
     }
   };
 
+  const carregarConfigCashback = async () => {
+    const { data, error } = await supabase.from('configuracoes_cashback').select('*').eq('id', 1).single();
+    if (!error && data) setConfigCashback(data);
+  };
+
+  const handleSalvarConfigCashback = async (novosDados) => {
+    setSalvandoCashback(true);
+    try {
+      const { error } = await supabase.from('configuracoes_cashback').update(novosDados).eq('id', 1);
+      if (error) throw error;
+      await carregarConfigCashback();
+    } catch (err) {
+      alert('Erro ao salvar configuração de cashback: ' + err.message);
+    } finally {
+      setSalvandoCashback(false);
+    }
+  };
+
+  const handleToggleCashback = async () => {
+    if (!configCashback) return;
+    try {
+      if (configCashback.ativo) {
+        // Desligando: registra o momento da pausa
+        await handleSalvarConfigCashback({ ativo: false, pausado_em: new Date().toISOString() });
+      } else {
+        // Religando: empurra o vencimento de todo crédito ativo pelo tempo que ficou pausado
+        if (configCashback.pausado_em) {
+          const pausaMs = Date.now() - new Date(configCashback.pausado_em).getTime();
+
+          const { data: creditosAtivos } = await supabase
+            .from('cashback_creditos')
+            .select('id, expira_em')
+            .eq('status', 'ativo');
+
+          for (const credito of creditosAtivos || []) {
+            const novaExpiracao = new Date(new Date(credito.expira_em).getTime() + pausaMs);
+            await supabase.from('cashback_creditos').update({ expira_em: novaExpiracao.toISOString() }).eq('id', credito.id);
+          }
+        }
+        await handleSalvarConfigCashback({ ativo: true, pausado_em: null });
+      }
+    } catch (err) {
+      alert('Erro ao alternar o cashback: ' + err.message);
+    }
+  };
+
   const handleSaveEditLojista = async (e) => {
     e.preventDefault();
     try {
@@ -832,6 +883,13 @@ export default function AdminDashboard() {
               </button>
 
               <div className="pt-2 mt-2 border-t border-slate-100 space-y-1">
+                <button
+                  onClick={() => { carregarConfigCashback(); setIsCashbackModalOpen(true); }}
+                  title="Gerenciar Cashback"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  <span>💰</span> {!sidebarColapsada && <span className="truncate">Gerenciar Cashback</span>}
+                </button>
                 <button
                   onClick={() => setIsGerenciarClientesModalOpen(true)}
                   title="Gerenciar Clientes"
@@ -1259,6 +1317,67 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* Modal de Gerenciar Cashback */}
+        {isCashbackModalOpen && configCashback && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center pb-2 border-b">
+                <h3 className="text-xl font-bold text-slate-800">💰 Gerenciar Cashback</h3>
+                <button type="button" onClick={() => setIsCashbackModalOpen(false)} className="text-slate-400 font-bold">✕</button>
+              </div>
+
+              <div className={`p-4 rounded-xl border flex items-center justify-between gap-3 ${configCashback.ativo ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">
+                    {configCashback.ativo ? '✅ Cashback ativado' : '⏸️ Cashback desativado'}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {configCashback.ativo
+                      ? 'Clientes e lojistas veem tudo normalmente.'
+                      : 'Nenhum campo de cashback aparece pro cliente ou lojista. Saldos existentes ficam congelados (não vencem).'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleToggleCashback}
+                  className={`shrink-0 w-14 h-8 rounded-full transition relative ${configCashback.ativo ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                >
+                  <span className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-all ${configCashback.ativo ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Cashback expira depois de quantos dias da compra?</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={configCashback.dias_expiracao}
+                  onChange={(e) => setConfigCashback(prev => ({ ...prev, dias_expiracao: parseInt(e.target.value) || 1 }))}
+                  onBlur={(e) => handleSalvarConfigCashback({ dias_expiracao: parseInt(e.target.value) || 1 })}
+                  className="w-full p-2.5 rounded-xl border text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Duração de cada ciclo de acerto (dias)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={configCashback.dias_ciclo}
+                  onChange={(e) => setConfigCashback(prev => ({ ...prev, dias_ciclo: parseInt(e.target.value) || 1 }))}
+                  onBlur={(e) => handleSalvarConfigCashback({ dias_ciclo: parseInt(e.target.value) || 1 })}
+                  className="w-full p-2.5 rounded-xl border text-sm"
+                />
+              </div>
+
+              {salvandoCashback && <p className="text-xs text-slate-400 text-center">Salvando...</p>}
+
+              <p className="text-[11px] text-slate-400 pt-2 border-t">
+                O relatório de ciclos, ajustes manuais e a visão de quanto cada loja pagou/recebeu chegam numa próxima etapa.
+              </p>
+            </div>
           </div>
         )}
 
