@@ -17,6 +17,9 @@ export default function LojistaDashboard() {
   const [prazoEntrega, setPrazoEntrega] = useState('');
   const [garantia, setGarantia] = useState('');
   const [formasPagamento, setFormasPagamento] = useState([]);
+  const [ofereceCashback, setOfereceCashback] = useState(false);
+  const [valorCashbackOferecido, setValorCashbackOferecido] = useState('');
+  const [aceitaCashback, setAceitaCashback] = useState(false);
 
   const OPCOES_PRAZO_ENTREGA = [
     { value: 'em_2h', label: 'Em até 2 horas', peso: 2 },
@@ -51,6 +54,7 @@ export default function LojistaDashboard() {
   const [activeImage, setActiveImage] = useState(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [cashbackAtivo, setCashbackAtivo] = useState(false);
   const [minhasAvaliacoes, setMinhasAvaliacoes] = useState([]);
   const [collapsedAvaliacoes, setCollapsedAvaliacoes] = useState(true);
   const [userEmail, setUserEmail] = useState('');
@@ -299,6 +303,9 @@ export default function LojistaDashboard() {
       if (!user) return;
 
       setUserEmail(user.email || '');
+
+      const { data: cashbackConfig } = await supabase.from('configuracoes_cashback').select('ativo').eq('id', 1).single();
+      setCashbackAtivo(cashbackConfig?.ativo || false);
 
       const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       if (profileData) setProfile(profileData);
@@ -598,7 +605,10 @@ export default function LojistaDashboard() {
           is_completo: atendeuTodos,
           prazo_entrega: prazoEntrega || null,
           garantia: garantia || null,
-          formas_pagamento: formasPagamento.length > 0 ? formasPagamento : null
+          formas_pagamento: formasPagamento.length > 0 ? formasPagamento : null,
+          oferece_cashback: cashbackAtivo ? ofereceCashback : false,
+          valor_cashback_oferecido: cashbackAtivo && ofereceCashback ? parseFloat(valorCashbackOferecido || 0) : null,
+          aceita_cashback: cashbackAtivo ? aceitaCashback : false
         }])
         .select()
         .single();
@@ -625,6 +635,9 @@ export default function LojistaDashboard() {
       setPrazoEntrega('');
       setGarantia('');
       setFormasPagamento([]);
+      setOfereceCashback(false);
+      setValorCashbackOferecido('');
+      setAceitaCashback(false);
       setNovosPedidosCount(prev => {
         const novo = Math.max(0, prev - 1);
         if (novo === 0) setNewOrderAlert(false);
@@ -1481,6 +1494,45 @@ export default function LojistaDashboard() {
                 ))}
               </div>
             </div>
+
+            {/* Cashback (só aparece se a função estiver ativada no Admin) */}
+            {cashbackAtivo && (
+              <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-3">
+                <p className="text-xs font-bold text-amber-800">💰 Cashback</p>
+
+                <label className="flex items-center gap-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={ofereceCashback}
+                    onChange={(e) => setOfereceCashback(e.target.checked)}
+                    className="w-4 h-4 text-amber-600 rounded"
+                  />
+                  Você oferece cashback nesta venda?
+                </label>
+
+                {ofereceCashback && (
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Valor do cashback (R$)"
+                    value={valorCashbackOferecido}
+                    onChange={(e) => setValorCashbackOferecido(e.target.value)}
+                    className="w-full p-2 rounded-lg border border-slate-300 text-sm"
+                  />
+                )}
+
+                <label className="flex items-center gap-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={aceitaCashback}
+                    onChange={(e) => setAceitaCashback(e.target.checked)}
+                    className="w-4 h-4 text-amber-600 rounded"
+                  />
+                  Você aceita receber cashback como parte do pagamento?
+                </label>
+              </div>
+            )}
 
             {/* Botões de Ação */}
             <div className="flex gap-2.5 pt-3">
