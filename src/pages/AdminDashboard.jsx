@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { supabase } from '../supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 import { Link } from 'react-router-dom';
@@ -50,6 +50,7 @@ export default function AdminDashboard() {
   const [relatorioCashback, setRelatorioCashback] = useState(null);
   const [historicoCiclos, setHistoricoCiclos] = useState([]);
   const [cicloHistoricoAbertoId, setCicloHistoricoAbertoId] = useState(null);
+  const [lojistaTransacoesAbertoId, setLojistaTransacoesAbertoId] = useState(null);
   const [ajusteClienteId, setAjusteClienteId] = useState('');
   const [ajusteValor, setAjusteValor] = useState('');
   const [ajusteMotivo, setAjusteMotivo] = useState('');
@@ -640,20 +641,53 @@ export default function AdminDashboard() {
       return d >= new Date(inicio) && d <= new Date(fim);
     };
 
+    const buscarPedidoDoBid = (bidId) => {
+      for (const order of orders) {
+        const bidsDoPedido = bidsByOrder[String(order.id)] || [];
+        if (bidsDoPedido.some(b => b.id === bidId)) return order;
+      }
+      return null;
+    };
+
     const porLojista = {};
     const garanteLojista = (id) => {
       if (!porLojista[id]) {
         const perfil = clients.find(c => c.id === id);
-        porLojista[id] = { id, nome: perfil?.nome || 'Lojista', gerado: 0, recebido: 0 };
+        porLojista[id] = { id, nome: perfil?.nome || 'Lojista', gerado: 0, recebido: 0, transacoes: [] };
       }
       return porLojista[id];
     };
 
     creditos.filter(c => dentroDoPeriodo(c.criado_em)).forEach(c => {
-      garanteLojista(c.lojista_id).gerado += parseFloat(c.valor);
+      const l = garanteLojista(c.lojista_id);
+      l.gerado += parseFloat(c.valor);
+      const pedido = buscarPedidoDoBid(c.bid_id);
+      l.transacoes.push({
+        tipo: 'Creditado (a pagar)',
+        data: c.criado_em,
+        valor: parseFloat(c.valor),
+        clienteNome: clients.find(cl => cl.id === c.cliente_id)?.nome || 'Cliente',
+        pedidoCodigo: pedido?.codigo_pedido || pedido?.id || '—',
+        pedidoDescricao: pedido?.descricao || '',
+        status: c.status,
+      });
     });
     resgates.filter(r => dentroDoPeriodo(r.criado_em)).forEach(r => {
-      garanteLojista(r.lojista_id).recebido += parseFloat(r.valor);
+      const l = garanteLojista(r.lojista_id);
+      l.recebido += parseFloat(r.valor);
+      const pedido = buscarPedidoDoBid(r.bid_id);
+      l.transacoes.push({
+        tipo: 'Resgatado (a receber)',
+        data: r.criado_em,
+        valor: parseFloat(r.valor),
+        clienteNome: clients.find(cl => cl.id === r.cliente_id)?.nome || 'Cliente',
+        pedidoCodigo: pedido?.codigo_pedido || pedido?.id || '—',
+        pedidoDescricao: pedido?.descricao || '',
+      });
+    });
+
+    Object.values(porLojista).forEach(l => {
+      l.transacoes.sort((a, b) => new Date(b.data) - new Date(a.data));
     });
 
     const linhas = Object.values(porLojista).map(l => ({ ...l, saldo: l.recebido - l.gerado }));
@@ -1532,6 +1566,7 @@ export default function AdminDashboard() {
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="text-left text-slate-500 border-b">
+                              <th className="py-1.5 pr-2"></th>
                               <th className="py-1.5 pr-2">Loja</th>
                               <th className="py-1.5 pr-2">Gerou (a pagar)</th>
                               <th className="py-1.5 pr-2">Recebeu (a receber)</th>
@@ -1539,16 +1574,52 @@ export default function AdminDashboard() {
                             </tr>
                           </thead>
                           <tbody>
-                            {relatorioCashback.atual.linhas.map(l => (
-                              <tr key={l.id} className="border-b border-slate-50">
-                                <td className="py-1.5 pr-2 font-semibold text-slate-700">{l.nome}</td>
-                                <td className="py-1.5 pr-2 text-rose-600">R$ {l.gerado.toFixed(2)}</td>
-                                <td className="py-1.5 pr-2 text-emerald-600">R$ {l.recebido.toFixed(2)}</td>
-                                <td className={`py-1.5 pr-2 font-bold ${l.saldo >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                  {l.saldo >= 0 ? '+' : ''}R$ {l.saldo.toFixed(2)}
-                                </td>
-                              </tr>
-                            ))}
+                            {relatorioCashback.atual.linhas.map(l => {
+                              const expandido = lojistaTransacoesAbertoId === l.id;
+                              return (
+                                <Fragment key={l.id}>
+                                  <tr className="border-b border-slate-50 cursor-pointer hover:bg-slate-50" onClick={() => setLojistaTransacoesAbertoId(expandido ? null : l.id)}>
+                                    <td className="py-1.5 pr-2 text-slate-400">{expandido ? '▾' : '▸'}</td>
+                                    <td className="py-1.5 pr-2 font-semibold text-slate-700">{l.nome}</td>
+                                    <td className="py-1.5 pr-2 text-rose-600">R$ {l.gerado.toFixed(2)}</td>
+                                    <td className="py-1.5 pr-2 text-emerald-600">R$ {l.recebido.toFixed(2)}</td>
+                                    <td className={`py-1.5 pr-2 font-bold ${l.saldo >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                      {l.saldo >= 0 ? '+' : ''}R$ {l.saldo.toFixed(2)}
+                                    </td>
+                                  </tr>
+                                  {expandido && (
+                                    <tr>
+                                      <td colSpan={5} className="bg-slate-50 p-2">
+                                        <table className="w-full text-[11px]">
+                                          <thead>
+                                            <tr className="text-left text-slate-400 border-b border-slate-200">
+                                              <th className="py-1 pr-2">Data/Hora</th>
+                                              <th className="py-1 pr-2">Tipo</th>
+                                              <th className="py-1 pr-2">Cliente</th>
+                                              <th className="py-1 pr-2">Pedido</th>
+                                              <th className="py-1 pr-2">Valor</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {l.transacoes.map((t, i) => (
+                                              <tr key={i} className="border-b border-slate-100">
+                                                <td className="py-1 pr-2 text-slate-500">{formatDataHora(t.data)}</td>
+                                                <td className={`py-1 pr-2 font-semibold ${t.tipo.startsWith('Creditado') ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                  {t.tipo}{t.status === 'expirado' ? ' · Expirado' : ''}
+                                                </td>
+                                                <td className="py-1 pr-2 text-slate-600">{t.clienteNome}</td>
+                                                <td className="py-1 pr-2 text-slate-500">#{t.pedidoCodigo} {t.pedidoDescricao && `— ${t.pedidoDescricao}`}</td>
+                                                <td className="py-1 pr-2 font-bold text-slate-700">R$ {t.valor.toFixed(2)}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </Fragment>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
