@@ -540,12 +540,45 @@ export default function LojistaDashboard() {
     }
   };
 
-  const handleMarcarEntregue = async (bidId) => {
+  const handleMarcarEntregue = async (bid) => {
     const confirmar = window.confirm('Confirma que o cliente comprou e recebeu o pedido? Isso vai disparar a pesquisa de avaliação para ele.');
     if (!confirmar) return;
     try {
-      const { error } = await supabase.from('bids').update({ entregue_em: new Date().toISOString() }).eq('id', bidId);
+      let valorFinalCashback = null;
+
+      if (cashbackAtivo && bid.oferece_cashback) {
+        const digitado = window.prompt(
+          'Valor final do cashback pra esse cliente (ajuste se a compra mudou pelo WhatsApp):',
+          String(bid.valor_cashback_oferecido || 0)
+        );
+        if (digitado !== null) {
+          valorFinalCashback = parseFloat(digitado.replace(',', '.')) || 0;
+        }
+      }
+
+      const dadosAtualizar = { entregue_em: new Date().toISOString() };
+      if (valorFinalCashback !== null) dadosAtualizar.valor_cashback_oferecido = valorFinalCashback;
+
+      const { error } = await supabase.from('bids').update(dadosAtualizar).eq('id', bid.id);
       if (error) throw error;
+
+      if (valorFinalCashback && valorFinalCashback > 0) {
+        const clienteId = bid.pedido?.cliente?.id;
+        if (clienteId) {
+          const { data: configData } = await supabase.from('configuracoes_cashback').select('dias_expiracao').eq('id', 1).single();
+          const dias = configData?.dias_expiracao || 30;
+          const expiraEm = new Date(Date.now() + dias * 24 * 60 * 60 * 1000);
+
+          await supabase.from('cashback_creditos').insert([{
+            cliente_id: clienteId,
+            lojista_id: profile?.id,
+            bid_id: bid.id,
+            valor: valorFinalCashback,
+            expira_em: expiraEm.toISOString()
+          }]);
+        }
+      }
+
       fetchLojistaData();
     } catch (err) {
       alert('Erro ao marcar como entregue: ' + err.message);
@@ -1182,7 +1215,7 @@ export default function LojistaDashboard() {
                             </span>
                           ) : (
                             <button
-                              onClick={() => handleMarcarEntregue(bid.id)}
+                              onClick={() => handleMarcarEntregue(bid)}
                               className="w-full bg-slate-800 hover:bg-slate-900 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
                             >
                               ✅ Cliente comprou e recebeu
