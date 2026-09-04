@@ -175,12 +175,18 @@ export default function ClientDashboard() {
             .eq('status', 'ativo')
             .gt('expira_em', new Date().toISOString());
 
+          const { data: ajustes } = await supabase
+            .from('cashback_ajustes_manuais')
+            .select('valor')
+            .eq('cliente_id', user.id);
+
           setMeusCreditosCashback(creditos || []);
-          const saldo = (creditos || []).reduce(
+          const saldoCreditos = (creditos || []).reduce(
             (soma, c) => soma + (parseFloat(c.valor) - parseFloat(c.valor_usado)),
             0
           );
-          setSaldoCashback(saldo);
+          const saldoAjustes = (ajustes || []).reduce((soma, a) => soma + parseFloat(a.valor), 0);
+          setSaldoCashback(Math.max(0, saldoCreditos + saldoAjustes));
         } else {
           setMeusCreditosCashback([]);
           setSaldoCashback(0);
