@@ -47,6 +47,12 @@ export default function AdminDashboard() {
   const [isCashbackModalOpen, setIsCashbackModalOpen] = useState(false);
   const [configCashback, setConfigCashback] = useState(null);
   const [salvandoCashback, setSalvandoCashback] = useState(false);
+  const [relatorioCashback, setRelatorioCashback] = useState(null);
+  const [historicoCiclos, setHistoricoCiclos] = useState([]);
+  const [cicloHistoricoAbertoId, setCicloHistoricoAbertoId] = useState(null);
+  const [ajusteClienteId, setAjusteClienteId] = useState('');
+  const [ajusteValor, setAjusteValor] = useState('');
+  const [ajusteMotivo, setAjusteMotivo] = useState('');
 
   // Modal de Cadastro de Representante Comercial
   const [isRepModalOpen, setIsRepModalOpen] = useState(false);
@@ -610,6 +616,135 @@ export default function AdminDashboard() {
     }
   };
 
+  // Marca como 'expirado' todo crédito vencido que ainda tinha saldo não
+  // usado — só pra fins de relatório (o saldo disponível já ignora estes
+  // pela data, mas sem isso não dá pra saber "quanto expirou de quem").
+  const processarExpiracoesCashback = async () => {
+    const { data: vencidos } = await supabase
+      .from('cashback_creditos')
+      .select('id, valor, valor_usado')
+      .eq('status', 'ativo')
+      .lt('expira_em', new Date().toISOString());
+
+    for (const c of vencidos || []) {
+      if (parseFloat(c.valor) - parseFloat(c.valor_usado) > 0.0001) {
+        await supabase.from('cashback_creditos').update({ status: 'expirado' }).eq('id', c.id);
+      }
+    }
+  };
+
+  // Monta o relatório (ciclo atual + expirados) a partir dos dados brutos
+  const montarRelatorio = (creditos, resgates, inicio, fim) => {
+    const dentroDoPeriodo = (dataStr) => {
+      const d = new Date(dataStr);
+      return d >= new Date(inicio) && d <= new Date(fim);
+    };
+
+    const porLojista = {};
+    const garanteLojista = (id) => {
+      if (!porLojista[id]) {
+        const perfil = clients.find(c => c.id === id);
+        porLojista[id] = { id, nome: perfil?.nome || 'Lojista', gerado: 0, recebido: 0 };
+      }
+      return porLojista[id];
+    };
+
+    creditos.filter(c => dentroDoPeriodo(c.criado_em)).forEach(c => {
+      garanteLojista(c.lojista_id).gerado += parseFloat(c.valor);
+    });
+    resgates.filter(r => dentroDoPeriodo(r.criado_em)).forEach(r => {
+      garanteLojista(r.lojista_id).recebido += parseFloat(r.valor);
+    });
+
+    const linhas = Object.values(porLojista).map(l => ({ ...l, saldo: l.recebido - l.gerado }));
+
+    const expiradosNoPeriodo = creditos.filter(c => c.status === 'expirado' && dentroDoPeriodo(c.criado_em));
+    const totalExpirado = expiradosNoPeriodo.reduce((soma, c) => soma + (parseFloat(c.valor) - parseFloat(c.valor_usado)), 0);
+
+    return {
+      inicio,
+      fim,
+      linhas,
+      totalGerado: linhas.reduce((s, l) => s + l.gerado, 0),
+      totalRecebido: linhas.reduce((s, l) => s + l.recebido, 0),
+      expirados: expiradosNoPeriodo.map(c => ({
+        clienteNome: clients.find(cl => cl.id === c.cliente_id)?.nome || 'Cliente',
+        lojistaNome: clients.find(cl => cl.id === c.lojista_id)?.nome || 'Lojista',
+        valorPerdido: parseFloat(c.valor) - parseFloat(c.valor_usado),
+      })),
+      totalExpirado,
+    };
+  };
+
+  const carregarRelatorioCashback = async () => {
+    await processarExpiracoesCashback();
+
+    const [{ data: creditos }, { data: resgates }, { data: ciclos }] = await Promise.all([
+      supabase.from('cashback_creditos').select('*'),
+      supabase.from('cashback_resgates').select('*'),
+      supabase.from('cashback_ciclos').select('*').order('fim', { ascending: false }),
+    ]);
+
+    setHistoricoCiclos(ciclos || []);
+
+    const ultimoFim = ciclos && ciclos.length > 0 ? ciclos[0].fim : null;
+    const inicioAtual = ultimoFim || (creditos && creditos.length > 0
+      ? creditos.reduce((min, c) => c.criado_em < min ? c.criado_em : min, creditos[0].criado_em)
+      : new Date().toISOString());
+
+    setRelatorioCashback({
+      atual: montarRelatorio(creditos || [], resgates || [], inicioAtual, new Date().toISOString()),
+      creditosRaw: creditos || [],
+      resgatesRaw: resgates || [],
+    });
+  };
+
+  const handleFecharCiclo = async () => {
+    if (!relatorioCashback) return;
+    const confirmar = window.confirm(
+      `Fechar o ciclo de ${formatDataHora(relatorioCashback.atual.inicio)} até agora?\n\nIsso trava esse período no histórico. Um novo ciclo começa imediatamente depois.`
+    );
+    if (!confirmar) return;
+    try {
+      const { error } = await supabase.from('cashback_ciclos').insert([{
+        inicio: relatorioCashback.atual.inicio,
+        fim: new Date().toISOString(),
+      }]);
+      if (error) throw error;
+      alert('Ciclo fechado!');
+      carregarRelatorioCashback();
+    } catch (err) {
+      alert('Erro ao fechar ciclo: ' + err.message);
+    }
+  };
+
+  const verRelatorioDeCiclo = (ciclo) => {
+    if (!relatorioCashback) return null;
+    return montarRelatorio(relatorioCashback.creditosRaw, relatorioCashback.resgatesRaw, ciclo.inicio, ciclo.fim);
+  };
+
+  const handleAjusteManual = async (e) => {
+    e.preventDefault();
+    if (!ajusteClienteId || !ajusteValor) {
+      alert('Selecione o cliente e informe o valor.');
+      return;
+    }
+    try {
+      const { error } = await supabase.from('cashback_ajustes_manuais').insert([{
+        cliente_id: ajusteClienteId,
+        valor: parseFloat(ajusteValor),
+        motivo: ajusteMotivo || null,
+      }]);
+      if (error) throw error;
+      alert('Ajuste registrado!');
+      setAjusteClienteId('');
+      setAjusteValor('');
+      setAjusteMotivo('');
+    } catch (err) {
+      alert('Erro ao registrar ajuste: ' + err.message);
+    }
+  };
+
   const handleSaveEditLojista = async (e) => {
     e.preventDefault();
     try {
@@ -884,7 +1019,7 @@ export default function AdminDashboard() {
 
               <div className="pt-2 mt-2 border-t border-slate-100 space-y-1">
                 <button
-                  onClick={() => { carregarConfigCashback(); setIsCashbackModalOpen(true); }}
+                  onClick={() => { carregarConfigCashback(); carregarRelatorioCashback(); setIsCashbackModalOpen(true); }}
                   title="Gerenciar Cashback"
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
                 >
@@ -1323,7 +1458,7 @@ export default function AdminDashboard() {
         {/* Modal de Gerenciar Cashback */}
         {isCashbackModalOpen && configCashback && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-3xl shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center pb-2 border-b">
                 <h3 className="text-xl font-bold text-slate-800">💰 Gerenciar Cashback</h3>
                 <button type="button" onClick={() => setIsCashbackModalOpen(false)} className="text-slate-400 font-bold">✕</button>
@@ -1374,9 +1509,132 @@ export default function AdminDashboard() {
 
               {salvandoCashback && <p className="text-xs text-slate-400 text-center">Salvando...</p>}
 
-              <p className="text-[11px] text-slate-400 pt-2 border-t">
-                O relatório de ciclos, ajustes manuais e a visão de quanto cada loja pagou/recebeu chegam numa próxima etapa.
-              </p>
+              {relatorioCashback && (
+                <>
+                  {/* Ciclo Atual */}
+                  <div className="pt-3 border-t border-slate-100 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm font-bold text-slate-800">
+                        Ciclo atual: {formatDataHora(relatorioCashback.atual.inicio)} até agora
+                      </p>
+                      <button
+                        onClick={handleFecharCiclo}
+                        className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+                      >
+                        Fechar Ciclo Agora
+                      </button>
+                    </div>
+
+                    {relatorioCashback.atual.linhas.length === 0 ? (
+                      <p className="text-xs text-slate-500">Nenhuma movimentação de cashback neste ciclo ainda.</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-left text-slate-500 border-b">
+                              <th className="py-1.5 pr-2">Loja</th>
+                              <th className="py-1.5 pr-2">Gerou (a pagar)</th>
+                              <th className="py-1.5 pr-2">Recebeu (a receber)</th>
+                              <th className="py-1.5 pr-2">Saldo</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {relatorioCashback.atual.linhas.map(l => (
+                              <tr key={l.id} className="border-b border-slate-50">
+                                <td className="py-1.5 pr-2 font-semibold text-slate-700">{l.nome}</td>
+                                <td className="py-1.5 pr-2 text-rose-600">R$ {l.gerado.toFixed(2)}</td>
+                                <td className="py-1.5 pr-2 text-emerald-600">R$ {l.recebido.toFixed(2)}</td>
+                                <td className={`py-1.5 pr-2 font-bold ${l.saldo >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                  {l.saldo >= 0 ? '+' : ''}R$ {l.saldo.toFixed(2)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {relatorioCashback.atual.expirados.length > 0 && (
+                      <div className="bg-slate-50 rounded-lg p-2.5 text-xs">
+                        <p className="font-bold text-slate-600 mb-1">
+                          Expirou sem uso: R$ {relatorioCashback.atual.totalExpirado.toFixed(2)} (fica de receita sua)
+                        </p>
+                        {relatorioCashback.atual.expirados.map((e, i) => (
+                          <p key={i} className="text-slate-500">
+                            {e.clienteNome} perdeu R$ {e.valorPerdido.toFixed(2)} (ganho na loja {e.lojistaNome})
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Histórico de Ciclos Fechados */}
+                  {historicoCiclos.length > 0 && (
+                    <div className="pt-3 border-t border-slate-100 space-y-2">
+                      <p className="text-sm font-bold text-slate-800">Ciclos Fechados</p>
+                      {historicoCiclos.map(ciclo => {
+                        const aberto = cicloHistoricoAbertoId === ciclo.id;
+                        const rel = aberto ? verRelatorioDeCiclo(ciclo) : null;
+                        return (
+                          <div key={ciclo.id} className="border border-slate-200 rounded-lg">
+                            <button
+                              onClick={() => setCicloHistoricoAbertoId(aberto ? null : ciclo.id)}
+                              className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-600 flex justify-between items-center"
+                            >
+                              <span>{formatDataHora(ciclo.inicio)} → {formatDataHora(ciclo.fim)}</span>
+                              <span>{aberto ? '▾' : '▸'}</span>
+                            </button>
+                            {aberto && rel && (
+                              <div className="px-3 pb-3 space-y-1 text-xs">
+                                {rel.linhas.map(l => (
+                                  <p key={l.id} className="text-slate-600">
+                                    <b>{l.nome}</b>: gerou R$ {l.gerado.toFixed(2)} · recebeu R$ {l.recebido.toFixed(2)} · saldo {l.saldo >= 0 ? '+' : ''}R$ {l.saldo.toFixed(2)}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Ajuste Manual */}
+                  <form onSubmit={handleAjusteManual} className="pt-3 border-t border-slate-100 space-y-2">
+                    <p className="text-sm font-bold text-slate-800">Ajuste Manual na Carteira de um Cliente</p>
+                    <select
+                      value={ajusteClienteId}
+                      onChange={(e) => setAjusteClienteId(e.target.value)}
+                      className="w-full p-2 rounded-lg border text-xs"
+                      required
+                    >
+                      <option value="">Selecione o cliente...</option>
+                      {clients.filter(p => !p.tipo || p.tipo === 'cliente').map(c => (
+                        <option key={c.id} value={c.id}>{c.nome || c.id}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Valor (positivo = crédito, negativo = débito)"
+                      value={ajusteValor}
+                      onChange={(e) => setAjusteValor(e.target.value)}
+                      className="w-full p-2 rounded-lg border text-xs"
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="Motivo (aparece no histórico, pra você justificar com o cliente)"
+                      value={ajusteMotivo}
+                      onChange={(e) => setAjusteMotivo(e.target.value)}
+                      className="w-full p-2 rounded-lg border text-xs"
+                    />
+                    <button type="submit" className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-xs font-bold">
+                      Registrar Ajuste
+                    </button>
+                  </form>
+                </>
+              )}
             </div>
           </div>
         )}
