@@ -91,6 +91,10 @@ export default function ClientDashboard() {
   const [meusCreditosCashback, setMeusCreditosCashback] = useState([]);
   const [bidAplicandoCashback, setBidAplicandoCashback] = useState(null);
   const [valorCashbackParaAplicar, setValorCashbackParaAplicar] = useState('');
+  const [isCashbackWalletModalOpen, setIsCashbackWalletModalOpen] = useState(false);
+  const [extratoCashback, setExtratoCashback] = useState([]);
+  const [expirandoEm7Dias, setExpirandoEm7Dias] = useState(0);
+  const [carregandoExtrato, setCarregandoExtrato] = useState(false);
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [cidade, setCidade] = useState('');
@@ -445,6 +449,68 @@ export default function ClientDashboard() {
       }
     } catch (err) {
       console.error('Erro ao aplicar resgate de cashback:', err);
+    }
+  };
+
+  // Monta o extrato completo (ganhos + usos) pro modal de carteira do cliente
+  const carregarExtratoCashback = async () => {
+    setCarregandoExtrato(true);
+    try {
+      const [{ data: creditos }, { data: resgates }] = await Promise.all([
+        supabase.from('cashback_creditos').select('*').eq('cliente_id', userId).order('criado_em', { ascending: false }),
+        supabase.from('cashback_resgates').select('*').eq('cliente_id', userId).order('criado_em', { ascending: false }),
+      ]);
+
+      const lojistaIds = Array.from(new Set([
+        ...(creditos || []).map(c => c.lojista_id),
+        ...(resgates || []).map(r => r.lojista_id),
+      ].filter(Boolean)));
+
+      let nomesMap = {};
+      if (lojistaIds.length > 0) {
+        const { data: perfis } = await supabase.from('profiles').select('id, nome').in('id', lojistaIds);
+        (perfis || []).forEach(p => { nomesMap[p.id] = p.nome; });
+      }
+
+      const buscarPedidoDoBid = (bidId) => {
+        for (const order of orders) {
+          const bidsDoPedido = bidsByOrder[String(order.id)] || [];
+          if (bidsDoPedido.some(b => b.id === bidId)) return order;
+        }
+        return null;
+      };
+
+      const itensGanhos = (creditos || []).map(c => ({
+        tipo: 'ganho',
+        data: c.criado_em,
+        valor: parseFloat(c.valor),
+        saldoRestante: parseFloat(c.valor) - parseFloat(c.valor_usado),
+        lojistaNome: nomesMap[c.lojista_id] || 'Loja',
+        status: c.status,
+        expiraEm: c.expira_em,
+        pedido: buscarPedidoDoBid(c.bid_id),
+      }));
+
+      const itensUsos = (resgates || []).map(r => ({
+        tipo: 'uso',
+        data: r.criado_em,
+        valor: parseFloat(r.valor),
+        lojistaNome: nomesMap[r.lojista_id] || 'Loja',
+        pedido: buscarPedidoDoBid(r.bid_id),
+      }));
+
+      const extrato = [...itensGanhos, ...itensUsos].sort((a, b) => new Date(b.data) - new Date(a.data));
+      setExtratoCashback(extrato);
+
+      const em7Dias = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const totalExpirando = (creditos || [])
+        .filter(c => c.status === 'ativo' && new Date(c.expira_em) <= em7Dias && new Date(c.expira_em) > new Date())
+        .reduce((soma, c) => soma + (parseFloat(c.valor) - parseFloat(c.valor_usado)), 0);
+      setExpirandoEm7Dias(totalExpirando);
+    } catch (err) {
+      console.error('Erro ao carregar extrato de cashback:', err);
+    } finally {
+      setCarregandoExtrato(false);
     }
   };
 
@@ -949,9 +1015,12 @@ export default function ClientDashboard() {
               <h1 className="text-2xl font-bold text-white tracking-tight">Painel do Cliente</h1>
               <p className="text-sm text-indigo-100 mt-0.5">Gerencie suas cotações e orçamentos recebidos</p>
               {cashbackAtivo && (
-                <p className="text-xs font-bold text-amber-300 mt-1.5">
-                  💰 Saldo de cashback: R$ {saldoCashback.toFixed(2)}
-                </p>
+                <button
+                  onClick={() => { carregarExtratoCashback(); setIsCashbackWalletModalOpen(true); }}
+                  className="text-xs font-bold text-amber-300 hover:text-amber-200 mt-1.5 underline underline-offset-2 decoration-amber-300/50"
+                >
+                  💰 Saldo de cashback: R$ {saldoCashback.toFixed(2)} · Ver extrato
+                </button>
               )}
             </div>
 
@@ -1077,6 +1146,61 @@ export default function ClientDashboard() {
         </div>
         <div>nunoselo.com — 2026 © Todos os direitos reservados</div>
       </footer>
+
+      {/* Modal de Carteira / Extrato de Cashback */}
+      {isCashbackWalletModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <h3 className="text-xl font-bold text-slate-800">💰 Minha Carteira de Cashback</h3>
+              <button onClick={() => setIsCashbackWalletModalOpen(false)} className="text-slate-400 font-bold">✕</button>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+              <p className="text-2xl font-bold text-amber-700">R$ {saldoCashback.toFixed(2)}</p>
+              <p className="text-xs text-slate-500">Saldo disponível pra usar em qualquer loja parceira</p>
+            </div>
+
+            {expirandoEm7Dias > 0 && (
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs font-semibold text-rose-700">
+                ⚠️ R$ {expirandoEm7Dias.toFixed(2)} vai expirar nos próximos 7 dias. Aproveite antes de perder!
+              </div>
+            )}
+
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-2">Extrato</p>
+              {carregandoExtrato ? (
+                <p className="text-xs text-slate-400 text-center py-4">Carregando...</p>
+              ) : extratoCashback.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-4">Nenhuma movimentação ainda.</p>
+              ) : (
+                <div className="space-y-2">
+                  {extratoCashback.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-slate-100 bg-slate-50">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-700">
+                          {item.tipo === 'ganho' ? `Ganho na ${item.lojistaNome}` : `Usado na ${item.lojistaNome}`}
+                          {item.pedido && <span className="text-slate-400 font-normal"> · Pedido #{item.pedido.codigo_pedido || item.pedido.id}</span>}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          {new Date(item.data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {item.tipo === 'ganho' && item.status === 'expirado' && <span className="text-rose-500 font-semibold"> · Expirado</span>}
+                          {item.tipo === 'ganho' && item.status === 'ativo' && (
+                            <span> · Vence em {new Date(item.expiraEm).toLocaleDateString('pt-BR')}</span>
+                          )}
+                        </p>
+                      </div>
+                      <p className={`text-sm font-bold whitespace-nowrap ${item.tipo === 'ganho' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {item.tipo === 'ganho' ? '+' : '-'}R$ {item.valor.toFixed(2)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Ampliação de Foto */}
       {activeImage && (
