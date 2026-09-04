@@ -87,6 +87,10 @@ export default function ClientDashboard() {
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState(null);
   const [cashbackAtivo, setCashbackAtivo] = useState(false);
+  const [saldoCashback, setSaldoCashback] = useState(0);
+  const [meusCreditosCashback, setMeusCreditosCashback] = useState([]);
+  const [bidAplicandoCashback, setBidAplicandoCashback] = useState(null);
+  const [valorCashbackParaAplicar, setValorCashbackParaAplicar] = useState('');
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [cidade, setCidade] = useState('');
@@ -162,6 +166,25 @@ export default function ClientDashboard() {
 
         const { data: cashbackConfig } = await supabase.from('configuracoes_cashback').select('ativo').eq('id', 1).single();
         setCashbackAtivo(cashbackConfig?.ativo || false);
+
+        if (cashbackConfig?.ativo) {
+          const { data: creditos } = await supabase
+            .from('cashback_creditos')
+            .select('*')
+            .eq('cliente_id', user.id)
+            .eq('status', 'ativo')
+            .gt('expira_em', new Date().toISOString());
+
+          setMeusCreditosCashback(creditos || []);
+          const saldo = (creditos || []).reduce(
+            (soma, c) => soma + (parseFloat(c.valor) - parseFloat(c.valor_usado)),
+            0
+          );
+          setSaldoCashback(saldo);
+        } else {
+          setMeusCreditosCashback([]);
+          setSaldoCashback(0);
+        }
 
         const { data: avaliacoesFeitas } = await supabase
           .from('avaliacoes')
@@ -361,20 +384,61 @@ export default function ClientDashboard() {
     }
   };
 
-  const handleAcceptBid = async (bidId) => {
+  const handleAcceptBid = async (bidId, valorCashbackAplicado = 0) => {
     const confirm = window.confirm('Deseja realmente confirmar esta proposta? Ao confirmar, o lojista receberá seus dados para finalizar a entrega.');
     if (!confirm) return;
 
     const { error } = await supabase
       .from('bids')
-      .update({ status: 'Aceito', accepted_at: new Date().toISOString() })
+      .update({ status: 'Aceito', accepted_at: new Date().toISOString(), cashback_aplicado: valorCashbackAplicado })
       .eq('id', bidId);
 
     if (!error) {
+      if (valorCashbackAplicado > 0) {
+        await aplicarResgateCashback(bidId, valorCashbackAplicado);
+      }
       alert('Proposta confirmada com sucesso!');
+      setBidAplicandoCashback(null);
+      setValorCashbackParaAplicar('');
       fetchClientData();
     } else {
       alert('Erro ao confirmar proposta: ' + error.message);
+    }
+  };
+
+  // Resgata cashback: registra o uso e desconta dos créditos mais
+  // próximos de vencer primeiro, pra não deixar nada expirar à toa.
+  const aplicarResgateCashback = async (bidId, valor) => {
+    try {
+      const todosBids = Object.values(bidsByOrder).flat();
+      const bid = todosBids.find(b => b.id === bidId);
+      if (!bid) return;
+
+      await supabase.from('cashback_resgates').insert([{
+        cliente_id: userId,
+        lojista_id: bid.lojista_id,
+        bid_id: bidId,
+        valor: valor
+      }]);
+
+      let restante = valor;
+      const creditosOrdenados = [...meusCreditosCashback].sort(
+        (a, b) => new Date(a.expira_em) - new Date(b.expira_em)
+      );
+
+      for (const credito of creditosOrdenados) {
+        if (restante <= 0) break;
+        const disponivel = parseFloat(credito.valor) - parseFloat(credito.valor_usado);
+        if (disponivel <= 0) continue;
+        const usar = Math.min(disponivel, restante);
+        await supabase
+          .from('cashback_creditos')
+          .update({ valor_usado: parseFloat(credito.valor_usado) + usar })
+          .eq('id', credito.id);
+        restante -= usar;
+      }
+    } catch (err) {
+      console.error('Erro ao aplicar resgate de cashback:', err);
     }
   };
 
@@ -577,6 +641,11 @@ export default function ClientDashboard() {
                             (Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})
                           </span>
                         </p>
+                        {isAccepted && bid.cashback_aplicado > 0 && (
+                          <p className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1 inline-block">
+                            💰 R$ {parseFloat(bid.cashback_aplicado).toFixed(2)} de cashback aplicado · Total a pagar: R$ {(total - parseFloat(bid.cashback_aplicado)).toFixed(2)}
+                          </p>
+                        )}
                         {(bid.prazo_entrega || bid.garantia || (bid.formas_pagamento && bid.formas_pagamento.length > 0) || (cashbackAtivo && (bid.oferece_cashback || bid.aceita_cashback))) && (
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {bid.prazo_entrega && (
@@ -624,7 +693,7 @@ export default function ClientDashboard() {
                             {lojistaPorBid[bid.lojista_id]?.telefone && (
                               <a
                                 href={`https://wa.me/55${lojistaPorBid[bid.lojista_id].telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                                  `Olá, ${lojistaPorBid[bid.lojista_id]?.nome || 'tudo bem'}! Sou ${nome || 'o cliente'} e vamos continuar com o pedido do ${order.descricao || 'produto'} - ${order.codigo_pedido || order.id}.`
+                                  `Olá, ${lojistaPorBid[bid.lojista_id]?.nome || 'tudo bem'}! Sou ${nome || 'o cliente'} e vamos continuar com o pedido do ${order.descricao || 'produto'} - ${order.codigo_pedido || order.id}.${bid.cashback_aplicado > 0 ? ` Vou usar R$ ${parseFloat(bid.cashback_aplicado).toFixed(2)} de cashback nessa compra.` : ''}`
                                 )}`}
                                 target="_blank"
                                 rel="noreferrer"
@@ -634,16 +703,61 @@ export default function ClientDashboard() {
                               </a>
                             )}
                           </>
-                        ) : (
+                        ) : bidAplicandoCashback !== bid.id ? (
                           <button
-                            onClick={() => handleAcceptBid(bid.id)}
+                            onClick={() => {
+                              if (cashbackAtivo && bid.aceita_cashback && saldoCashback > 0) {
+                                setBidAplicandoCashback(bid.id);
+                                setValorCashbackParaAplicar('');
+                              } else {
+                                handleAcceptBid(bid.id, 0);
+                              }
+                            }}
                             className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm"
                           >
                             Confirmar Proposta
                           </button>
-                        )}
+                        ) : null}
                       </div>
                     </div>
+
+                    {!isAccepted && bidAplicandoCashback === bid.id && (
+                      <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-2">
+                        <p className="text-xs font-bold text-amber-800">
+                          Você tem R$ {saldoCashback.toFixed(2)} de cashback disponível. Quanto quer usar nessa compra?
+                        </p>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max={Math.min(saldoCashback, total)}
+                          value={valorCashbackParaAplicar}
+                          onChange={(e) => setValorCashbackParaAplicar(e.target.value)}
+                          placeholder="0,00"
+                          className="w-full p-2 rounded-lg border border-slate-300 text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleAcceptBid(bid.id, 0)}
+                            className="text-xs font-bold text-slate-500 px-3 py-1.5"
+                          >
+                            Não usar cashback
+                          </button>
+                          <button
+                            onClick={() => handleAcceptBid(bid.id, Math.min(parseFloat(valorCashbackParaAplicar || 0), saldoCashback, total))}
+                            className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition"
+                          >
+                            Confirmar usando R$ {parseFloat(valorCashbackParaAplicar || 0).toFixed(2)}
+                          </button>
+                          <button
+                            onClick={() => setBidAplicandoCashback(null)}
+                            className="text-xs font-bold text-slate-400 px-2"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {isAccepted && bid.entregue_em && !bidsJaAvaliados.has(bid.id) && (
                       <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-2">
@@ -828,6 +942,11 @@ export default function ClientDashboard() {
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight">Painel do Cliente</h1>
               <p className="text-sm text-indigo-100 mt-0.5">Gerencie suas cotações e orçamentos recebidos</p>
+              {cashbackAtivo && (
+                <p className="text-xs font-bold text-amber-300 mt-1.5">
+                  💰 Saldo de cashback: R$ {saldoCashback.toFixed(2)}
+                </p>
+              )}
             </div>
 
             <Link
