@@ -36,6 +36,13 @@ export default function AdminDashboard() {
   const [novoTelefoneCliente, setNovoTelefoneCliente] = useState('');
   const [novaCidadeCliente, setNovaCidadeCliente] = useState('');
 
+  // Modal de Gerenciar Clientes (editar/excluir/ver nota e uso)
+  const [isGerenciarClientesModalOpen, setIsGerenciarClientesModalOpen] = useState(false);
+  const [clienteEditandoId, setClienteEditandoId] = useState(null);
+  const [editClienteNome, setEditClienteNome] = useState('');
+  const [editClienteCidade, setEditClienteCidade] = useState('');
+  const [editClienteTelefone, setEditClienteTelefone] = useState('');
+
   // Modal de Cadastro de Representante Comercial
   const [isRepModalOpen, setIsRepModalOpen] = useState(false);
   const [novoNomeRep, setNovoNomeRep] = useState('');
@@ -520,6 +527,38 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleSalvarEdicaoCliente = async (clienteId) => {
+    try {
+      if (editClienteCidade) await saveCityIfNew(editClienteCidade);
+      const { error } = await supabase.from('profiles').update({
+        nome: editClienteNome,
+        cidade: editClienteCidade,
+        telefone: editClienteTelefone,
+      }).eq('id', clienteId);
+      if (error) throw error;
+      alert('Cliente atualizado com sucesso!');
+      setClienteEditandoId(null);
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao atualizar cliente: ' + err.message);
+    }
+  };
+
+  const handleExcluirCliente = async (clienteId, nomeCliente) => {
+    const confirmar = window.confirm(
+      `Excluir o cadastro de "${nomeCliente}"?\n\nIsso remove o perfil dele da plataforma (nome, cidade, telefone, reputação). Os pedidos que ele já fez continuam no histórico, mas o login dele deixa de funcionar normalmente. Essa ação não pode ser desfeita por aqui.`
+    );
+    if (!confirmar) return;
+    try {
+      const { error } = await supabase.from('profiles').delete().eq('id', clienteId);
+      if (error) throw error;
+      alert('Cadastro do cliente removido.');
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao excluir cliente: ' + err.message);
+    }
+  };
+
   const handleSaveEditLojista = async (e) => {
     e.preventDefault();
     try {
@@ -793,6 +832,13 @@ export default function AdminDashboard() {
               </button>
 
               <div className="pt-2 mt-2 border-t border-slate-100 space-y-1">
+                <button
+                  onClick={() => setIsGerenciarClientesModalOpen(true)}
+                  title="Gerenciar Clientes"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  <span>👥</span> {!sidebarColapsada && <span className="truncate">Gerenciar Clientes</span>}
+                </button>
                 <button
                   onClick={() => setIsCategoryModalOpen(true)}
                   title="Gerenciar Categorias"
@@ -1213,6 +1259,79 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* Modal de Gerenciar Clientes */}
+        {isGerenciarClientesModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center pb-2 border-b">
+                <h3 className="text-xl font-bold text-slate-800">👥 Gerenciar Clientes</h3>
+                <button type="button" onClick={() => { setIsGerenciarClientesModalOpen(false); setClienteEditandoId(null); }} className="text-slate-400 font-bold">✕</button>
+              </div>
+
+              {(() => {
+                const listaClientes = clients.filter(p => !p.tipo || p.tipo === 'cliente');
+                if (listaClientes.length === 0) {
+                  return <p className="text-sm text-slate-500 text-center py-6">Nenhum cliente cadastrado ainda.</p>;
+                }
+                return (
+                  <div className="space-y-2">
+                    {listaClientes.map((cliente) => {
+                      const qtdPedidos = orders.filter(o => String(o.cliente_id) === String(cliente.id)).length;
+                      const estaEditando = clienteEditandoId === cliente.id;
+
+                      return (
+                        <div key={cliente.id} className="p-3 rounded-xl border border-slate-200 bg-white space-y-2">
+                          {estaEditando ? (
+                            <div className="space-y-2">
+                              <input type="text" placeholder="Nome" value={editClienteNome} onChange={(e) => setEditClienteNome(e.target.value)} className="w-full p-2 rounded-lg border text-sm" />
+                              <input type="text" placeholder="Cidade" value={editClienteCidade} onChange={(e) => setEditClienteCidade(e.target.value)} className="w-full p-2 rounded-lg border text-sm" />
+                              <input type="text" placeholder="Telefone" value={editClienteTelefone} onChange={(e) => setEditClienteTelefone(e.target.value)} className="w-full p-2 rounded-lg border text-sm" />
+                              <div className="flex gap-2">
+                                <button onClick={() => handleSalvarEdicaoCliente(cliente.id)} className="text-xs font-bold text-emerald-600">Salvar</button>
+                                <button onClick={() => setClienteEditandoId(null)} className="text-xs font-bold text-slate-500">Cancelar</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-bold text-slate-800">{cliente.nome || 'Sem nome'}</p>
+                                <p className="text-xs text-slate-500">Cidade: {cliente.cidade || 'Não informada'} | Tel: {cliente.telefone || 'Não informado'}</p>
+                                <p className="text-xs font-semibold text-amber-600 mt-1">
+                                  ⭐ {cliente.reputacao_media != null ? Number(cliente.reputacao_media).toFixed(1) : '5.0'}
+                                  <span className="text-slate-400 font-normal"> · {qtdPedidos} pedido(s) feito(s) na plataforma</span>
+                                </p>
+                              </div>
+                              <div className="flex flex-col gap-1 items-end shrink-0">
+                                <button
+                                  onClick={() => {
+                                    setClienteEditandoId(cliente.id);
+                                    setEditClienteNome(cliente.nome || '');
+                                    setEditClienteCidade(cliente.cidade || '');
+                                    setEditClienteTelefone(cliente.telefone || '');
+                                  }}
+                                  className="text-xs font-bold text-indigo-600"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => handleExcluirCliente(cliente.id, cliente.nome || 'este cliente')}
+                                  className="text-xs font-bold text-rose-600"
+                                >
+                                  Excluir
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         )}
 
