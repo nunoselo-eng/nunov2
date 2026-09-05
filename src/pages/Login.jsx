@@ -42,7 +42,7 @@ export default function Login() {
 
       if (profile?.ativo === false) {
         await supabase.auth.signOut();
-        throw new Error('Sua conta está temporariamente desativada.');
+        throw new Error('Sua conta está temporariamente desativada por falta de pagamento, entre em contato com nosso suporte.');
       }
 
       if (profile?.tipo === 'admin') {
