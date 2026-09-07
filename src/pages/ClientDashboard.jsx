@@ -3,6 +3,11 @@ import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo.svg';
 import { getStatusPrazo, aplicarPenalidadeSeNecessario } from '../utils/prazoUtils';
+import { Button, Badge, Card, PriceValue } from '../components/ui';
+import {
+  Bell, MessageSquare, Clock, PauseCircle, Star, Truck, ShieldCheck,
+  CreditCard, Coins, Wallet, CheckCircle2, X, Lock, ImageIcon, FileText,
+} from 'lucide-react';
 
 export default function ClientDashboard() {
   const [orders, setOrders] = useState([]);
@@ -594,16 +599,14 @@ export default function ClientDashboard() {
             </button>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
+                <Badge tone="brand">
                   Pedido #{order.codigo_pedido || order.id}
-                </span>
-                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                  tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
-                }`}>
-                  {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
-                </span>
+                </Badge>
+                <Badge tone={tempo.expirado ? 'neutral' : tempo.pausado ? 'brand' : 'warning'} icon={tempo.pausado ? PauseCircle : Clock}>
+                  {tempo.texto}
+                </Badge>
               </div>
-              <h2 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h2>
+              <h2 className="font-display text-lg font-bold text-ink-700 mt-2">{order.descricao}</h2>
             </div>
           </div>
           <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
@@ -630,13 +633,13 @@ export default function ClientDashboard() {
                   <span className="text-slate-500 font-semibold">Ordenar por:</span>
                   <button
                     onClick={() => setOrdenarPropostasPor('preco')}
-                    className={`px-2.5 py-1 rounded-lg font-semibold border ${ordenarPropostasPor === 'preco' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                    className={`px-2.5 py-1 rounded-lg font-semibold border ${ordenarPropostasPor === 'preco' ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-300'}`}
                   >
                     Menor preço
                   </button>
                   <button
                     onClick={() => setOrdenarPropostasPor('prazo')}
-                    className={`px-2.5 py-1 rounded-lg font-semibold border ${ordenarPropostasPor === 'prazo' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                    className={`px-2.5 py-1 rounded-lg font-semibold border ${ordenarPropostasPor === 'prazo' ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-300'}`}
                   >
                     Entrega mais rápida
                   </button>
@@ -660,26 +663,22 @@ export default function ClientDashboard() {
                 return (
                   <div
                     key={bid.id}
-                    className={`p-4 rounded-xl border ${
+                    className={`p-4 rounded-card border ${
                       isAccepted
-                        ? 'border-emerald-200 bg-emerald-50/40'
+                        ? 'border-success bg-success-bg/40'
                         : bid.is_completo
-                          ? 'border-slate-200 bg-slate-50/70'
-                          : 'border-amber-200 bg-amber-50/40'
+                          ? 'border-border-subtle bg-surface-page'
+                          : 'border-warning bg-warning-bg/40'
                     } space-y-3`}
                   >
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-600">Opção #{index + 1}</span>
+                          <span className="text-xs font-bold text-ink-400">Opção #{index + 1}</span>
                           {bid.is_completo ? (
-                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                              Atendimento 100%
-                            </span>
+                            <Badge tone="success">Atendimento 100%</Badge>
                           ) : (
-                            <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-                              Atendimento Parcial
-                            </span>
+                            <Badge tone="warning">Atendimento Parcial</Badge>
                           )}
                         </div>
 
@@ -689,61 +688,54 @@ export default function ClientDashboard() {
                               <img
                                 src={lojistaPorBid[bid.lojista_id].logo_url}
                                 alt="Logo da loja"
-                                className="w-8 h-8 rounded-lg object-cover border border-slate-200"
+                                className="w-8 h-8 rounded-control object-cover border border-border-subtle"
                               />
                             )}
                             <div>
-                              <p className="text-sm font-bold text-slate-800">{lojistaPorBid[bid.lojista_id]?.nome || 'Loja'}</p>
-                              <p className="text-[11px] font-semibold text-amber-600">
-                                ⭐ {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
-                                <span className="text-slate-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações)</span>
+                              <p className="text-sm font-bold text-ink-700">{lojistaPorBid[bid.lojista_id]?.nome || 'Loja'}</p>
+                              <p className="text-[11px] font-semibold text-warning flex items-center gap-1">
+                                <Star size={12} strokeWidth={2} fill="currentColor" />
+                                {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
+                                <span className="text-ink-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações)</span>
                               </p>
                             </div>
                           </div>
                         ) : (
-                          <p className="text-[11px] font-semibold text-amber-600 mt-1">
-                            ⭐ {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
-                            <span className="text-slate-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações) · loja revelada após aprovar</span>
+                          <p className="text-[11px] font-semibold text-warning mt-1 flex items-center gap-1">
+                            <Star size={12} strokeWidth={2} fill="currentColor" />
+                            {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
+                            <span className="text-ink-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações) · loja revelada após aprovar</span>
                           </p>
                         )}
 
-                        <p className="text-xl font-bold text-slate-900 mt-1">
-                          Total: R$ {total.toFixed(2)}{' '}
-                          <span className="text-xs text-slate-500 font-normal">
+                        <p className="mt-1">
+                          <PriceValue value={total} size="sm" />
+                          <span className="text-xs text-ink-400 font-normal ml-1">
                             (Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})
                           </span>
                         </p>
                         {isAccepted && bid.cashback_aplicado > 0 && (
-                          <p className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1 inline-block">
-                            💰 R$ {parseFloat(bid.cashback_aplicado).toFixed(2)} de cashback aplicado · Total a pagar: R$ {(total - parseFloat(bid.cashback_aplicado)).toFixed(2)}
+                          <p className="text-xs font-bold text-success bg-success-bg rounded-control px-2 py-1 mt-1 inline-flex items-center gap-1.5">
+                            <Coins size={14} strokeWidth={2} />
+                            R$ {parseFloat(bid.cashback_aplicado).toFixed(2)} de cashback aplicado · Total a pagar: R$ {(total - parseFloat(bid.cashback_aplicado)).toFixed(2)}
                           </p>
                         )}
                         {(bid.prazo_entrega || bid.garantia || (bid.formas_pagamento && bid.formas_pagamento.length > 0) || (cashbackAtivo && (bid.oferece_cashback || bid.aceita_cashback))) && (
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {bid.prazo_entrega && (
-                              <span className="text-[11px] font-semibold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
-                                🚚 {LABEL_PRAZO_ENTREGA[bid.prazo_entrega] || bid.prazo_entrega}
-                              </span>
+                              <Badge tone="brand" icon={Truck}>{LABEL_PRAZO_ENTREGA[bid.prazo_entrega] || bid.prazo_entrega}</Badge>
                             )}
                             {bid.garantia && (
-                              <span className="text-[11px] font-semibold bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full">
-                                🛡️ Garantia: {bid.garantia}
-                              </span>
+                              <Badge tone="neutral" icon={ShieldCheck}>Garantia: {bid.garantia}</Badge>
                             )}
                             {(bid.formas_pagamento || []).map(fp => (
-                              <span key={fp} className="text-[11px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
-                                💳 {LABEL_FORMA_PAGAMENTO[fp] || fp}
-                              </span>
+                              <Badge key={fp} tone="neutral" icon={CreditCard}>{LABEL_FORMA_PAGAMENTO[fp] || fp}</Badge>
                             ))}
                             {cashbackAtivo && bid.oferece_cashback && bid.valor_cashback_oferecido > 0 && (
-                              <span className="text-[11px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-                                💰 Cashback: R$ {parseFloat(bid.valor_cashback_oferecido).toFixed(2)}
-                              </span>
+                              <Badge tone="warning" icon={Coins}>Cashback: R$ {parseFloat(bid.valor_cashback_oferecido).toFixed(2)}</Badge>
                             )}
                             {cashbackAtivo && bid.aceita_cashback && (
-                              <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                                🪙 Aceita cashback como pagamento
-                              </span>
+                              <Badge tone="success" icon={Wallet}>Aceita cashback como pagamento</Badge>
                             )}
                           </div>
                         )}
@@ -759,9 +751,7 @@ export default function ClientDashboard() {
 
                         {isAccepted ? (
                           <>
-                            <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full flex items-center gap-1">
-                              ✓ Proposta Confirmada
-                            </span>
+                            <Badge tone="success" icon={CheckCircle2}>Proposta Confirmada</Badge>
                             {lojistaPorBid[bid.lojista_id]?.telefone && (
                               <a
                                 href={`https://wa.me/55${lojistaPorBid[bid.lojista_id].telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
@@ -769,14 +759,14 @@ export default function ClientDashboard() {
                                 )}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1"
+                                className="bg-violet-600 hover:bg-violet-hover active:bg-violet-active text-white px-3 py-1.5 rounded-control text-xs font-bold transition shadow-xs press-scale focus-ring flex items-center gap-1.5"
                               >
-                                💬 WhatsApp
+                                <MessageSquare size={16} strokeWidth={2} /> WhatsApp
                               </a>
                             )}
                           </>
                         ) : bidAplicandoCashback !== bid.id ? (
-                          <button
+                          <Button
                             onClick={() => {
                               if (cashbackAtivo && bid.aceita_cashback && saldoCashback > 0) {
                                 setBidAplicandoCashback(bid.id);
@@ -785,17 +775,17 @@ export default function ClientDashboard() {
                                 handleAcceptBid(bid.id, 0);
                               }
                             }}
-                            className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm"
+                            className="!text-xs !px-4 !py-2"
                           >
                             Confirmar Proposta
-                          </button>
+                          </Button>
                         ) : null}
                       </div>
                     </div>
 
                     {!isAccepted && bidAplicandoCashback === bid.id && (
-                      <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-2">
-                        <p className="text-xs font-bold text-amber-800">
+                      <div className="p-3 rounded-control border border-warning bg-warning-bg space-y-2">
+                        <p className="text-xs font-bold text-warning">
                           Você tem R$ {saldoCashback.toFixed(2)} de cashback disponível. Quanto quer usar nessa compra?
                         </p>
                         <input
@@ -806,24 +796,21 @@ export default function ClientDashboard() {
                           value={valorCashbackParaAplicar}
                           onChange={(e) => setValorCashbackParaAplicar(e.target.value)}
                           placeholder="0,00"
-                          className="w-full p-2 rounded-lg border border-slate-300 text-sm"
+                          className="w-full p-2 rounded-control border border-border-default focus-ring text-sm"
                         />
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleAcceptBid(bid.id, 0)}
-                            className="text-xs font-bold text-slate-500 px-3 py-1.5"
+                            className="text-xs font-bold text-ink-400 px-3 py-1.5 focus-ring rounded-control"
                           >
                             Não usar cashback
                           </button>
-                          <button
-                            onClick={() => handleAcceptBid(bid.id, Math.min(parseFloat(valorCashbackParaAplicar || 0), saldoCashback, total))}
-                            className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition"
-                          >
+                          <Button onClick={() => handleAcceptBid(bid.id, Math.min(parseFloat(valorCashbackParaAplicar || 0), saldoCashback, total))} className="!text-xs !px-3 !py-1.5">
                             Confirmar usando R$ {parseFloat(valorCashbackParaAplicar || 0).toFixed(2)}
-                          </button>
+                          </Button>
                           <button
                             onClick={() => setBidAplicandoCashback(null)}
-                            className="text-xs font-bold text-slate-400 px-2"
+                            className="text-xs font-bold text-ink-400 px-2 focus-ring rounded-control"
                           >
                             Cancelar
                           </button>
@@ -832,27 +819,33 @@ export default function ClientDashboard() {
                     )}
 
                     {isAccepted && bid.entregue_em && !bidsJaAvaliados.has(bid.id) && (
-                      <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-2">
-                        <p className="text-xs font-bold text-amber-800">Como foi sua experiência com esse lojista?</p>
+                      <div className="p-3 rounded-control border border-warning bg-warning-bg space-y-2">
+                        <p className="text-xs font-bold text-warning">Como foi sua experiência com esse lojista?</p>
                         <div className="flex items-center gap-1">
                           {[1, 2, 3, 4, 5].map((estrela) => (
                             <button
                               key={estrela}
                               type="button"
                               onClick={() => setNotaSelecionada(prev => ({ ...prev, [bid.id]: estrela }))}
-                              className="text-2xl leading-none"
+                              className="focus-ring rounded"
+                              aria-label={`Nota ${estrela}`}
                             >
-                              {(notaSelecionada[bid.id] || 0) >= estrela ? '⭐' : '☆'}
+                              <Star
+                                size={26}
+                                strokeWidth={2}
+                                className={(notaSelecionada[bid.id] || 0) >= estrela ? 'text-warning' : 'text-ink-100'}
+                                fill={(notaSelecionada[bid.id] || 0) >= estrela ? 'currentColor' : 'none'}
+                              />
                             </button>
                           ))}
                         </div>
-                        <button
+                        <Button
                           onClick={() => handleAvaliarLojista(bid)}
                           disabled={enviandoAvaliacao === bid.id}
-                          className="bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white px-4 py-1.5 rounded-xl text-xs font-bold transition"
+                          className="!text-xs !px-4 !py-1.5"
                         >
                           {enviandoAvaliacao === bid.id ? 'Enviando...' : 'Enviar Avaliação'}
-                        </button>
+                        </Button>
                       </div>
                     )}
 
@@ -915,17 +908,17 @@ export default function ClientDashboard() {
     );
   };
 
-  const renderSection = (key, titulo, icone, corBg, corBorda, corTexto, listaOrders) => (
-    <div className={`${corBg} border ${corBorda} rounded-2xl shadow-sm`}>
+  const renderSection = (key, titulo, Icone, corBg, corBorda, corTexto, listaOrders) => (
+    <div className={`${corBg} border ${corBorda} rounded-card shadow-xs`}>
       <button
         onClick={() => toggleSection(key)}
-        className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
+        className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left focus-ring"
       >
         <span className="flex items-center gap-2">
-          <span className="text-lg">{icone}</span>
-          <h2 className={`text-lg font-bold ${corTexto}`}>{titulo} ({listaOrders.length})</h2>
+          <Icone size={18} strokeWidth={2} className={corTexto} />
+          <h2 className={`font-display text-lg font-bold ${corTexto}`}>{titulo} ({listaOrders.length})</h2>
         </span>
-        <span className="text-slate-400 text-xs font-semibold">
+        <span className="text-ink-400 text-xs font-semibold">
           {collapsedSections[key] ? '▸ Expandir' : '▾ Encolher'}
         </span>
       </button>
@@ -942,7 +935,7 @@ export default function ClientDashboard() {
     <div className="bg-[#f8f9fa] text-slate-700 min-h-screen flex flex-col justify-between font-sans">
       
       {/* Cabeçalho Principal (Header) */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+      <header className="bg-white border-b border-border-subtle sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           
           {/* Logo Apenas Imagem (Sem texto) */}
@@ -952,25 +945,19 @@ export default function ClientDashboard() {
 
           {/* Menu / Perfil */}
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-ink-700 bg-surface-sunken px-3 py-1.5 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-success"></span>
               {userEmail || 'cliente@nunoselo.com'}
             </div>
 
             {/* Botão Meus Dados no Cabeçalho */}
-            <button
-              onClick={() => setIsProfileModalOpen(true)}
-              className="bg-slate-800 hover:bg-slate-900 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5"
-            >
+            <Button variant="ghost" onClick={() => setIsProfileModalOpen(true)} className="!bg-surface-sunken hover:!bg-ink-100 !text-ink-700 !px-3.5 !py-1.5">
               Meus Dados
-            </button>
+            </Button>
 
-            <button
-              onClick={handleLogout}
-              className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg transition"
-            >
+            <Button variant="danger" onClick={handleLogout} className="!px-3 !py-1.5">
               Sair
-            </button>
+            </Button>
           </div>
         </div>
       </header>
@@ -980,55 +967,43 @@ export default function ClientDashboard() {
 
         {/* Alerta Visual de Proposta Nova — fica fixo até expandir o pedido ou fechar manualmente */}
         {pedidosComPropostaNova.size > 0 && (
-          <div className="bg-indigo-600 text-white p-4 rounded-2xl shadow-lg font-bold text-center flex items-center justify-center gap-2 text-sm relative">
-            <span>📨</span>
+          <div className="bg-violet-600 text-white p-4 rounded-card shadow-md font-semibold text-center flex items-center justify-center gap-2 text-sm relative">
+            <MessageSquare size={20} strokeWidth={2} />
             {pedidosComPropostaNova.size > 1
               ? `Você recebeu novas propostas em ${pedidosComPropostaNova.size} pedidos!`
               : 'Você recebeu uma nova proposta!'}
             <button
               onClick={() => setPedidosComPropostaNova(new Set())}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-lg font-bold"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white focus-ring rounded"
               aria-label="Fechar aviso"
             >
-              ✕
+              <X size={18} strokeWidth={2} />
             </button>
           </div>
         )}
 
         {/* Card de Boas-vindas com Botão de Nova Cotação Maior */}
-        <div className="relative p-6 rounded-2xl shadow-sm overflow-hidden">
-          {/* Camada base: roxo */}
-          <div className="absolute inset-0" style={{ backgroundColor: '#5E17EB' }} />
-          {/* Camada do meio: azul-marinho, recortada em ângulo */}
-          <div
-            className="absolute inset-0"
-            style={{ backgroundColor: '#00068F', clipPath: 'polygon(4% 0, 62% 0, 54% 100%, -4% 100%)' }}
-          />
-          {/* Faixa fina roxo-clara na borda esquerda, mesmo ângulo */}
-          <div
-            className="absolute inset-0"
-            style={{ backgroundColor: '#935DFF', clipPath: 'polygon(0 0, 4% 0, -4% 100%, -8% 100%)' }}
-          />
-
-          <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="bg-gradient-brand rounded-card shadow-sm p-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">Painel do Cliente</h1>
-              <p className="text-sm text-indigo-100 mt-0.5">Gerencie suas cotações e orçamentos recebidos</p>
+              <h1 className="font-display text-2xl font-bold text-white tracking-tight">Painel do Cliente</h1>
+              <p className="text-sm text-white/80 mt-0.5">Gerencie suas cotações e orçamentos recebidos</p>
               {cashbackAtivo && (
                 <button
                   onClick={() => { carregarExtratoCashback(); setIsCashbackWalletModalOpen(true); }}
-                  className="text-xs font-bold text-amber-300 hover:text-amber-200 mt-1.5 underline underline-offset-2 decoration-amber-300/50"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-white mt-2 bg-white/15 hover:bg-white/25 transition px-3 py-1.5 rounded-full focus-ring"
                 >
-                  💰 Saldo de cashback: R$ {saldoCashback.toFixed(2)} · Ver extrato
+                  <Wallet size={16} strokeWidth={2} />
+                  Saldo de cashback: R$ {saldoCashback.toFixed(2)} · Ver extrato
                 </button>
               )}
             </div>
 
             <Link
               to="/create-request"
-              className="w-full md:w-auto bg-white hover:bg-slate-50 active:bg-slate-100 text-indigo-900 px-6 py-3.5 rounded-2xl text-sm sm:text-base font-extrabold italic transition shadow-md flex items-center justify-center gap-2"
+              className="w-full md:w-auto bg-white hover:bg-surface-page active:bg-ink-100 text-violet-600 px-6 py-3.5 rounded-control text-sm sm:text-base font-bold transition shadow-md press-scale focus-ring flex items-center justify-center gap-2"
             >
-              <span className="text-lg leading-none not-italic">+</span> Nova Cotação
+              <span className="text-lg leading-none">+</span> Nova Cotação
             </Link>
           </div>
         </div>
@@ -1038,25 +1013,25 @@ export default function ClientDashboard() {
           <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 overflow-x-auto">
             <button
               onClick={() => setStatusFilter('todas')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'todas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
+              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'todas' ? 'bg-violet-50 text-violet-600 font-bold' : 'hover:bg-slate-50'}`}
             >
               Todas ({orders.length})
             </button>
             <button
               onClick={() => setStatusFilter('em_aberto')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'em_aberto' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
+              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'em_aberto' ? 'bg-violet-50 text-violet-600 font-bold' : 'hover:bg-slate-50'}`}
             >
               Em Aberto ({abertasOrders.length})
             </button>
             <button
               onClick={() => setStatusFilter('confirmadas')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'confirmadas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
+              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'confirmadas' ? 'bg-violet-50 text-violet-600 font-bold' : 'hover:bg-slate-50'}`}
             >
               Confirmadas ({confirmadasOrders.length})
             </button>
             <button
               onClick={() => setStatusFilter('encerradas')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'encerradas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
+              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'encerradas' ? 'bg-violet-50 text-violet-600 font-bold' : 'hover:bg-slate-50'}`}
             >
               Encerradas ({encerradasOrders.length})
             </button>
@@ -1123,13 +1098,13 @@ export default function ClientDashboard() {
         ) : (
           <div className="space-y-4">
             {(statusFilter === 'todas' || statusFilter === 'em_aberto') && abertasOrders.length > 0 &&
-              renderSection('abertas', 'Em Aberto', '📋', 'bg-white', 'border-slate-200', 'text-slate-800', abertasOrders)}
+              renderSection('abertas', 'Em Aberto', FileText, 'bg-white', 'border-border-subtle', 'text-ink-700', abertasOrders)}
 
             {(statusFilter === 'todas' || statusFilter === 'confirmadas') && confirmadasOrders.length > 0 &&
-              renderSection('confirmadas', 'Confirmadas', '✅', 'bg-emerald-50/70', 'border-emerald-200', 'text-emerald-900', confirmadasOrders)}
+              renderSection('confirmadas', 'Confirmadas', CheckCircle2, 'bg-success-bg/70', 'border-success/30', 'text-success', confirmadasOrders)}
 
             {(statusFilter === 'todas' || statusFilter === 'encerradas') && encerradasOrders.length > 0 &&
-              renderSection('encerradas', 'Encerradas', '🔒', 'bg-slate-100/70', 'border-slate-300', 'text-slate-700', encerradasOrders)}
+              renderSection('encerradas', 'Encerradas', Lock, 'bg-surface-sunken', 'border-border-default', 'text-ink-400', encerradasOrders)}
           </div>
         )}
 
@@ -1149,48 +1124,52 @@ export default function ClientDashboard() {
 
       {/* Modal de Carteira / Extrato de Cashback */}
       {isCashbackWalletModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center pb-2 border-b">
-              <h3 className="text-xl font-bold text-slate-800">💰 Minha Carteira de Cashback</h3>
-              <button onClick={() => setIsCashbackWalletModalOpen(false)} className="text-slate-400 font-bold">✕</button>
+        <div className="fixed inset-0 z-50 bg-ink-700/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-card p-6 w-full max-w-lg shadow-lg space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-2 border-b border-border-subtle">
+              <h3 className="font-display text-xl font-bold text-ink-700 flex items-center gap-2">
+                <Wallet size={20} strokeWidth={2} className="text-violet-600" /> Minha Carteira de Cashback
+              </h3>
+              <button onClick={() => setIsCashbackWalletModalOpen(false)} className="text-ink-400 hover:text-ink-700 focus-ring rounded">
+                <X size={20} strokeWidth={2} />
+              </button>
             </div>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-              <p className="text-2xl font-bold text-amber-700">R$ {saldoCashback.toFixed(2)}</p>
-              <p className="text-xs text-slate-500">Saldo disponível pra usar em qualquer loja parceira</p>
+            <div className="bg-gradient-brand rounded-card p-4 text-center">
+              <p className="font-display text-2xl font-bold text-white">R$ {saldoCashback.toFixed(2)}</p>
+              <p className="text-xs text-white/80">Saldo disponível pra usar em qualquer loja parceira</p>
             </div>
 
             {expirandoEm7Dias > 0 && (
-              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs font-semibold text-rose-700">
-                ⚠️ R$ {expirandoEm7Dias.toFixed(2)} vai expirar nos próximos 7 dias. Aproveite antes de perder!
+              <div className="bg-danger-bg border border-danger/30 rounded-control p-3 text-xs font-semibold text-danger">
+                R$ {expirandoEm7Dias.toFixed(2)} vai expirar nos próximos 7 dias. Aproveite antes de perder!
               </div>
             )}
 
             <div>
-              <p className="text-xs font-bold text-slate-500 mb-2">Extrato</p>
+              <p className="text-xs font-bold text-ink-400 mb-2">Extrato</p>
               {carregandoExtrato ? (
-                <p className="text-xs text-slate-400 text-center py-4">Carregando...</p>
+                <p className="text-xs text-ink-400 text-center py-4">Carregando...</p>
               ) : extratoCashback.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-4">Nenhuma movimentação ainda.</p>
+                <p className="text-xs text-ink-400 text-center py-4">Nenhuma movimentação ainda.</p>
               ) : (
                 <div className="space-y-2">
                   {extratoCashback.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-slate-100 bg-slate-50">
+                    <div key={i} className="flex items-center justify-between gap-3 p-2.5 rounded-control border border-border-subtle bg-surface-page">
                       <div>
-                        <p className="text-xs font-semibold text-slate-700">
+                        <p className="text-xs font-semibold text-ink-700">
                           {item.tipo === 'ganho' ? `Ganho na ${item.lojistaNome}` : `Usado na ${item.lojistaNome}`}
-                          {item.pedido && <span className="text-slate-400 font-normal"> · Pedido #{item.pedido.codigo_pedido || item.pedido.id}</span>}
+                          {item.pedido && <span className="text-ink-400 font-normal"> · Pedido #{item.pedido.codigo_pedido || item.pedido.id}</span>}
                         </p>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-ink-400">
                           {new Date(item.data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          {item.tipo === 'ganho' && item.status === 'expirado' && <span className="text-rose-500 font-semibold"> · Expirado</span>}
+                          {item.tipo === 'ganho' && item.status === 'expirado' && <span className="text-danger font-semibold"> · Expirado</span>}
                           {item.tipo === 'ganho' && item.status === 'ativo' && (
                             <span> · Vence em {new Date(item.expiraEm).toLocaleDateString('pt-BR')}</span>
                           )}
                         </p>
                       </div>
-                      <p className={`text-sm font-bold whitespace-nowrap ${item.tipo === 'ganho' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      <p className={`text-sm font-bold whitespace-nowrap ${item.tipo === 'ganho' ? 'text-success' : 'text-danger'}`}>
                         {item.tipo === 'ganho' ? '+' : '-'}R$ {item.valor.toFixed(2)}
                       </p>
                     </div>
@@ -1215,9 +1194,9 @@ export default function ClientDashboard() {
             <button
               type="button"
               onClick={() => setActiveImage(null)}
-              className="absolute top-3 right-3 bg-slate-800 text-white w-9 h-9 rounded-full flex items-center justify-center font-bold hover:bg-slate-900 transition shadow-md z-10"
+              className="absolute top-3 right-3 bg-ink-700 text-white w-9 h-9 rounded-full flex items-center justify-center hover:bg-ink-700/90 transition shadow-md z-10 press-scale focus-ring"
             >
-              ✕
+              <X size={18} strokeWidth={2} />
             </button>
             <img
               src={activeImage}
