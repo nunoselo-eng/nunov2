@@ -3,13 +3,7 @@ import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo.svg';
 import { getStatusPrazo, aplicarPenalidadeSeNecessario } from '../utils/prazoUtils';
-import { Button, Badge, Card, PriceValue } from '../components/ui';
-import {
-  Bell, MessageSquare, Clock, PauseCircle, Star, Truck, ShieldCheck,
-  CreditCard, Coins, Wallet, CheckCircle2, X, Lock, ImageIcon, FileText,
-  Search, SlidersHorizontal, ArrowUpDown,
-} from 'lucide-react';
-
+ 
 export default function ClientDashboard() {
   const [orders, setOrders] = useState([]);
   const [bidsByOrder, setBidsByOrder] = useState({});
@@ -18,34 +12,33 @@ export default function ClientDashboard() {
   const [lojistasElegiveisPorPedido, setLojistasElegiveisPorPedido] = useState({});
   const [orderItemsMap, setOrderItemsMap] = useState({});
   const [loading, setLoading] = useState(true);
-
+ 
   // Filtros e Busca
   const [statusFilter, setStatusFilter] = useState('todas');
   const [searchTerm, setSearchTerm] = useState('');
-
+ 
   // Filtro por data e ordenação (padrão: mais recentes primeiro)
   const [dateFrom, setDateFrom] = useState('');
-  const [mostrarFiltroPeriodo, setMostrarFiltroPeriodo] = useState(false);
   const [dateTo, setDateTo] = useState('');
   const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = mais recentes primeiro, 'asc' = mais antigos primeiro
-
+ 
   // Modais e Detalhes
   const [showDetails, setShowDetails] = useState({});
   const [activeImage, setActiveImage] = useState(null);
   const [now, setNow] = useState(Date.now());
-
+ 
   // Encolher/expandir seções e cards individuais
   const [collapsedSections, setCollapsedSections] = useState({ abertas: false, confirmadas: false, encerradas: false });
   const [collapsedCards, setCollapsedCards] = useState(new Set());
-
+ 
   // Avisa o cliente, com banner fixo, quando chega uma proposta nova.
   // Guarda o CONJUNTO de pedidos com proposta ainda não vista.
   const [pedidosComPropostaNova, setPedidosComPropostaNova] = useState(new Set());
   const ordersIdsRef = useRef([]);
-
+ 
   // Ordenação das propostas dentro de cada pedido: por preço ou por prazo de entrega
   const [ordenarPropostasPor, setOrdenarPropostasPor] = useState('preco');
-
+ 
   const LABEL_PRAZO_ENTREGA = {
     em_2h: 'Em até 2 horas',
     hoje: 'Ainda hoje',
@@ -58,17 +51,17 @@ export default function ClientDashboard() {
     a_vista: 'À vista',
     faturado: 'Faturado',
   };
-
+ 
   // Avaliações já enviadas pelo cliente (bid_id -> true), pra saber quais
   // pedidos entregues ainda precisam de pesquisa de satisfação.
   const [bidsJaAvaliados, setBidsJaAvaliados] = useState(new Set());
   const [notaSelecionada, setNotaSelecionada] = useState({});
   const [enviandoAvaliacao, setEnviandoAvaliacao] = useState(null);
-
+ 
   const toggleSection = (key) => {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
-
+ 
   const toggleCard = (orderId) => {
     setCollapsedCards(prev => {
       const next = new Set(prev);
@@ -88,7 +81,7 @@ export default function ClientDashboard() {
       return next;
     });
   };
-
+ 
   // Dados do Perfil
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [userEmail, setUserEmail] = useState('');
@@ -106,46 +99,46 @@ export default function ClientDashboard() {
   const [telefone, setTelefone] = useState('');
   const [cidade, setCidade] = useState('');
   const [cities, setCities] = useState([]);
-
+ 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = '/';
   };
-
+ 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-
+ 
   useEffect(() => {
     fetchClientData();
   }, []);
-
+ 
   // Mantém a referência de "quais pedidos são meus" sempre atualizada,
   // pra conferir a relevância de uma proposta nova assim que ela chega.
   useEffect(() => {
     ordersIdsRef.current = orders.map(o => o.id);
   }, [orders]);
-
+ 
   // Penalidade automática: pedido expirou, teve pelo menos uma proposta,
   // e o cliente não aceitou nenhuma — perde 0,5 na reputação (uma única vez).
   useEffect(() => {
     if (!userId || orders.length === 0) return;
-
+ 
     orders.forEach((order) => {
       const status = getStatusPrazo(order, lojistasElegiveisPorPedido[order.id] || [], new Date());
       if (!status.expirado) return;
-
+ 
       const bids = bidsByOrder[String(order.id)] || [];
       const teveProposta = bids.length > 0;
       const aceitouAlguma = bids.some(b => b.status === 'Aceito');
-
+ 
       if (teveProposta && !aceitouAlguma) {
         aplicarPenalidadeSeNecessario(supabase, order.id, 'cliente', userId);
       }
     });
   }, [orders, bidsByOrder, lojistasElegiveisPorPedido, userId]);
-
+ 
   // Avisa o cliente, com banner fixo, quando um lojista envia uma proposta
   // nova pra algum dos pedidos dele.
   useEffect(() => {
@@ -155,29 +148,29 @@ export default function ClientDashboard() {
         const orderIdDaProposta = Number(payload?.new?.order_id || payload?.new?.pedido_id);
         const relevante = ordersIdsRef.current.includes(orderIdDaProposta);
         if (!relevante) return;
-
+ 
         setPedidosComPropostaNova(prev => new Set(prev).add(orderIdDaProposta));
         fetchClientData();
       })
       .subscribe();
-
+ 
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
-
+ 
   async function fetchClientData() {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-
+ 
       if (user) {
         setUserEmail(user.email || '');
         setUserId(user.id);
-
+ 
         const { data: cashbackConfig } = await supabase.from('configuracoes_cashback').select('ativo').eq('id', 1).single();
         setCashbackAtivo(cashbackConfig?.ativo || false);
-
+ 
         if (cashbackConfig?.ativo) {
           const { data: creditos } = await supabase
             .from('cashback_creditos')
@@ -185,12 +178,12 @@ export default function ClientDashboard() {
             .eq('cliente_id', user.id)
             .eq('status', 'ativo')
             .gt('expira_em', new Date().toISOString());
-
+ 
           const { data: ajustes } = await supabase
             .from('cashback_ajustes_manuais')
             .select('valor')
             .eq('cliente_id', user.id);
-
+ 
           setMeusCreditosCashback(creditos || []);
           const saldoCreditos = (creditos || []).reduce(
             (soma, c) => soma + (parseFloat(c.valor) - parseFloat(c.valor_usado)),
@@ -202,25 +195,25 @@ export default function ClientDashboard() {
           setMeusCreditosCashback([]);
           setSaldoCashback(0);
         }
-
+ 
         const { data: avaliacoesFeitas } = await supabase
           .from('avaliacoes')
           .select('bid_id')
           .eq('avaliador_id', user.id);
         setBidsJaAvaliados(new Set((avaliacoesFeitas || []).map(a => a.bid_id)));
-
+ 
         const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .single();
-
+ 
         if (profileData) {
           setNome(profileData.nome || '');
           setTelefone(profileData.telefone || '');
           setCidade(profileData.cidade || '');
         }
-
+ 
         const { data: citiesData } = await supabase.from('cities').select('*');
         if (citiesData) {
           const uniqueCitiesMap = new Map();
@@ -231,17 +224,17 @@ export default function ClientDashboard() {
           });
           setCities(Array.from(uniqueCitiesMap.values()));
         }
-
+ 
         const { data: ordersData } = await supabase
           .from('orders')
           .select('*')
           .eq('cliente_id', user.id)
           .order('created_at', { ascending: false });
-
+ 
         if (ordersData && ordersData.length > 0) {
           setOrders(ordersData);
           const orderIds = ordersData.map(o => o.id);
-
+ 
           // Lojistas elegíveis (mesma categoria + cidade) de cada pedido,
           // usados pra calcular se o prazo está correndo ou pausado.
           const categoriaIds = Array.from(new Set(ordersData.map(o => o.categoria_id).filter(Boolean)));
@@ -250,7 +243,7 @@ export default function ClientDashboard() {
               .from('lojista_categorias')
               .select('lojista_id, categoria_id')
               .in('categoria_id', categoriaIds);
-
+ 
             const lojistaIdsCandidatos = Array.from(new Set((vinculosCat || []).map(v => v.lojista_id).filter(Boolean)));
             let lojistasCandidatos = [];
             if (lojistaIdsCandidatos.length > 0) {
@@ -260,14 +253,14 @@ export default function ClientDashboard() {
                 .in('id', lojistaIdsCandidatos);
               lojistasCandidatos = lojistasData || [];
             }
-
+ 
             const cidadeMapLocal = new Map((citiesData || []).map(c => [String(c.id), c.nome]));
             const vinculosPorCategoria = {};
             (vinculosCat || []).forEach(v => {
               if (!vinculosPorCategoria[v.categoria_id]) vinculosPorCategoria[v.categoria_id] = new Set();
               vinculosPorCategoria[v.categoria_id].add(v.lojista_id);
             });
-
+ 
             const mapaElegiveis = {};
             ordersData.forEach(o => {
               const idsDaCategoria = vinculosPorCategoria[o.categoria_id] || new Set();
@@ -282,45 +275,45 @@ export default function ClientDashboard() {
             });
             setLojistasElegiveisPorPedido(mapaElegiveis);
           }
-
+ 
           const { data: itemsData } = await supabase
             .from('order_items')
             .select('*')
             .in('order_id', orderIds);
-
+ 
           const oItemsMap = {};
           (itemsData || []).forEach(item => {
             if (!oItemsMap[item.order_id]) oItemsMap[item.order_id] = [];
             oItemsMap[item.order_id].push(item);
           });
           setOrderItemsMap(oItemsMap);
-
+ 
           const { data: bidsData } = await supabase
             .from('bids')
             .select('*')
             .in('order_id', orderIds);
-
+ 
           if (bidsData && bidsData.length > 0) {
             const bidIds = bidsData.map(b => b.id);
             const { data: bItemsData } = await supabase
               .from('bid_items')
               .select('*')
               .in('bid_id', bidIds);
-
+ 
             const bItemsGroup = {};
             (bItemsData || []).forEach(bi => {
               if (!bItemsGroup[bi.bid_id]) bItemsGroup[bi.bid_id] = [];
               bItemsGroup[bi.bid_id].push(bi);
             });
             setBidItemsMap(bItemsGroup);
-
+ 
             const grouped = {};
             bidsData.forEach(b => {
               const orderKey = String(b.order_id || b.pedido_id);
               if (!grouped[orderKey]) grouped[orderKey] = [];
               grouped[orderKey].push(b);
             });
-
+ 
             Object.keys(grouped).forEach(orderKey => {
               grouped[orderKey].sort((a, b) => {
                 if (a.is_completo !== b.is_completo) {
@@ -331,9 +324,9 @@ export default function ClientDashboard() {
                 return totalA - totalB;
               });
             });
-
+ 
             setBidsByOrder(grouped);
-
+ 
             // Dados do lojista de cada proposta (nome/telefone), pra liberar
             // o WhatsApp assim que o cliente aceitar uma proposta.
             const lojistaIds = Array.from(new Set(bidsData.map(b => b.lojista_id).filter(Boolean)));
@@ -342,7 +335,7 @@ export default function ClientDashboard() {
                 .from('profiles')
                 .select('id, nome, telefone, reputacao_media, total_avaliacoes, logo_url')
                 .in('id', lojistaIds);
-
+ 
               const lojistaMap = {};
               (lojistasData || []).forEach(l => { lojistaMap[l.id] = l; });
               setLojistaPorBid(lojistaMap);
@@ -355,27 +348,27 @@ export default function ClientDashboard() {
     }
     setLoading(false);
   }
-
+ 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
+ 
       const { error } = await supabase
         .from('profiles')
         .update({ nome, telefone, cidade })
         .eq('id', user.id);
-
+ 
       if (error) throw error;
-
+ 
       alert('Dados atualizados com sucesso!');
       setIsProfileModalOpen(false);
     } catch (err) {
       alert('Erro ao atualizar perfil: ' + err.message);
     }
   };
-
+ 
   const handleAvaliarLojista = async (bid) => {
     const nota = notaSelecionada[bid.id];
     if (!nota) {
@@ -400,16 +393,16 @@ export default function ClientDashboard() {
       setEnviandoAvaliacao(null);
     }
   };
-
+ 
   const handleAcceptBid = async (bidId, valorCashbackAplicado = 0) => {
     const confirm = window.confirm('Deseja realmente confirmar esta proposta? Ao confirmar, o lojista receberá seus dados para finalizar a entrega.');
     if (!confirm) return;
-
+ 
     const { error } = await supabase
       .from('bids')
       .update({ status: 'Aceito', accepted_at: new Date().toISOString(), cashback_aplicado: valorCashbackAplicado })
       .eq('id', bidId);
-
+ 
     if (!error) {
       if (valorCashbackAplicado > 0) {
         await aplicarResgateCashback(bidId, valorCashbackAplicado);
@@ -422,7 +415,7 @@ export default function ClientDashboard() {
       alert('Erro ao confirmar proposta: ' + error.message);
     }
   };
-
+ 
   // Resgata cashback: registra o uso e desconta dos créditos mais
   // próximos de vencer primeiro, pra não deixar nada expirar à toa.
   const aplicarResgateCashback = async (bidId, valor) => {
@@ -430,19 +423,19 @@ export default function ClientDashboard() {
       const todosBids = Object.values(bidsByOrder).flat();
       const bid = todosBids.find(b => b.id === bidId);
       if (!bid) return;
-
+ 
       await supabase.from('cashback_resgates').insert([{
         cliente_id: userId,
         lojista_id: bid.lojista_id,
         bid_id: bidId,
         valor: valor
       }]);
-
+ 
       let restante = valor;
       const creditosOrdenados = [...meusCreditosCashback].sort(
         (a, b) => new Date(a.expira_em) - new Date(b.expira_em)
       );
-
+ 
       for (const credito of creditosOrdenados) {
         if (restante <= 0) break;
         const disponivel = parseFloat(credito.valor) - parseFloat(credito.valor_usado);
@@ -458,7 +451,7 @@ export default function ClientDashboard() {
       console.error('Erro ao aplicar resgate de cashback:', err);
     }
   };
-
+ 
   // Monta o extrato completo (ganhos + usos) pro modal de carteira do cliente
   const carregarExtratoCashback = async () => {
     setCarregandoExtrato(true);
@@ -467,18 +460,18 @@ export default function ClientDashboard() {
         supabase.from('cashback_creditos').select('*').eq('cliente_id', userId).order('criado_em', { ascending: false }),
         supabase.from('cashback_resgates').select('*').eq('cliente_id', userId).order('criado_em', { ascending: false }),
       ]);
-
+ 
       const lojistaIds = Array.from(new Set([
         ...(creditos || []).map(c => c.lojista_id),
         ...(resgates || []).map(r => r.lojista_id),
       ].filter(Boolean)));
-
+ 
       let nomesMap = {};
       if (lojistaIds.length > 0) {
         const { data: perfis } = await supabase.from('profiles').select('id, nome').in('id', lojistaIds);
         (perfis || []).forEach(p => { nomesMap[p.id] = p.nome; });
       }
-
+ 
       const buscarPedidoDoBid = (bidId) => {
         for (const order of orders) {
           const bidsDoPedido = bidsByOrder[String(order.id)] || [];
@@ -486,7 +479,7 @@ export default function ClientDashboard() {
         }
         return null;
       };
-
+ 
       const itensGanhos = (creditos || []).map(c => ({
         tipo: 'ganho',
         data: c.criado_em,
@@ -497,7 +490,7 @@ export default function ClientDashboard() {
         expiraEm: c.expira_em,
         pedido: buscarPedidoDoBid(c.bid_id),
       }));
-
+ 
       const itensUsos = (resgates || []).map(r => ({
         tipo: 'uso',
         data: r.criado_em,
@@ -505,10 +498,10 @@ export default function ClientDashboard() {
         lojistaNome: nomesMap[r.lojista_id] || 'Loja',
         pedido: buscarPedidoDoBid(r.bid_id),
       }));
-
+ 
       const extrato = [...itensGanhos, ...itensUsos].sort((a, b) => new Date(b.data) - new Date(a.data));
       setExtratoCashback(extrato);
-
+ 
       const em7Dias = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       const totalExpirando = (creditos || [])
         .filter(c => c.status === 'ativo' && new Date(c.expira_em) <= em7Dias && new Date(c.expira_em) > new Date())
@@ -520,17 +513,17 @@ export default function ClientDashboard() {
       setCarregandoExtrato(false);
     }
   };
-
+ 
   const toggleDetails = (bidId) => {
     setShowDetails(prev => ({ ...prev, [bidId]: !prev[bidId] }));
   };
-
+ 
   const getRemainingTime = (order) => {
     if (!order?.expira_em) return { texto: 'Sem prazo', expirado: false, pausado: false };
     const status = getStatusPrazo(order, lojistasElegiveisPorPedido[order.id] || [], new Date(now));
     return { texto: status.texto, expirado: status.expirado, pausado: status.pausado };
   };
-
+ 
   const classifyOrder = (order) => {
     const orderBids = bidsByOrder[String(order.id)] || [];
     const tempo = getRemainingTime(order);
@@ -539,7 +532,7 @@ export default function ClientDashboard() {
     if (tempo.expirado) return 'encerradas';
     return 'abertas';
   };
-
+ 
   const matchesSearch = (order) => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
@@ -549,7 +542,7 @@ export default function ClientDashboard() {
     const matchItem = items.some(i => i.descricao?.toLowerCase().includes(term));
     return matchCodigo || matchDesc || matchItem;
   };
-
+ 
   // Verifica se um pedido cai dentro do período (data) selecionado
   const matchesDate = (order) => {
     if (!dateFrom && !dateTo) return true;
@@ -560,7 +553,7 @@ export default function ClientDashboard() {
     if (dateTo && data > new Date(dateTo + 'T23:59:59')) return false;
     return true;
   };
-
+ 
   // Ordena uma lista de pedidos pela data de criação, respeitando o sortOrder
   const ordenarPorData = (lista) => {
     const copia = [...lista];
@@ -571,11 +564,11 @@ export default function ClientDashboard() {
     });
     return copia;
   };
-
+ 
   const abertasOrders = ordenarPorData(orders.filter(o => classifyOrder(o) === 'abertas' && matchesSearch(o) && matchesDate(o)));
   const confirmadasOrders = ordenarPorData(orders.filter(o => classifyOrder(o) === 'confirmadas' && matchesSearch(o) && matchesDate(o)));
   const encerradasOrders = ordenarPorData(orders.filter(o => classifyOrder(o) === 'encerradas' && matchesSearch(o) && matchesDate(o)));
-
+ 
   const renderOrderCard = (order) => {
     const todasPropostas = bidsByOrder[String(order.id)] || [];
     const hasAcceptedBid = todasPropostas.some(b => b.status === 'Aceito');
@@ -585,10 +578,10 @@ export default function ClientDashboard() {
     const items = orderItemsMap[order.id] || [];
     const tempo = getRemainingTime(order);
     const isCardCollapsed = collapsedCards.has(order.id);
-
+ 
     return (
       <div key={order.id} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-
+ 
         {/* Cabeçalho do Pedido */}
         <div className={`flex flex-wrap justify-between items-start gap-2 ${isCardCollapsed ? '' : 'pb-3 border-b border-slate-100'}`}>
           <div className="flex items-start gap-2">
@@ -601,21 +594,23 @@ export default function ClientDashboard() {
             </button>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge tone="brand">
+                <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
                   Pedido #{order.codigo_pedido || order.id}
-                </Badge>
-                <Badge tone={tempo.expirado ? 'neutral' : tempo.pausado ? 'brand' : 'warning'} icon={tempo.pausado ? PauseCircle : Clock}>
-                  {tempo.texto}
-                </Badge>
+                </span>
+                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                  tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
+                </span>
               </div>
-              <h2 className="font-display text-lg font-bold text-ink-700 mt-2">{order.descricao}</h2>
+              <h2 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h2>
             </div>
           </div>
           <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
             {order.status || 'Aguardando Moderação'}
           </span>
         </div>
-
+ 
         {/* Lista de Propostas */}
         {!isCardCollapsed && (
           <div className="space-y-3">
@@ -635,13 +630,13 @@ export default function ClientDashboard() {
                   <span className="text-slate-500 font-semibold">Ordenar por:</span>
                   <button
                     onClick={() => setOrdenarPropostasPor('preco')}
-                    className={`px-2.5 py-1 rounded-lg font-semibold border ${ordenarPropostasPor === 'preco' ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                    className={`px-2.5 py-1 rounded-lg font-semibold border ${ordenarPropostasPor === 'preco' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
                   >
                     Menor preço
                   </button>
                   <button
                     onClick={() => setOrdenarPropostasPor('prazo')}
-                    className={`px-2.5 py-1 rounded-lg font-semibold border ${ordenarPropostasPor === 'prazo' ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                    className={`px-2.5 py-1 rounded-lg font-semibold border ${ordenarPropostasPor === 'prazo' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
                   >
                     Entrega mais rápida
                   </button>
@@ -661,88 +656,100 @@ export default function ClientDashboard() {
                 const total = (parseFloat(bid.preco || 0)) + (parseFloat(bid.frete || 0));
                 const bItems = bidItemsMap[bid.id] || [];
                 const isAccepted = bid.status === 'Aceito';
-
+ 
                 return (
                   <div
                     key={bid.id}
-                    className={`p-4 rounded-card border ${
+                    className={`p-4 rounded-xl border ${
                       isAccepted
-                        ? 'border-success bg-success-bg/40'
+                        ? 'border-emerald-200 bg-emerald-50/40'
                         : bid.is_completo
-                          ? 'border-hairline bg-surface-page'
-                          : 'border-warning bg-warning-bg/40'
+                          ? 'border-slate-200 bg-slate-50/70'
+                          : 'border-amber-200 bg-amber-50/40'
                     } space-y-3`}
                   >
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-ink-400">Opção #{index + 1}</span>
+                          <span className="text-xs font-bold text-slate-600">Opção #{index + 1}</span>
                           {bid.is_completo ? (
-                            <Badge tone="success">Atendimento 100%</Badge>
+                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                              Atendimento 100%
+                            </span>
                           ) : (
-                            <Badge tone="warning">Atendimento Parcial</Badge>
+                            <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                              Atendimento Parcial
+                            </span>
                           )}
                         </div>
-
+ 
                         {isAccepted ? (
                           <div className="flex items-center gap-2 mt-1.5">
                             {lojistaPorBid[bid.lojista_id]?.logo_url && (
                               <img
                                 src={lojistaPorBid[bid.lojista_id].logo_url}
                                 alt="Logo da loja"
-                                className="w-8 h-8 rounded-control object-cover border border-hairline"
+                                className="w-8 h-8 rounded-lg object-cover border border-slate-200"
                               />
                             )}
                             <div>
-                              <p className="text-sm font-bold text-ink-700">{lojistaPorBid[bid.lojista_id]?.nome || 'Loja'}</p>
-                              <p className="text-[11px] font-semibold text-warning flex items-center gap-1">
-                                <Star size={12} strokeWidth={2} fill="currentColor" />
-                                {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
-                                <span className="text-ink-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações)</span>
+                              <p className="text-sm font-bold text-slate-800">{lojistaPorBid[bid.lojista_id]?.nome || 'Loja'}</p>
+                              <p className="text-[11px] font-semibold text-amber-600">
+                                ⭐ {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
+                                <span className="text-slate-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações)</span>
                               </p>
                             </div>
                           </div>
                         ) : (
-                          <p className="text-[11px] font-semibold text-warning mt-1 flex items-center gap-1">
-                            <Star size={12} strokeWidth={2} fill="currentColor" />
-                            {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
-                            <span className="text-ink-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações) · loja revelada após aprovar</span>
+                          <p className="text-[11px] font-semibold text-amber-600 mt-1">
+                            ⭐ {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
+                            <span className="text-slate-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações) · loja revelada após aprovar</span>
                           </p>
                         )}
-
-                        <p className="mt-1">
-                          <PriceValue value={total} size="sm" />
-                          <span className="text-xs text-ink-400 font-normal ml-1">
+ 
+                        <p className="text-xl font-bold text-slate-900 mt-1">
+                          Total: R$ {total.toFixed(2)}{' '}
+                          <span className="text-xs text-slate-500 font-normal">
                             (Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})
                           </span>
                         </p>
                         {isAccepted && bid.cashback_aplicado > 0 && (
-                          <p className="text-xs font-bold text-success bg-success-bg rounded-control px-2 py-1 mt-1 inline-flex items-center gap-1.5">
-                            <Coins size={14} strokeWidth={2} />
-                            R$ {parseFloat(bid.cashback_aplicado).toFixed(2)} de cashback aplicado · Total a pagar: R$ {(total - parseFloat(bid.cashback_aplicado)).toFixed(2)}
+                          <p className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1 inline-block">
+                            💰 R$ {parseFloat(bid.cashback_aplicado).toFixed(2)} de cashback aplicado · Total a pagar: R$ {(total - parseFloat(bid.cashback_aplicado)).toFixed(2)}
                           </p>
                         )}
                         {(bid.prazo_entrega || bid.garantia || (bid.formas_pagamento && bid.formas_pagamento.length > 0) || (cashbackAtivo && (bid.oferece_cashback || bid.aceita_cashback))) && (
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {bid.prazo_entrega && (
-                              <Badge tone="brand" icon={Truck}>{LABEL_PRAZO_ENTREGA[bid.prazo_entrega] || bid.prazo_entrega}</Badge>
+                              <span className="text-[11px] font-semibold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
+                                🚚 {LABEL_PRAZO_ENTREGA[bid.prazo_entrega] || bid.prazo_entrega}
+                              </span>
                             )}
                             {bid.garantia && (
-                              <Badge tone="neutral" icon={ShieldCheck}>Garantia: {bid.garantia}</Badge>
+                              <span className="text-[11px] font-semibold bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full">
+                                🛡️ Garantia: {bid.garantia}
+                              </span>
                             )}
                             {(bid.formas_pagamento || []).map(fp => (
-                              <Badge key={fp} tone="neutral" icon={CreditCard}>{LABEL_FORMA_PAGAMENTO[fp] || fp}</Badge>
+                              <span key={fp} className="text-[11px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                                💳 {LABEL_FORMA_PAGAMENTO[fp] || fp}
+                              </span>
                             ))}
                             {cashbackAtivo && bid.oferece_cashback && bid.valor_cashback_oferecido > 0 && (
-                              <Badge tone="warning" icon={Coins}>Cashback: R$ {parseFloat(bid.valor_cashback_oferecido).toFixed(2)}</Badge>
+                              <span className="text-[11px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                                💰 Cashback: R$ {parseFloat(bid.valor_cashback_oferecido).toFixed(2)}
+                              </span>
                             )}
                             {cashbackAtivo && bid.aceita_cashback && (
-                              <Badge tone="success" icon={Wallet}>Aceita cashback como pagamento</Badge>
+                              <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                🪙 Aceita cashback como pagamento
+                              </span>
                             )}
                           </div>
                         )}
                       </div>
-
+ 
+ 
                       <div className="flex items-center gap-2.5">
                         <button
                           onClick={() => toggleDetails(bid.id)}
@@ -750,10 +757,12 @@ export default function ClientDashboard() {
                         >
                           {showDetails[bid.id] ? 'Ocultar Itens' : 'Ver Detalhes / Fotos'}
                         </button>
-
+ 
                         {isAccepted ? (
                           <>
-                            <Badge tone="success" icon={CheckCircle2}>Proposta Confirmada</Badge>
+                            <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full flex items-center gap-1">
+                              ✓ Proposta Confirmada
+                            </span>
                             {lojistaPorBid[bid.lojista_id]?.telefone && (
                               <a
                                 href={`https://wa.me/55${lojistaPorBid[bid.lojista_id].telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
@@ -761,14 +770,14 @@ export default function ClientDashboard() {
                                 )}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="bg-violet-600 hover:bg-violet-hover active:bg-violet-active text-white px-3 py-1.5 rounded-control text-xs font-bold transition shadow-xs press-scale focus-ring flex items-center gap-1.5"
+                                className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1"
                               >
-                                <MessageSquare size={16} strokeWidth={2} /> WhatsApp
+                                💬 WhatsApp
                               </a>
                             )}
                           </>
                         ) : bidAplicandoCashback !== bid.id ? (
-                          <Button
+                          <button
                             onClick={() => {
                               if (cashbackAtivo && bid.aceita_cashback && saldoCashback > 0) {
                                 setBidAplicandoCashback(bid.id);
@@ -777,17 +786,17 @@ export default function ClientDashboard() {
                                 handleAcceptBid(bid.id, 0);
                               }
                             }}
-                            className="!text-xs !px-4 !py-2"
+                            className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm"
                           >
                             Confirmar Proposta
-                          </Button>
+                          </button>
                         ) : null}
                       </div>
                     </div>
-
+ 
                     {!isAccepted && bidAplicandoCashback === bid.id && (
-                      <div className="p-3 rounded-control border border-warning bg-warning-bg space-y-2">
-                        <p className="text-xs font-bold text-warning">
+                      <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-2">
+                        <p className="text-xs font-bold text-amber-800">
                           Você tem R$ {saldoCashback.toFixed(2)} de cashback disponível. Quanto quer usar nessa compra?
                         </p>
                         <input
@@ -798,59 +807,57 @@ export default function ClientDashboard() {
                           value={valorCashbackParaAplicar}
                           onChange={(e) => setValorCashbackParaAplicar(e.target.value)}
                           placeholder="0,00"
-                          className="w-full p-2 rounded-control border border-hairline-strong focus-ring text-sm"
+                          className="w-full p-2 rounded-lg border border-slate-300 text-sm"
                         />
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleAcceptBid(bid.id, 0)}
-                            className="text-xs font-bold text-ink-400 px-3 py-1.5 focus-ring rounded-control"
+                            className="text-xs font-bold text-slate-500 px-3 py-1.5"
                           >
                             Não usar cashback
                           </button>
-                          <Button onClick={() => handleAcceptBid(bid.id, Math.min(parseFloat(valorCashbackParaAplicar || 0), saldoCashback, total))} className="!text-xs !px-3 !py-1.5">
+                          <button
+                            onClick={() => handleAcceptBid(bid.id, Math.min(parseFloat(valorCashbackParaAplicar || 0), saldoCashback, total))}
+                            className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition"
+                          >
                             Confirmar usando R$ {parseFloat(valorCashbackParaAplicar || 0).toFixed(2)}
-                          </Button>
+                          </button>
                           <button
                             onClick={() => setBidAplicandoCashback(null)}
-                            className="text-xs font-bold text-ink-400 px-2 focus-ring rounded-control"
+                            className="text-xs font-bold text-slate-400 px-2"
                           >
                             Cancelar
                           </button>
                         </div>
                       </div>
                     )}
-
+ 
                     {isAccepted && bid.entregue_em && !bidsJaAvaliados.has(bid.id) && (
-                      <div className="p-3 rounded-control border border-warning bg-warning-bg space-y-2">
-                        <p className="text-xs font-bold text-warning">Como foi sua experiência com esse lojista?</p>
+                      <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-2">
+                        <p className="text-xs font-bold text-amber-800">Como foi sua experiência com esse lojista?</p>
                         <div className="flex items-center gap-1">
                           {[1, 2, 3, 4, 5].map((estrela) => (
                             <button
                               key={estrela}
                               type="button"
                               onClick={() => setNotaSelecionada(prev => ({ ...prev, [bid.id]: estrela }))}
-                              className="focus-ring rounded"
-                              aria-label={`Nota ${estrela}`}
+                              className="text-2xl leading-none"
                             >
-                              <Star
-                                size={26}
-                                strokeWidth={2}
-                                className={(notaSelecionada[bid.id] || 0) >= estrela ? 'text-warning' : 'text-ink-100'}
-                                fill={(notaSelecionada[bid.id] || 0) >= estrela ? 'currentColor' : 'none'}
-                              />
+                              {(notaSelecionada[bid.id] || 0) >= estrela ? '⭐' : '☆'}
                             </button>
                           ))}
                         </div>
-                        <Button
+                        <button
                           onClick={() => handleAvaliarLojista(bid)}
                           disabled={enviandoAvaliacao === bid.id}
-                          className="!text-xs !px-4 !py-1.5"
+                          className="bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white px-4 py-1.5 rounded-xl text-xs font-bold transition"
                         >
                           {enviandoAvaliacao === bid.id ? 'Enviando...' : 'Enviar Avaliação'}
-                        </Button>
+                        </button>
                       </div>
                     )}
-
+ 
+ 
                     {/* Detalhes Expansíveis dos Itens */}
                     {showDetails[bid.id] && (
                       <div className="pt-3 border-t border-slate-200 space-y-2">
@@ -867,7 +874,7 @@ export default function ClientDashboard() {
                                   {bItem?.atendido ? `R$ ${parseFloat(bItem.preco_unitario || 0).toFixed(2)} / unid` : 'Item indisponível'}
                                 </p>
                               </div>
-
+ 
                               <div className="flex gap-2">
                                 {oItem.imagem_url && (
                                   <div className="text-center">
@@ -897,7 +904,7 @@ export default function ClientDashboard() {
                         })}
                       </div>
                     )}
-
+ 
                   </div>
                 );
               })}
@@ -905,26 +912,26 @@ export default function ClientDashboard() {
             )}
           </div>
         )}
-
+ 
       </div>
     );
   };
-
-  const renderSection = (key, titulo, Icone, corBg, corBorda, corTexto, listaOrders) => (
-    <div className={`${corBg} border ${corBorda} rounded-card shadow-xs`}>
+ 
+  const renderSection = (key, titulo, icone, corBg, corBorda, corTexto, listaOrders) => (
+    <div className={`${corBg} border ${corBorda} rounded-2xl shadow-sm`}>
       <button
         onClick={() => toggleSection(key)}
-        className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left focus-ring"
+        className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
       >
         <span className="flex items-center gap-2">
-          <Icone size={18} strokeWidth={2} className={corTexto} />
-          <h2 className={`font-display text-lg font-bold ${corTexto}`}>{titulo} ({listaOrders.length})</h2>
+          <span className="text-lg">{icone}</span>
+          <h2 className={`text-lg font-bold ${corTexto}`}>{titulo} ({listaOrders.length})</h2>
         </span>
-        <span className="text-ink-400 text-xs font-semibold">
+        <span className="text-slate-400 text-xs font-semibold">
           {collapsedSections[key] ? '▸ Expandir' : '▾ Encolher'}
         </span>
       </button>
-
+ 
       {!collapsedSections[key] && (
         <div className="px-6 pb-6 space-y-4">
           {listaOrders.map((order) => renderOrderCard(order))}
@@ -932,177 +939,180 @@ export default function ClientDashboard() {
       )}
     </div>
   );
-
+ 
   return (
     <div className="bg-[#f8f9fa] text-slate-700 min-h-screen flex flex-col justify-between font-sans">
       
       {/* Cabeçalho Principal (Header) */}
-      <header className="bg-white border-b border-hairline sticky top-0 z-50">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           
           {/* Logo Apenas Imagem (Sem texto) */}
           <Link to="/" className="flex items-center hover:opacity-90 transition">
             <img src={logo} alt="Logo" className="h-10 w-auto object-contain" />
           </Link>
-
+ 
           {/* Menu / Perfil */}
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-ink-700 bg-surface-sunken px-3 py-1.5 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-success"></span>
+            <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               {userEmail || 'cliente@nunoselo.com'}
             </div>
-
+ 
             {/* Botão Meus Dados no Cabeçalho */}
-            <Button variant="ghost" onClick={() => setIsProfileModalOpen(true)} className="!bg-surface-sunken hover:!bg-ink-100 !text-ink-700 !px-3.5 !py-1.5">
+            <button
+              onClick={() => setIsProfileModalOpen(true)}
+              className="bg-slate-800 hover:bg-slate-900 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5"
+            >
               Meus Dados
-            </Button>
-
-            <Button variant="danger" onClick={handleLogout} className="!px-3 !py-1.5">
+            </button>
+ 
+            <button
+              onClick={handleLogout}
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg transition"
+            >
               Sair
-            </Button>
+            </button>
           </div>
         </div>
       </header>
-
+ 
       {/* Conteúdo Principal */}
       <main className="max-w-5xl mx-auto w-full px-4 sm:px-6 py-8 space-y-6 flex-1">
-
+ 
         {/* Alerta Visual de Proposta Nova — fica fixo até expandir o pedido ou fechar manualmente */}
         {pedidosComPropostaNova.size > 0 && (
-          <div className="bg-violet-600 text-white p-4 rounded-card shadow-md font-semibold text-center flex items-center justify-center gap-2 text-sm relative">
-            <MessageSquare size={20} strokeWidth={2} />
+          <div className="bg-indigo-600 text-white p-4 rounded-2xl shadow-lg font-bold text-center flex items-center justify-center gap-2 text-sm relative">
+            <span>📨</span>
             {pedidosComPropostaNova.size > 1
               ? `Você recebeu novas propostas em ${pedidosComPropostaNova.size} pedidos!`
               : 'Você recebeu uma nova proposta!'}
             <button
               onClick={() => setPedidosComPropostaNova(new Set())}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white focus-ring rounded"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-lg font-bold"
               aria-label="Fechar aviso"
             >
-              <X size={18} strokeWidth={2} />
+              ✕
             </button>
           </div>
         )}
-
+ 
         {/* Card de Boas-vindas com Botão de Nova Cotação Maior */}
-        <div className="bg-gradient-brand rounded-card shadow-sm p-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="relative p-6 rounded-2xl shadow-sm overflow-hidden">
+          {/* Camada base: roxo */}
+          <div className="absolute inset-0" style={{ backgroundColor: '#5E17EB' }} />
+          {/* Camada do meio: azul-marinho, recortada em ângulo */}
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: '#00068F', clipPath: 'polygon(4% 0, 62% 0, 54% 100%, -4% 100%)' }}
+          />
+          {/* Faixa fina roxo-clara na borda esquerda, mesmo ângulo */}
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: '#935DFF', clipPath: 'polygon(0 0, 4% 0, -4% 100%, -8% 100%)' }}
+          />
+ 
+          <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h1 className="font-display text-2xl font-bold text-white tracking-tight">Painel do Cliente</h1>
-              <p className="text-sm text-white/80 mt-0.5">Gerencie suas cotações e orçamentos recebidos</p>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Painel do Cliente</h1>
+              <p className="text-sm text-indigo-100 mt-0.5">Gerencie suas cotações e orçamentos recebidos</p>
               {cashbackAtivo && (
                 <button
                   onClick={() => { carregarExtratoCashback(); setIsCashbackWalletModalOpen(true); }}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-white mt-2 bg-white/15 hover:bg-white/25 transition px-3 py-1.5 rounded-full focus-ring"
+                  className="text-xs font-bold text-amber-300 hover:text-amber-200 mt-1.5 underline underline-offset-2 decoration-amber-300/50"
                 >
-                  <Wallet size={16} strokeWidth={2} />
-                  Saldo de cashback: R$ {saldoCashback.toFixed(2)} · Ver extrato
+                  💰 Saldo de cashback: R$ {saldoCashback.toFixed(2)} · Ver extrato
                 </button>
               )}
             </div>
-
+ 
             <Link
               to="/create-request"
-              className="w-full md:w-auto bg-white hover:bg-surface-page active:bg-ink-100 text-violet-600 px-6 py-3.5 rounded-control text-sm sm:text-base font-bold transition shadow-md press-scale focus-ring flex items-center justify-center gap-2"
+              className="w-full md:w-auto bg-white hover:bg-slate-50 active:bg-slate-100 text-indigo-900 px-6 py-3.5 rounded-2xl text-sm sm:text-base font-extrabold italic transition shadow-md flex items-center justify-center gap-2"
             >
-              <span className="text-lg leading-none">+</span> Nova Cotação
+              <span className="text-lg leading-none not-italic">+</span> Nova Cotação
             </Link>
           </div>
         </div>
-
+ 
         {/* Filtros e Busca */}
         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
           <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 overflow-x-auto">
             <button
               onClick={() => setStatusFilter('todas')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'todas' ? 'bg-violet-50 text-violet-600 font-bold' : 'hover:bg-slate-50'}`}
+              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'todas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
             >
               Todas ({orders.length})
             </button>
             <button
               onClick={() => setStatusFilter('em_aberto')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'em_aberto' ? 'bg-violet-50 text-violet-600 font-bold' : 'hover:bg-slate-50'}`}
+              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'em_aberto' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
             >
               Em Aberto ({abertasOrders.length})
             </button>
             <button
               onClick={() => setStatusFilter('confirmadas')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'confirmadas' ? 'bg-violet-50 text-violet-600 font-bold' : 'hover:bg-slate-50'}`}
+              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'confirmadas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
             >
               Confirmadas ({confirmadasOrders.length})
             </button>
             <button
               onClick={() => setStatusFilter('encerradas')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'encerradas' ? 'bg-violet-50 text-violet-600 font-bold' : 'hover:bg-slate-50'}`}
+              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'encerradas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
             >
               Encerradas ({encerradasOrders.length})
             </button>
           </div>
-
-          <div className="flex items-center gap-2">
-            <div className="relative min-w-[220px]">
-              <input
-                type="text"
-                placeholder="Buscar por pedido ou item..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-white border border-hairline rounded-control text-xs text-ink-700 placeholder-ink-400 focus-ring transition"
-              />
-              <Search size={14} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-            </div>
-
-            <button
-              onClick={() => setMostrarFiltroPeriodo(prev => !prev)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-control border text-xs font-semibold transition focus-ring ${
-                mostrarFiltroPeriodo || dateFrom || dateTo ? 'bg-violet-50 border-violet-200 text-violet-600' : 'bg-white border-hairline text-ink-700 hover:bg-surface-page'
-              }`}
-            >
-              <SlidersHorizontal size={14} strokeWidth={2} />
-              Filtrar
-            </button>
+ 
+          <div className="relative min-w-[240px]">
+            <input
+              type="text"
+              placeholder="Buscar por pedido ou item..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
+            />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
           </div>
         </div>
-
-        {/* Painel de Filtro por Data e Ordenação — só aparece ao clicar em "Filtrar" */}
-        {mostrarFiltroPeriodo && (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-control border border-hairline">
-            <div className="flex items-center gap-2 text-xs font-semibold text-ink-700">
-              <span className="text-ink-400">Período:</span>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="px-2 py-1.5 rounded-control border border-hairline-strong text-xs text-ink-700 bg-surface-page focus-ring"
-              />
-              <span className="text-ink-400">até</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="px-2 py-1.5 rounded-control border border-hairline-strong text-xs text-ink-700 bg-surface-page focus-ring"
-              />
-              {(dateFrom || dateTo) && (
-                <button
-                  onClick={() => { setDateFrom(''); setDateTo(''); }}
-                  className="text-danger font-bold hover:underline focus-ring rounded"
-                >
-                  Limpar
-                </button>
-              )}
-            </div>
-
-            <div className="flex-1" />
-
-            <button
-              onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-control border border-hairline-strong bg-surface-page text-xs font-semibold text-ink-700 hover:bg-hairline transition focus-ring"
-            >
-              <ArrowUpDown size={14} strokeWidth={2} />
-              {sortOrder === 'desc' ? 'Mais recentes primeiro' : 'Mais antigos primeiro'}
-            </button>
+ 
+        {/* Filtro por Data e Ordenação */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <span>📅 Período:</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 bg-slate-50"
+            />
+            <span className="text-slate-400">até</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 bg-slate-50"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => { setDateFrom(''); setDateTo(''); }}
+                className="text-rose-600 font-bold hover:underline"
+              >
+                Limpar
+              </button>
+            )}
           </div>
-        )}
-
+ 
+          <div className="flex-1" />
+ 
+          <button
+            onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+          >
+            {sortOrder === 'desc' ? '⬇ Mais recentes primeiro' : '⬆ Mais antigos primeiro'}
+          </button>
+        </div>
+ 
         {/* Lista de Cotações, organizada por prioridade: Abertas > Confirmadas > Encerradas */}
         {loading ? (
           <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
@@ -1115,18 +1125,18 @@ export default function ClientDashboard() {
         ) : (
           <div className="space-y-4">
             {(statusFilter === 'todas' || statusFilter === 'em_aberto') && abertasOrders.length > 0 &&
-              renderSection('abertas', 'Em Aberto', FileText, 'bg-white', 'border-hairline', 'text-ink-700', abertasOrders)}
-
+              renderSection('abertas', 'Em Aberto', '📋', 'bg-white', 'border-slate-200', 'text-slate-800', abertasOrders)}
+ 
             {(statusFilter === 'todas' || statusFilter === 'confirmadas') && confirmadasOrders.length > 0 &&
-              renderSection('confirmadas', 'Confirmadas', CheckCircle2, 'bg-success-bg/70', 'border-success/30', 'text-success', confirmadasOrders)}
-
+              renderSection('confirmadas', 'Confirmadas', '✅', 'bg-emerald-50/70', 'border-emerald-200', 'text-emerald-900', confirmadasOrders)}
+ 
             {(statusFilter === 'todas' || statusFilter === 'encerradas') && encerradasOrders.length > 0 &&
-              renderSection('encerradas', 'Encerradas', Lock, 'bg-surface-sunken', 'border-hairline-strong', 'text-ink-400', encerradasOrders)}
+              renderSection('encerradas', 'Encerradas', '🔒', 'bg-slate-100/70', 'border-slate-300', 'text-slate-700', encerradasOrders)}
           </div>
         )}
-
+ 
       </main>
-
+ 
       {/* Rodapé Institucional */}
       <footer className="mt-12 bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
         <div className="flex flex-wrap justify-center items-center gap-2 mb-1.5 text-slate-600 font-medium">
@@ -1138,7 +1148,7 @@ export default function ClientDashboard() {
         </div>
         <div>nunoselo.com — 2026 © Todos os direitos reservados</div>
       </footer>
-
+ 
       {/* Modal de Carteira / Extrato de Cashback */}
       {isCashbackWalletModalOpen && (
         <div className="fixed inset-0 z-50 bg-ink-700/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1151,18 +1161,18 @@ export default function ClientDashboard() {
                 <X size={20} strokeWidth={2} />
               </button>
             </div>
-
+ 
             <div className="bg-gradient-brand rounded-card p-4 text-center">
               <p className="font-display text-2xl font-bold text-white">R$ {saldoCashback.toFixed(2)}</p>
               <p className="text-xs text-white/80">Saldo disponível pra usar em qualquer loja parceira</p>
             </div>
-
+ 
             {expirandoEm7Dias > 0 && (
               <div className="bg-danger-bg border border-danger/30 rounded-control p-3 text-xs font-semibold text-danger">
                 R$ {expirandoEm7Dias.toFixed(2)} vai expirar nos próximos 7 dias. Aproveite antes de perder!
               </div>
             )}
-
+ 
             <div>
               <p className="text-xs font-bold text-ink-400 mb-2">Extrato</p>
               {carregandoExtrato ? (
@@ -1197,7 +1207,7 @@ export default function ClientDashboard() {
           </div>
         </div>
       )}
-
+ 
       {/* Modal de Ampliação de Foto */}
       {activeImage && (
         <div
@@ -1223,7 +1233,7 @@ export default function ClientDashboard() {
           </div>
         </div>
       )}
-
+ 
       {/* Modal de Edição dos Dados do Cliente */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1232,7 +1242,7 @@ export default function ClientDashboard() {
               <h3 className="text-xl font-bold text-slate-800">Meus Dados</h3>
               <button type="button" onClick={() => setIsProfileModalOpen(false)} className="text-slate-400 font-bold text-lg">✕</button>
             </div>
-
+ 
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">E-mail (Não editável)</label>
               <input
@@ -1242,7 +1252,7 @@ export default function ClientDashboard() {
                 className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed text-sm"
               />
             </div>
-
+ 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nome Completo</label>
               <input
@@ -1254,7 +1264,7 @@ export default function ClientDashboard() {
                 required
               />
             </div>
-
+ 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Telefone / WhatsApp</label>
               <input
@@ -1266,7 +1276,7 @@ export default function ClientDashboard() {
                 required
               />
             </div>
-
+ 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Cidade</label>
               <select
@@ -1280,7 +1290,7 @@ export default function ClientDashboard() {
                 ))}
               </select>
             </div>
-
+ 
             <div className="flex space-x-3 pt-4 border-t border-slate-100">
               <button
                 type="button"
@@ -1299,7 +1309,7 @@ export default function ClientDashboard() {
           </form>
         </div>
       )}
-
+ 
     </div>
   );
 }
