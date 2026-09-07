@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo.svg';
+import { inserirPerfilComRetry } from '../utils/authUtils';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('lojistas'); // 'lojistas' ou 'pedidos'
@@ -320,7 +321,7 @@ export default function AdminDashboard() {
       const userId = authData.user?.id;
       if (novaCidade) await saveCityIfNew(novaCidade);
 
-      const { error: profileError } = await supabase.from('profiles').insert([{
+      const { error: profileError } = await inserirPerfilComRetry(supabase, {
         id: userId,
         tipo: 'lojista',
         nome: novoNome,
@@ -330,7 +331,7 @@ export default function AdminDashboard() {
         horario_abertura: novoHorarioAbertura,
         horario_fechamento: novoHorarioFechamento,
         dias_funcionamento: novosDiasFuncionamento
-      }]);
+      });
 
       if (profileError) throw profileError;
 
@@ -362,14 +363,14 @@ export default function AdminDashboard() {
       const userId = authData.user?.id;
       if (novaCidadeCliente) await saveCityIfNew(novaCidadeCliente);
 
-      const { error: profileError } = await supabase.from('profiles').insert([{
+      const { error: profileError } = await inserirPerfilComRetry(supabase, {
         id: userId,
         tipo: 'cliente',
         nome: novoNomeCliente,
         cidade: novaCidadeCliente,
         telefone: novoTelefoneCliente,
         ativo: true
-      }]);
+      });
 
       if (profileError) throw profileError;
 
@@ -399,12 +400,12 @@ export default function AdminDashboard() {
 
       const userId = authData.user?.id;
 
-      const { error: profileError } = await supabase.from('profiles').insert([{
+      const { error: profileError } = await inserirPerfilComRetry(supabase, {
         id: userId,
         tipo: 'criador_de_contas',
         nome: novoNomeRep,
         ativo: true
-      }]);
+      });
 
       if (profileError) throw profileError;
 
