@@ -7,6 +7,7 @@ import { Button, Badge, Card, PriceValue } from '../components/ui';
 import {
   Bell, MessageSquare, Clock, PauseCircle, Star, Truck, ShieldCheck,
   CreditCard, Coins, Wallet, CheckCircle2, X, Lock, ImageIcon, FileText,
+  Search, SlidersHorizontal, ArrowUpDown,
 } from 'lucide-react';
 
 export default function ClientDashboard() {
@@ -24,6 +25,7 @@ export default function ClientDashboard() {
 
   // Filtro por data e ordenação (padrão: mais recentes primeiro)
   const [dateFrom, setDateFrom] = useState('');
+  const [mostrarFiltroPeriodo, setMostrarFiltroPeriodo] = useState(false);
   const [dateTo, setDateTo] = useState('');
   const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = mais recentes primeiro, 'asc' = mais antigos primeiro
 
@@ -667,7 +669,7 @@ export default function ClientDashboard() {
                       isAccepted
                         ? 'border-success bg-success-bg/40'
                         : bid.is_completo
-                          ? 'border-border-subtle bg-surface-page'
+                          ? 'border-hairline bg-surface-page'
                           : 'border-warning bg-warning-bg/40'
                     } space-y-3`}
                   >
@@ -688,7 +690,7 @@ export default function ClientDashboard() {
                               <img
                                 src={lojistaPorBid[bid.lojista_id].logo_url}
                                 alt="Logo da loja"
-                                className="w-8 h-8 rounded-control object-cover border border-border-subtle"
+                                className="w-8 h-8 rounded-control object-cover border border-hairline"
                               />
                             )}
                             <div>
@@ -796,7 +798,7 @@ export default function ClientDashboard() {
                           value={valorCashbackParaAplicar}
                           onChange={(e) => setValorCashbackParaAplicar(e.target.value)}
                           placeholder="0,00"
-                          className="w-full p-2 rounded-control border border-border-default focus-ring text-sm"
+                          className="w-full p-2 rounded-control border border-hairline-strong focus-ring text-sm"
                         />
                         <div className="flex gap-2">
                           <button
@@ -935,7 +937,7 @@ export default function ClientDashboard() {
     <div className="bg-[#f8f9fa] text-slate-700 min-h-screen flex flex-col justify-between font-sans">
       
       {/* Cabeçalho Principal (Header) */}
-      <header className="bg-white border-b border-border-subtle sticky top-0 z-50">
+      <header className="bg-white border-b border-hairline sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           
           {/* Logo Apenas Imagem (Sem texto) */}
@@ -1037,54 +1039,69 @@ export default function ClientDashboard() {
             </button>
           </div>
 
-          <div className="relative min-w-[240px]">
-            <input
-              type="text"
-              placeholder="Buscar por pedido ou item..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-            />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-[220px]">
+              <input
+                type="text"
+                placeholder="Buscar por pedido ou item..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-white border border-hairline rounded-control text-xs text-ink-700 placeholder-ink-400 focus-ring transition"
+              />
+              <Search size={14} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+            </div>
+
+            <button
+              onClick={() => setMostrarFiltroPeriodo(prev => !prev)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-control border text-xs font-semibold transition focus-ring ${
+                mostrarFiltroPeriodo || dateFrom || dateTo ? 'bg-violet-50 border-violet-200 text-violet-600' : 'bg-white border-hairline text-ink-700 hover:bg-surface-page'
+              }`}
+            >
+              <SlidersHorizontal size={14} strokeWidth={2} />
+              Filtrar
+            </button>
           </div>
         </div>
 
-        {/* Filtro por Data e Ordenação */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-xl border border-slate-200">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-            <span>📅 Período:</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 bg-slate-50"
-            />
-            <span className="text-slate-400">até</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 bg-slate-50"
-            />
-            {(dateFrom || dateTo) && (
-              <button
-                onClick={() => { setDateFrom(''); setDateTo(''); }}
-                className="text-rose-600 font-bold hover:underline"
-              >
-                Limpar
-              </button>
-            )}
+        {/* Painel de Filtro por Data e Ordenação — só aparece ao clicar em "Filtrar" */}
+        {mostrarFiltroPeriodo && (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-control border border-hairline">
+            <div className="flex items-center gap-2 text-xs font-semibold text-ink-700">
+              <span className="text-ink-400">Período:</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="px-2 py-1.5 rounded-control border border-hairline-strong text-xs text-ink-700 bg-surface-page focus-ring"
+              />
+              <span className="text-ink-400">até</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="px-2 py-1.5 rounded-control border border-hairline-strong text-xs text-ink-700 bg-surface-page focus-ring"
+              />
+              {(dateFrom || dateTo) && (
+                <button
+                  onClick={() => { setDateFrom(''); setDateTo(''); }}
+                  className="text-danger font-bold hover:underline focus-ring rounded"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+
+            <div className="flex-1" />
+
+            <button
+              onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-control border border-hairline-strong bg-surface-page text-xs font-semibold text-ink-700 hover:bg-hairline transition focus-ring"
+            >
+              <ArrowUpDown size={14} strokeWidth={2} />
+              {sortOrder === 'desc' ? 'Mais recentes primeiro' : 'Mais antigos primeiro'}
+            </button>
           </div>
-
-          <div className="flex-1" />
-
-          <button
-            onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
-          >
-            {sortOrder === 'desc' ? '⬇ Mais recentes primeiro' : '⬆ Mais antigos primeiro'}
-          </button>
-        </div>
+        )}
 
         {/* Lista de Cotações, organizada por prioridade: Abertas > Confirmadas > Encerradas */}
         {loading ? (
@@ -1098,13 +1115,13 @@ export default function ClientDashboard() {
         ) : (
           <div className="space-y-4">
             {(statusFilter === 'todas' || statusFilter === 'em_aberto') && abertasOrders.length > 0 &&
-              renderSection('abertas', 'Em Aberto', FileText, 'bg-white', 'border-border-subtle', 'text-ink-700', abertasOrders)}
+              renderSection('abertas', 'Em Aberto', FileText, 'bg-white', 'border-hairline', 'text-ink-700', abertasOrders)}
 
             {(statusFilter === 'todas' || statusFilter === 'confirmadas') && confirmadasOrders.length > 0 &&
               renderSection('confirmadas', 'Confirmadas', CheckCircle2, 'bg-success-bg/70', 'border-success/30', 'text-success', confirmadasOrders)}
 
             {(statusFilter === 'todas' || statusFilter === 'encerradas') && encerradasOrders.length > 0 &&
-              renderSection('encerradas', 'Encerradas', Lock, 'bg-surface-sunken', 'border-border-default', 'text-ink-400', encerradasOrders)}
+              renderSection('encerradas', 'Encerradas', Lock, 'bg-surface-sunken', 'border-hairline-strong', 'text-ink-400', encerradasOrders)}
           </div>
         )}
 
@@ -1126,7 +1143,7 @@ export default function ClientDashboard() {
       {isCashbackWalletModalOpen && (
         <div className="fixed inset-0 z-50 bg-ink-700/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-card p-6 w-full max-w-lg shadow-lg space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center pb-2 border-b border-border-subtle">
+            <div className="flex justify-between items-center pb-2 border-b border-hairline">
               <h3 className="font-display text-xl font-bold text-ink-700 flex items-center gap-2">
                 <Wallet size={20} strokeWidth={2} className="text-violet-600" /> Minha Carteira de Cashback
               </h3>
@@ -1155,7 +1172,7 @@ export default function ClientDashboard() {
               ) : (
                 <div className="space-y-2">
                   {extratoCashback.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between gap-3 p-2.5 rounded-control border border-border-subtle bg-surface-page">
+                    <div key={i} className="flex items-center justify-between gap-3 p-2.5 rounded-control border border-hairline bg-surface-page">
                       <div>
                         <p className="text-xs font-semibold text-ink-700">
                           {item.tipo === 'ganho' ? `Ganho na ${item.lojistaNome}` : `Usado na ${item.lojistaNome}`}
