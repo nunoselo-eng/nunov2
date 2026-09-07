@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+/* ===================================================================
+   DESIGN TOKENS — Design System Nuno
+   Definidos via @theme (Tailwind v4) para gerar classes utilitárias
+   automaticamente: bg-violet-600, text-ink-700, rounded-card, etc.
+=================================================================== */
+@theme {
+  /* Cor de marca — violeta é ação, cobalto é profundidade/dado, lilás é decorativo */
+  --color-violet-50: #f4effe;
+  --color-violet-200: #d9c4fb;
+  --color-violet-400: #935dff;
+  --color-violet-600: #5e17eb;
+  --color-violet-hover: #4c0fc9;
+  --color-violet-active: #3d0da3;
+  --color-cobalt-700: #00068f;
+
+  /* Neutros de texto e superfície */
+  --color-ink-100: #e7e7f0;
+  --color-ink-400: #9a9bb8;
+  --color-ink-700: #22244e;
+  --color-surface-page: #f7f7fc;
+  --color-surface-sunken: #eeeef8;
+
+  /* Bordas */
+  --color-border-subtle: #e7e7f0;
+  --color-border-default: #d5d6e6;
+  --color-border-strong: #b7b9d6;
+
+  /* Semântica — nunca usadas como cor de marca */
+  --color-success: #1a9c5b;
+  --color-success-bg: #e6f7ee;
+  --color-warning: #b5790a;
+  --color-warning-bg: #fdf3df;
+  --color-danger: #d13438;
+  --color-danger-bg: #fdeceb;
+
+  /* Tipografia */
+  --font-display: "Sora", sans-serif;
+  --font-body: "Plus Jakarta Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Raios */
+  --radius-control: 12px;
+  --radius-card: 16px;
+  --radius-sheet: 28px;
+
+  /* Sombras — sempre tingidas de ink, nunca preto neutro */
+  --shadow-xs: 0 1px 2px rgba(34, 36, 78, 0.06);
+  --shadow-sm: 0 2px 6px rgba(34, 36, 78, 0.08);
+  --shadow-md: 0 6px 16px rgba(34, 36, 78, 0.10);
+  --shadow-lg: 0 16px 40px rgba(34, 36, 78, 0.16);
+  --shadow-brand: 0 10px 24px rgba(94, 23, 235, 0.28);
+}
+
+/* ===================================================================
+   BASE
+=================================================================== */
+body {
+  font-family: var(--font-body);
+  color: var(--color-ink-700);
+  background: var(--color-surface-page);
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono-token {
+  font-family: var(--font-mono);
+}
+
+/* ===================================================================
+   UTILITÁRIOS DA MARCA
+=================================================================== */
+
+/* Único gradiente permitido — só em superfícies grandes (hero, splash, card de destaque) */
+.bg-gradient-brand {
+  background: linear-gradient(135deg, var(--color-violet-400), var(--color-violet-600), var(--color-cobalt-700));
+}
+
+/* Motivo "lasca": recorte diagonal a ~18°, usado em faixas/banners full-bleed */
+.shard-corner {
+  clip-path: polygon(18% 0, 100% 0, 100% 100%, 0% 100%);
+}
+
+/* Anel de foco padrão da marca */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(94, 23, 235, 0.28);
+}
+
+/* Escala de "press" ao clicar — sem ripple, sem bounce */
+.press-scale:active {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
