@@ -22,10 +22,11 @@
   --color-surface-page: #f7f7fc;
   --color-surface-sunken: #eeeef8;
 
-  /* Bordas */
-  --color-border-subtle: #e7e7f0;
-  --color-border-default: #d5d6e6;
-  --color-border-strong: #b7b9d6;
+  /* Bordas (nomeadas sem a palavra "border" pra não colidir com o
+     prefixo de utilidade border- do Tailwind) */
+  --color-hairline: #e7e7f0;
+  --color-hairline-strong: #d5d6e6;
+  --color-hairline-heavy: #b7b9d6;
 
   /* Semântica — nunca usadas como cor de marca */
   --color-success: #1a9c5b;
