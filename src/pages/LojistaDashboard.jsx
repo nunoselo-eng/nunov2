@@ -341,6 +341,7 @@ export default function LojistaDashboard() {
           .from('orders')
           .select('*')
           .in('categoria_id', categoryIds)
+          .gte('created_at', profileData?.created_at || '1970-01-01')
           .order('created_at', { ascending: false });
 
         if (ordersData) {
