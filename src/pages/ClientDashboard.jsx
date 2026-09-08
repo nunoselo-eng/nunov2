@@ -722,16 +722,11 @@ export default function ClientDashboard() {
                             💰 R$ {parseFloat(bid.cashback_aplicado).toFixed(2)} de cashback aplicado · Total a pagar: R$ {(total - parseFloat(bid.cashback_aplicado)).toFixed(2)}
                           </p>
                         )}
-                        {(bid.prazo_entrega || bid.garantia || (bid.formas_pagamento && bid.formas_pagamento.length > 0) || (cashbackAtivo && (bid.oferece_cashback || bid.aceita_cashback))) && (
+                        {(bid.prazo_entrega || (bid.formas_pagamento && bid.formas_pagamento.length > 0) || (cashbackAtivo && (bid.oferece_cashback || bid.aceita_cashback))) && (
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {bid.prazo_entrega && (
                               <span className="text-[11px] font-semibold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
                                 🚚 {LABEL_PRAZO_ENTREGA[bid.prazo_entrega] || bid.prazo_entrega}
-                              </span>
-                            )}
-                            {bid.garantia && (
-                              <span className="text-[11px] font-semibold bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full">
-                                🛡️ Garantia: {bid.garantia}
                               </span>
                             )}
                             {(bid.formas_pagamento || []).map(fp => (
@@ -750,6 +745,11 @@ export default function ClientDashboard() {
                               </span>
                             )}
                           </div>
+                        )}
+                        {bid.garantia && (
+                          <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 mt-2">
+                            <b>Garantia:</b> {bid.garantia}
+                          </p>
                         )}
                         {bid.observacao && (
                           <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 mt-2">
