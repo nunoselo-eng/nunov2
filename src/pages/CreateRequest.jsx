@@ -173,7 +173,7 @@ export default function CreateRequest() {
         cidade_id: cityId,
         bairro: bairro,
         descricao: descricaoResumo,
-        status: 'Aguardando Moderação',
+        status: 'Aberto para Propostas',
         codigo_pedido: codigoPedido,
         tipo: tipo,
         prazo_opcao: prazoOpcao,
