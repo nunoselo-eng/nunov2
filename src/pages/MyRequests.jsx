@@ -57,7 +57,7 @@ export default function MyRequests() {
                     <span className="text-xs text-slate-400">Criado em: {order.created_at ? new Date(order.created_at).toLocaleDateString() : 'Hoje'}</span>
                   </div>
                   <span className="px-3 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">
-                    {order.status || 'Aguardando Moderação'}
+                    {order.status || 'Aberto para Propostas'}
                   </span>
                 </li>
               ))}
