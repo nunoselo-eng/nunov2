@@ -784,16 +784,28 @@ export default function LojistaDashboard() {
         {isExpanded && (
           <div className="mt-2 pt-2 border-t border-slate-100 space-y-2 text-xs text-slate-600">
             <p><b>Bairro:</b> {bid.pedido?.bairro || 'Não informado'}</p>
-
-            {mostrarStatusConcorrencia && (
-              <p>
-                <b>Status:</b>{' '}
-                {fechadoComOutro ? (
-                  <span className="text-rose-600 font-bold">Cliente já fechou com outro lojista</span>
-                ) : (
-                  <span className="text-amber-700 font-bold">Aguardando resposta do cliente</span>
-                )}
-              </p>
+            <p><b>Pedido feito em:</b> {bid.pedido?.created_at ? new Date(bid.pedido.created_at).toLocaleString('pt-BR') : 'Não informado'}</p>
+            <p><b>Sua proposta enviada em:</b> {bid.created_at ? new Date(bid.created_at).toLocaleString('pt-BR') : 'Não informado'}</p>
+            <p>
+              <b>Status da proposta:</b>{' '}
+              {bid.status === 'Aceito' ? (
+                <span className="text-emerald-600 font-bold">
+                  Aceita{bid.accepted_at ? ` em ${new Date(bid.accepted_at).toLocaleString('pt-BR')}` : ''}
+                </span>
+              ) : fechadoComOutro ? (
+                <span className="text-rose-600 font-bold">Seu concorrente venceu a cotação</span>
+              ) : (
+                <span className="text-amber-700 font-bold">Aguardando resposta do cliente</span>
+              )}
+            </p>
+            {bid.prazo_entrega && (
+              <p><b>Prazo de entrega informado:</b> {OPCOES_PRAZO_ENTREGA.find(o => o.value === bid.prazo_entrega)?.label || bid.prazo_entrega}</p>
+            )}
+            {bid.garantia && (
+              <p><b>Garantia informada:</b> {bid.garantia}</p>
+            )}
+            {bid.formas_pagamento && bid.formas_pagamento.length > 0 && (
+              <p><b>Formas de pagamento aceitas:</b> {bid.formas_pagamento.map(fp => OPCOES_PAGAMENTO.find(o => o.value === fp)?.label || fp).join(', ')}</p>
             )}
 
             {bid.observacao && (
@@ -1275,7 +1287,7 @@ export default function LojistaDashboard() {
                           </span>
                           {fechadoComOutro ? (
                             <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
-                              Fechado com Outro Lojista
+                              Seu concorrente venceu a cotação
                             </span>
                           ) : (
                             <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
