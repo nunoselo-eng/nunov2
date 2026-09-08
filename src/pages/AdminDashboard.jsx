@@ -293,6 +293,13 @@ export default function AdminDashboard() {
     else setLojistas(lojistas.map(l => l.id === lojistaId ? { ...l, ativo: novoStatus } : l));
   };
 
+  const handleTogglePremium = async (lojistaId, statusAtual) => {
+    const novoStatus = !statusAtual;
+    const { error } = await supabase.from('profiles').update({ premium: novoStatus }).eq('id', lojistaId);
+    if (error) alert('Erro ao atualizar Premium: ' + error.message);
+    else setLojistas(lojistas.map(l => l.id === lojistaId ? { ...l, premium: novoStatus } : l));
+  };
+
   const handleCategoryChange = async (lojistaId, catId) => {
     const lojista = lojistas.find(l => l.id === lojistaId);
     let novasCategorias = [...lojista.categoriasSelecionadas];
@@ -1212,6 +1219,9 @@ export default function AdminDashboard() {
                       </button>
                       <button onClick={() => handleToggleAtivo(lojista.id, lojista.ativo)} className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${lojista.ativo ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-600 text-white'}`}>
                         {lojista.ativo ? 'Bloquear Acesso' : 'Liberar Acesso'}
+                      </button>
+                      <button onClick={() => handleTogglePremium(lojista.id, lojista.premium)} className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${lojista.premium ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-700 border border-slate-300'}`}>
+                        {lojista.premium ? '🏆 Premium Ativado' : 'Ativar Premium'}
                       </button>
                       <button
                         onClick={() => setLojistaExpandidoId(prev => prev === lojista.id ? null : lojista.id)}
