@@ -16,6 +16,7 @@ export default function LojistaDashboard() {
   const [observacao, setObservacao] = useState('');
   const [prazoEntrega, setPrazoEntrega] = useState('');
   const [garantia, setGarantia] = useState('');
+  const [retiradaDisponivel, setRetiradaDisponivel] = useState(false);
   const [formasPagamento, setFormasPagamento] = useState([]);
   const [ofereceCashback, setOfereceCashback] = useState(false);
   const [valorCashbackOferecido, setValorCashbackOferecido] = useState('');
@@ -639,6 +640,7 @@ export default function LojistaDashboard() {
           is_completo: atendeuTodos,
           prazo_entrega: prazoEntrega || null,
           garantia: garantia || null,
+          retirada_disponivel: retiradaDisponivel,
           formas_pagamento: formasPagamento.length > 0 ? formasPagamento : null,
           oferece_cashback: cashbackAtivo ? ofereceCashback : false,
           valor_cashback_oferecido: cashbackAtivo && ofereceCashback ? parseFloat(valorCashbackOferecido || 0) : null,
@@ -668,6 +670,7 @@ export default function LojistaDashboard() {
       setObservacao('');
       setPrazoEntrega('');
       setGarantia('');
+      setRetiradaDisponivel(false);
       setFormasPagamento([]);
       setOfereceCashback(false);
       setValorCashbackOferecido('');
@@ -1480,6 +1483,15 @@ export default function LojistaDashboard() {
                   placeholder="0,00 (deixe 0 se for grátis)"
                   className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
                 />
+                <label className="flex items-center gap-2 text-xs text-slate-600 mt-1.5">
+                  <input
+                    type="checkbox"
+                    checked={retiradaDisponivel}
+                    onChange={(e) => setRetiradaDisponivel(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 rounded"
+                  />
+                  Cliente pode retirar na loja (sem cobrar frete)
+                </label>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Observações</label>
