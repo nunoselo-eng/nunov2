@@ -607,7 +607,7 @@ export default function ClientDashboard() {
             </div>
           </div>
           <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
-            {order.status || 'Aguardando Moderação'}
+            {order.status || 'Aberto para Propostas'}
           </span>
         </div>
 
@@ -671,7 +671,7 @@ export default function ClientDashboard() {
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-600">Opção #{index + 1}</span>
+                          <span className="text-xs font-bold text-slate-600">Proposta #{index + 1}</span>
                           {bid.is_completo ? (
                             <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
                               Atendimento 100%
@@ -711,12 +711,32 @@ export default function ClientDashboard() {
                           {isAccepted && bid.accepted_at && ` · Aceita em ${new Date(bid.accepted_at).toLocaleString('pt-BR')}`}
                         </p>
 
-                        <p className="text-xl font-bold text-slate-900 mt-1">
-                          Total: R$ {total.toFixed(2)}{' '}
-                          <span className="text-xs text-slate-500 font-normal">
-                            (Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})
+                        <p className="text-xs text-slate-500 mt-1.5 space-x-3">
+                          <span>Produto: <b className="text-slate-700">R$ {parseFloat(bid.preco || 0).toFixed(2)}</b></span>
+                          <span>
+                            Frete:{' '}
+                            <b className={parseFloat(bid.frete || 0) === 0 ? 'text-emerald-600' : 'text-slate-700'}>
+                              {parseFloat(bid.frete || 0) === 0 ? 'Grátis' : `R$ ${parseFloat(bid.frete || 0).toFixed(2)}`}
+                            </b>
                           </span>
                         </p>
+                        <p className="text-xl font-bold text-slate-900 mt-1">
+                          Total: R$ {total.toFixed(2)}
+                        </p>
+                        {(parseFloat(bid.frete || 0) === 0 || bid.retirada_disponivel) && (
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {parseFloat(bid.frete || 0) === 0 && (
+                              <span className="text-[11px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                                🚚 Entrega Grátis
+                              </span>
+                            )}
+                            {bid.retirada_disponivel && (
+                              <span className="text-[11px] font-bold bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">
+                                🏬 Retirada na loja disponível
+                              </span>
+                            )}
+                          </div>
+                        )}
                         {isAccepted && bid.cashback_aplicado > 0 && (
                           <p className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1 inline-block">
                             💰 R$ {parseFloat(bid.cashback_aplicado).toFixed(2)} de cashback aplicado · Total a pagar: R$ {(total - parseFloat(bid.cashback_aplicado)).toFixed(2)}
@@ -731,7 +751,7 @@ export default function ClientDashboard() {
                             )}
                             {(bid.formas_pagamento || []).map(fp => (
                               <span key={fp} className="text-[11px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
-                                💳 {LABEL_FORMA_PAGAMENTO[fp] || fp}
+                                💰 {LABEL_FORMA_PAGAMENTO[fp] || fp}
                               </span>
                             ))}
                             {cashbackAtivo && bid.oferece_cashback && bid.valor_cashback_oferecido > 0 && (
