@@ -78,6 +78,7 @@ export default function LojistaDashboard() {
   const [ordersFechadosComOutro, setOrdersFechadosComOutro] = useState(new Set());
   const [lojistasElegiveisPorPedido, setLojistasElegiveisPorPedido] = useState({});
   const [reputacaoClientesPorPedido, setReputacaoClientesPorPedido] = useState({});
+  const [contagemPropostasPorPedido, setContagemPropostasPorPedido] = useState({});
 
   // Paginação (10 pedidos por página em cada seção)
   const ITENS_POR_PAGINA = 10;
@@ -122,6 +123,7 @@ export default function LojistaDashboard() {
   // Guarda a lista de categorias do lojista sempre atualizada, pra
   // conferir a relevância de um pedido novo assim que ele chega via realtime.
   const categoryIdsRef = useRef([]);
+  const openOrderIdsRef = useRef([]);
 
   // Contexto de áudio único e persistente. Navegadores só deixam tocar som
   // depois de alguma interação do usuário na página, então "destravamos"
@@ -241,6 +243,30 @@ export default function LojistaDashboard() {
       }
     });
   }, [orders, lojistasElegiveisPorPedido, profile]);
+
+  // Mantém a lista de IDs dos pedidos abertos sempre atualizada, pra
+  // conferir a relevância de uma proposta nova de concorrente assim que ela chega.
+  useEffect(() => {
+    openOrderIdsRef.current = orders.map(o => o.id);
+  }, [orders]);
+
+  // Contador de rivalidade: atualiza em tempo real quantos lojistas já
+  // responderam a um pedido aberto, visível pra todo mundo (não só Premium).
+  useEffect(() => {
+    const channel = supabase
+      .channel('realtime-bids-contagem')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids' }, (payload) => {
+        const oid = Number(payload?.new?.order_id || payload?.new?.pedido_id);
+        if (!openOrderIdsRef.current.includes(oid)) return;
+
+        setContagemPropostasPorPedido(prev => ({ ...prev, [oid]: (prev[oid] || 0) + 1 }));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   useEffect(() => {
     fetchLojistaData();
@@ -372,6 +398,23 @@ export default function LojistaDashboard() {
               reputacaoPorPedido[o.id] = mapaReputacao[o.cliente_id] || null;
             });
             setReputacaoClientesPorPedido(reputacaoPorPedido);
+          }
+
+          // Contagem de propostas já enviadas por concorrentes em cada
+          // pedido aberto — pra mostrar "X lojistas já responderam".
+          const idsAbertos = formatted.map(o => o.id);
+          if (idsAbertos.length > 0) {
+            const { data: propostasConcorrentes } = await supabase
+              .from('bids')
+              .select('order_id, pedido_id')
+              .or(`order_id.in.(${idsAbertos.join(',')}),pedido_id.in.(${idsAbertos.join(',')})`);
+
+            const contagem = {};
+            (propostasConcorrentes || []).forEach(b => {
+              const oid = Number(b.order_id || b.pedido_id);
+              contagem[oid] = (contagem[oid] || 0) + 1;
+            });
+            setContagemPropostasPorPedido(contagem);
           }
 
           // Lojistas elegíveis (mesma categoria + cidade) de cada pedido,
@@ -1109,6 +1152,15 @@ export default function LojistaDashboard() {
                                   title="Reputação deste cliente"
                                 >
                                   ⭐ {Number(reputacaoClientesPorPedido[order.id].reputacao_media).toFixed(1)}
+                                </span>
+                              )}
+
+                              {contagemPropostasPorPedido[order.id] > 0 && (
+                                <span
+                                  className="text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 bg-orange-100 text-orange-700 animate-pulse"
+                                  title="Concorrentes que já enviaram proposta pra este pedido"
+                                >
+                                  🔥 {contagemPropostasPorPedido[order.id]} {contagemPropostasPorPedido[order.id] === 1 ? 'concorrente já respondeu' : 'concorrentes já responderam'}
                                 </span>
                               )}
 
