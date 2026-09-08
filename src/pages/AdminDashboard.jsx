@@ -391,7 +391,11 @@ export default function AdminDashboard() {
 
       // O representante não usa e-mail de verdade: montamos um e-mail interno
       // a partir do usuário escolhido, só pra satisfazer o Supabase Auth.
-      const usuarioLimpo = novoEmailRep.trim().toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9._-]/g, '');
+      // Se a pessoa digitar sem querer um e-mail de verdade (com @), usamos
+      // só a parte antes do @ como base do usuário, em vez de juntar tudo
+      // numa bagunça só removendo o símbolo.
+      const usuarioBase = novoEmailRep.includes('@') ? novoEmailRep.split('@')[0] : novoEmailRep;
+      const usuarioLimpo = usuarioBase.trim().toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9._-]/g, '');
       const emailInterno = `${usuarioLimpo}@interno.nunoselo.app`;
 
       const tempClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
