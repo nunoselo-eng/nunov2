@@ -831,6 +831,17 @@ export default function LojistaDashboard() {
         .select('*')
         .or(`order_id.eq.${orderIdNum},pedido_id.eq.${orderIdNum}`);
 
+      const pedidoCriadoEm = bid.pedido?.created_at ? new Date(bid.pedido.created_at) : null;
+
+      const formatarTempoResposta = (bidCriadoEm) => {
+        if (!pedidoCriadoEm || !bidCriadoEm) return 'Não disponível';
+        const diffMin = (new Date(bidCriadoEm) - pedidoCriadoEm) / 60000;
+        if (diffMin < 0) return 'Não disponível';
+        const horas = Math.floor(diffMin / 60);
+        const minutos = Math.round(diffMin % 60);
+        return horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
+      };
+
       const ranking = (todasPropostas || [])
         .map(b => ({
           bidId: b.id,
@@ -838,6 +849,7 @@ export default function LojistaDashboard() {
           frete: parseFloat(b.frete || 0),
           retirada: b.retirada_disponivel,
           formasPagamento: (b.formas_pagamento || []).map(fp => OPCOES_PAGAMENTO.find(o => o.value === fp)?.label || fp),
+          tempoResposta: formatarTempoResposta(b.created_at),
           souEu: b.id === bid.id,
         }))
         .sort((a, b2) => a.total - b2.total)
@@ -1428,10 +1440,11 @@ export default function LojistaDashboard() {
                                             {item.posicao}º {item.souEu ? '(Você)' : 'Concorrente'} — R$ {item.total.toFixed(2)}
                                             {item.retirada && ' · Retirada disponível'}
                                             {item.frete === 0 && ' · Frete grátis'}
+                                            {' · Respondeu em '}{item.tempoResposta}
                                           </span>
-                                          {item.formasPagamento.length > 0 && (
-                                            <span className="text-slate-500">{item.formasPagamento.join(', ')}</span>
-                                          )}
+                                          <span className="text-slate-500">
+                                            {item.formasPagamento.length > 0 ? item.formasPagamento.join(', ') : 'Pagamento não informado'}
+                                          </span>
                                         </div>
                                       ))
                                     )}
