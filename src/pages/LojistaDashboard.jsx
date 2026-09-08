@@ -79,6 +79,9 @@ export default function LojistaDashboard() {
   const [lojistasElegiveisPorPedido, setLojistasElegiveisPorPedido] = useState({});
   const [reputacaoClientesPorPedido, setReputacaoClientesPorPedido] = useState({});
   const [contagemPropostasPorPedido, setContagemPropostasPorPedido] = useState({});
+  const [rankingAbertoBidId, setRankingAbertoBidId] = useState(null);
+  const [rankingConcorrentes, setRankingConcorrentes] = useState([]);
+  const [carregandoRanking, setCarregandoRanking] = useState(false);
 
   // Paginação (10 pedidos por página em cada seção)
   const ITENS_POR_PAGINA = 10;
@@ -811,6 +814,44 @@ export default function LojistaDashboard() {
   };
 
   // Painel de detalhes expandido (bairro, itens com fotos e status da concorrência)
+  // Ranking anônimo das propostas concorrentes (recurso Premium) — só
+  // disponível depois que o lojista já perdeu aquele pedido pra outro.
+  const handleVerRankingConcorrentes = async (bid) => {
+    const orderIdNum = Number(bid.order_id || bid.pedido_id);
+    if (rankingAbertoBidId === bid.id) {
+      setRankingAbertoBidId(null);
+      return;
+    }
+
+    setCarregandoRanking(true);
+    setRankingAbertoBidId(bid.id);
+    try {
+      const { data: todasPropostas } = await supabase
+        .from('bids')
+        .select('*')
+        .or(`order_id.eq.${orderIdNum},pedido_id.eq.${orderIdNum}`);
+
+      const ranking = (todasPropostas || [])
+        .map(b => ({
+          bidId: b.id,
+          total: parseFloat(b.preco || 0) + parseFloat(b.frete || 0),
+          frete: parseFloat(b.frete || 0),
+          retirada: b.retirada_disponivel,
+          formasPagamento: (b.formas_pagamento || []).map(fp => OPCOES_PAGAMENTO.find(o => o.value === fp)?.label || fp),
+          souEu: b.id === bid.id,
+        }))
+        .sort((a, b2) => a.total - b2.total)
+        .map((item, idx) => ({ ...item, posicao: idx + 1 }));
+
+      setRankingConcorrentes(ranking);
+    } catch (err) {
+      alert('Erro ao carregar ranking: ' + err.message);
+      setRankingAbertoBidId(null);
+    } finally {
+      setCarregandoRanking(false);
+    }
+  };
+
   const renderDetalhesExpandido = (bid, cardKey, mostrarStatusConcorrencia) => {
     const isExpanded = expandedDetails.has(cardKey);
     const orderIdNum = Number(bid.order_id || bid.pedido_id);
@@ -1361,6 +1402,47 @@ export default function LojistaDashboard() {
                             <p className="text-xs text-slate-500">
                               {bid.is_completo ? 'Atendimento: 100%' : 'Atendimento: Parcial'}
                             </p>
+
+                            {fechadoComOutro && profile?.premium && (
+                              <div className="pt-1">
+                                <button
+                                  onClick={() => handleVerRankingConcorrentes(bid)}
+                                  className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg hover:bg-amber-100 transition"
+                                >
+                                  🏆 {rankingAbertoBidId === bid.id ? 'Ocultar Ranking de Concorrentes' : 'Revelar Proposta do Concorrente'}
+                                </button>
+
+                                {rankingAbertoBidId === bid.id && (
+                                  <div className="mt-2 space-y-1.5">
+                                    {carregandoRanking ? (
+                                      <p className="text-xs text-slate-400">Carregando ranking...</p>
+                                    ) : (
+                                      rankingConcorrentes.map((item) => (
+                                        <div
+                                          key={item.bidId}
+                                          className={`flex items-center justify-between text-xs p-2 rounded-lg border ${
+                                            item.souEu ? 'border-indigo-300 bg-indigo-50 font-bold' : 'border-slate-200 bg-slate-50'
+                                          }`}
+                                        >
+                                          <span>
+                                            {item.posicao}º {item.souEu ? '(Você)' : 'Concorrente'} — R$ {item.total.toFixed(2)}
+                                            {item.retirada && ' · Retirada disponível'}
+                                            {item.frete === 0 && ' · Frete grátis'}
+                                          </span>
+                                          {item.formasPagamento.length > 0 && (
+                                            <span className="text-slate-500">{item.formasPagamento.join(', ')}</span>
+                                          )}
+                                        </div>
+                                      ))
+                                    )}
+                                    <p className="text-[10px] text-slate-400 italic">
+                                      Nomes e telefones das lojas concorrentes não são revelados.
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             {renderDetalhesExpandido(bid, cardKey, true)}
                           </>
                         )}
