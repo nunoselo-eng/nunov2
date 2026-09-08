@@ -30,6 +30,8 @@ export default function ClientDashboard() {
   // Encolher/expandir seções e cards individuais
   const [collapsedSections, setCollapsedSections] = useState({ abertas: false, confirmadas: false, encerradas: false });
   const [collapsedCards, setCollapsedCards] = useState(new Set());
+  const [abaSelecionada, setAbaSelecionada] = useState('aberto');
+  const [pedidoModalId, setPedidoModalId] = useState(null);
 
   // Avisa o cliente, com banner fixo, quando chega uma proposta nova.
   // Guarda o CONJUNTO de pedidos com proposta ainda não vista.
@@ -577,43 +579,52 @@ export default function ClientDashboard() {
     const orderBids = hasAcceptedBid ? todasPropostas.filter(b => b.status === 'Aceito') : todasPropostas;
     const items = orderItemsMap[order.id] || [];
     const tempo = getRemainingTime(order);
-    const isCardCollapsed = collapsedCards.has(order.id);
+
+    const rankingPorPreco = [...orderBids].sort((a, b) => {
+      const totalA = parseFloat(a.preco || 0) + parseFloat(a.frete || 0);
+      const totalB = parseFloat(b.preco || 0) + parseFloat(b.frete || 0);
+      return totalA - totalB;
+    });
 
     return (
-      <div key={order.id} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+      <div key={order.id} className="space-y-4">
 
         {/* Cabeçalho do Pedido */}
-        <div className={`flex flex-wrap justify-between items-start gap-2 ${isCardCollapsed ? '' : 'pb-3 border-b border-slate-100'}`}>
-          <div className="flex items-start gap-2">
-            <button
-              onClick={() => toggleCard(order.id)}
-              className="text-slate-400 hover:text-slate-600 text-xs mt-1 w-4"
-              title={isCardCollapsed ? 'Expandir' : 'Encolher'}
-            >
-              {isCardCollapsed ? '▸' : '▾'}
-            </button>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
-                  Pedido #{order.codigo_pedido || order.id}
-                </span>
-                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                  tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
-                }`}>
-                  {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
-                </span>
-              </div>
-              <h2 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h2>
+        <div className="flex flex-wrap justify-between items-start gap-2 pb-3 border-b border-slate-100">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
+                Pedido #{order.codigo_pedido || order.id}
+              </span>
+              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+              }`}>
+                {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
+              </span>
             </div>
+            <h2 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h2>
           </div>
           <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
             {order.status || 'Aberto para Propostas'}
           </span>
         </div>
 
+        {/* Ranking rápido por preço */}
+        {orderBids.length > 1 && (
+          <div className="bg-slate-50 rounded-xl px-3 py-2">
+            <p className="text-[11px] text-slate-400 mb-1">Ranking por preço</p>
+            <div className="flex flex-wrap gap-3 text-xs">
+              {rankingPorPreco.map((bid, i) => (
+                <span key={bid.id} className={i === 0 ? 'text-emerald-600 font-bold' : 'text-slate-500'}>
+                  {i === 0 && '🏆 '}{i + 1}º R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Lista de Propostas */}
-        {!isCardCollapsed && (
-          <div className="space-y-3">
+        <div className="space-y-3">
             {orderBids.length === 0 ? (
               <p className="text-xs text-slate-500 italic py-2">
                 {tempo.expirado ? 'Nenhuma proposta foi enviada durante o prazo.' : 'Aguardando propostas dos lojistas...'}
@@ -642,6 +653,7 @@ export default function ClientDashboard() {
                   </button>
                 </div>
               )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {[...orderBids].sort((a, b) => {
                 if (a.is_completo !== b.is_completo) return a.is_completo ? -1 : 1;
                 if (ordenarPropostasPor === 'prazo') {
@@ -937,37 +949,41 @@ export default function ClientDashboard() {
                   </div>
                 );
               })}
+              </div>
               </>
             )}
           </div>
-        )}
 
       </div>
     );
   };
 
-  const renderSection = (key, titulo, icone, corBg, corBorda, corTexto, listaOrders) => (
-    <div className={`${corBg} border ${corBorda} rounded-2xl shadow-sm`}>
+  const renderOrderRow = (order) => {
+    const orderBids = bidsByOrder[String(order.id)] || [];
+    const tempo = getRemainingTime(order);
+    return (
       <button
-        onClick={() => toggleSection(key)}
-        className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
+        key={order.id}
+        onClick={() => setPedidoModalId(order.id)}
+        className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:border-indigo-300 hover:shadow-md transition text-left"
       >
-        <span className="flex items-center gap-2">
-          <span className="text-lg">{icone}</span>
-          <h2 className={`text-lg font-bold ${corTexto}`}>{titulo} ({listaOrders.length})</h2>
-        </span>
-        <span className="text-slate-400 text-xs font-semibold">
-          {collapsedSections[key] ? '▸ Expandir' : '▾ Encolher'}
-        </span>
-      </button>
-
-      {!collapsedSections[key] && (
-        <div className="px-6 pb-6 space-y-4">
-          {listaOrders.map((order) => renderOrderCard(order))}
+        <div>
+          <p className="text-sm font-bold text-slate-800">Pedido #{order.codigo_pedido || order.id} · {order.descricao}</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {orderBids.length === 0 ? 'Aguardando propostas' : `${orderBids.length} proposta${orderBids.length > 1 ? 's' : ''} recebida${orderBids.length > 1 ? 's' : ''}`}
+          </p>
         </div>
-      )}
-    </div>
-  );
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+            tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+          }`}>
+            {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
+          </span>
+          <span className="text-slate-400">›</span>
+        </div>
+      </button>
+    );
+  };
 
   return (
     <div className="bg-[#f8f9fa] text-slate-700 min-h-screen flex flex-col justify-between font-sans">
@@ -1064,36 +1080,9 @@ export default function ClientDashboard() {
           </div>
         </div>
 
-        {/* Filtros e Busca */}
-        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 overflow-x-auto">
-            <button
-              onClick={() => setStatusFilter('todas')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'todas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
-            >
-              Todas ({orders.length})
-            </button>
-            <button
-              onClick={() => setStatusFilter('em_aberto')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'em_aberto' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
-            >
-              Em Aberto ({abertasOrders.length})
-            </button>
-            <button
-              onClick={() => setStatusFilter('confirmadas')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'confirmadas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
-            >
-              Confirmadas ({confirmadasOrders.length})
-            </button>
-            <button
-              onClick={() => setStatusFilter('encerradas')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'encerradas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
-            >
-              Encerradas ({encerradasOrders.length})
-            </button>
-          </div>
-
-          <div className="relative min-w-[240px]">
+        {/* Busca */}
+        <div className="flex justify-end">
+          <div className="relative min-w-[240px] w-full sm:w-auto">
             <input
               type="text"
               placeholder="Buscar por pedido ou item..."
@@ -1142,29 +1131,73 @@ export default function ClientDashboard() {
           </button>
         </div>
 
-        {/* Lista de Cotações, organizada por prioridade: Abertas > Confirmadas > Encerradas */}
+        {/* Abas: Em Aberto / Confirmadas / Encerradas */}
+        <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+          {[
+            { key: 'aberto', label: 'Em Aberto', lista: abertasOrders, aviso: pedidosComPropostaNova.size },
+            { key: 'confirmadas', label: 'Confirmadas', lista: confirmadasOrders, aviso: confirmadasOrders.filter(o => (bidsByOrder[String(o.id)] || []).some(b => b.status === 'Aceito' && b.entregue_em && !bidsJaAvaliados.has(b.id))).length },
+            { key: 'encerradas', label: 'Encerradas', lista: encerradasOrders, aviso: 0 },
+          ].map((aba) => (
+            <button
+              key={aba.key}
+              onClick={() => setAbaSelecionada(aba.key)}
+              className={`relative flex-1 py-3 text-sm font-bold rounded-xl transition ${abaSelecionada === aba.key ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              {aba.label} ({aba.lista.length})
+              {aba.aviso > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
+                  {aba.aviso}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Lista de Cotações da aba selecionada */}
         {loading ? (
           <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
             Carregando cotações...
           </div>
-        ) : (abertasOrders.length === 0 && confirmadasOrders.length === 0 && encerradasOrders.length === 0) ? (
-          <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
-            Nenhuma cotação encontrada para este filtro.
-          </div>
         ) : (
-          <div className="space-y-4">
-            {(statusFilter === 'todas' || statusFilter === 'em_aberto') && abertasOrders.length > 0 &&
-              renderSection('abertas', 'Em Aberto', '📋', 'bg-white', 'border-slate-200', 'text-slate-800', abertasOrders)}
+          <div className="space-y-3">
+            {abaSelecionada === 'aberto' && (abertasOrders.length === 0
+              ? <p className="text-center text-slate-500 text-sm py-8">Nenhum pedido em aberto.</p>
+              : abertasOrders.map((order) => renderOrderRow(order)))}
 
-            {(statusFilter === 'todas' || statusFilter === 'confirmadas') && confirmadasOrders.length > 0 &&
-              renderSection('confirmadas', 'Confirmadas', '✅', 'bg-emerald-50/70', 'border-emerald-200', 'text-emerald-900', confirmadasOrders)}
+            {abaSelecionada === 'confirmadas' && (confirmadasOrders.length === 0
+              ? <p className="text-center text-slate-500 text-sm py-8">Nenhum pedido confirmado ainda.</p>
+              : confirmadasOrders.map((order) => renderOrderRow(order)))}
 
-            {(statusFilter === 'todas' || statusFilter === 'encerradas') && encerradasOrders.length > 0 &&
-              renderSection('encerradas', 'Encerradas', '🔒', 'bg-slate-100/70', 'border-slate-300', 'text-slate-700', encerradasOrders)}
+            {abaSelecionada === 'encerradas' && (encerradasOrders.length === 0
+              ? <p className="text-center text-slate-500 text-sm py-8">Nenhum pedido encerrado.</p>
+              : encerradasOrders.map((order) => renderOrderRow(order)))}
           </div>
         )}
 
       </main>
+
+      {/* Modal com o pedido selecionado (comparação de propostas) */}
+      {pedidoModalId && (() => {
+        const pedido = [...abertasOrders, ...confirmadasOrders, ...encerradasOrders].find(o => o.id === pedidoModalId);
+        if (!pedido) return null;
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setPedidoModalId(null)}>
+            <div
+              className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setPedidoModalId(null)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 font-bold"
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
+              {renderOrderCard(pedido)}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Rodapé Institucional */}
       <footer className="mt-12 bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
