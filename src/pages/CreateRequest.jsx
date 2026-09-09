@@ -143,20 +143,6 @@ export default function CreateRequest() {
       return;
     }
 
-    let { data: profile } = await supabase
-      .from('profiles')
-      .select('numero_cliente')
-      .eq('id', user.id)
-      .single();
-
-    let numCliente = profile?.numero_cliente || Math.floor(100 + Math.random() * 900);
-
-    const { count } = await supabase
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .eq('cliente_id', user.id);
-
-    const codigoPedido = `${numCliente}-${(count || 0) + 1}`;
     const descricaoResumo = tipo === 'unico' ? items[0].descricao : `Lista com ${items.length} itens`;
 
     let horasAdd = 6;
@@ -174,7 +160,6 @@ export default function CreateRequest() {
         bairro: bairro,
         descricao: descricaoResumo,
         status: 'Aberto para Propostas',
-        codigo_pedido: codigoPedido,
         tipo: tipo,
         prazo_opcao: prazoOpcao,
         expira_em: expiraEm
@@ -186,6 +171,19 @@ export default function CreateRequest() {
       alert('Erro ao criar cotação: ' + orderErr.message);
       return;
     }
+
+    // Código do pedido: usa o ID real (garantido único pelo banco) misturado
+    // com o horário de criação, só pra não parecer um contador puro (tipo
+    // #1, #2, #3...). Só dá pra montar depois do insert, porque o ID só
+    // existe a partir daí.
+    const agoraCriacao = new Date(newOrder.created_at || Date.now());
+    const idFormatado = String(newOrder.id).padStart(5, '0');
+    const minutoCriacao = String(agoraCriacao.getMinutes()).padStart(2, '0');
+    const diaCriacao = String(agoraCriacao.getDate()).padStart(2, '0');
+    const codigoPedido = `${idFormatado}${minutoCriacao}${diaCriacao}`;
+
+    await supabase.from('orders').update({ codigo_pedido: codigoPedido }).eq('id', newOrder.id);
+    newOrder.codigo_pedido = codigoPedido;
 
     const itemsToInsert = items.map(item => ({
       order_id: newOrder.id,
