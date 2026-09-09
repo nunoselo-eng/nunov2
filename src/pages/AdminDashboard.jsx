@@ -333,6 +333,7 @@ export default function AdminDashboard() {
         id: userId,
         tipo: 'lojista',
         nome: novoNome,
+        email: emailLogin,
         cidade: novaCidade,
         telefone: novoTelefone,
         ativo: true,
@@ -377,6 +378,7 @@ export default function AdminDashboard() {
         id: userId,
         tipo: 'cliente',
         nome: novoNomeCliente,
+        email: emailLoginCliente,
         cidade: novaCidadeCliente,
         telefone: novoTelefoneCliente,
         ativo: true,
@@ -419,6 +421,7 @@ export default function AdminDashboard() {
         id: userId,
         tipo: 'criador_de_contas',
         nome: novoNomeRep,
+        email: emailInterno,
         ativo: true
       });
 
@@ -593,6 +596,48 @@ export default function AdminDashboard() {
     } catch (err) {
       alert('Erro ao excluir cliente: ' + err.message);
     }
+  };
+
+  // Exporta a relação completa de todos os clientes: dados de contato,
+  // reputação, e quantos pedidos cada um já fez / teve concluídos.
+  const handleExportarClientesCSV = () => {
+    const listaClientes = clients.filter(p => !p.tipo || p.tipo === 'cliente');
+
+    const linhas = [
+      ['Nome', 'Cidade', 'Email', 'Telefone', 'Nota', 'Pedidos Feitos', 'Pedidos Concluidos'].join(';')
+    ];
+
+    listaClientes.forEach((cliente) => {
+      const pedidosDoCliente = orders.filter(o => String(o.cliente_id) === String(cliente.id));
+      const qtdPedidos = pedidosDoCliente.length;
+      const qtdConcluidos = pedidosDoCliente.filter(o => {
+        const bidsDoPedido = bidsByOrder[String(o.id)] || [];
+        return bidsDoPedido.some(b => b.status === 'Aceito' && b.entregue_em);
+      }).length;
+
+      const linha = [
+        cliente.nome || '',
+        cliente.cidade || '',
+        cliente.email || '',
+        cliente.telefone || '',
+        cliente.reputacao_media != null ? Number(cliente.reputacao_media).toFixed(1) : '5.0',
+        qtdPedidos,
+        qtdConcluidos,
+      ].map(campo => `"${String(campo).replace(/"/g, '""')}"`).join(';');
+
+      linhas.push(linha);
+    });
+
+    const csvContent = '\uFEFF' + linhas.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `clientes_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const carregarConfigCashback = async () => {
@@ -893,10 +938,12 @@ export default function AdminDashboard() {
     if (dataFiltroAte && new Date(order.created_at) > new Date(dataFiltroAte + 'T23:59:59')) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
+      const termDigitos = searchTerm.replace(/\D/g, '');
       const matchDesc = order.descricao?.toLowerCase().includes(term);
       const matchCodigo = order.codigo_pedido?.toLowerCase().includes(term);
       const matchCliente = order.cliente?.nome?.toLowerCase().includes(term);
-      if (!matchDesc && !matchCodigo && !matchCliente) return false;
+      const matchTelefone = termDigitos.length >= 4 && order.cliente?.telefone?.replace(/\D/g, '').includes(termDigitos);
+      if (!matchDesc && !matchCodigo && !matchCliente && !matchTelefone) return false;
     }
     return true;
   });
@@ -1309,7 +1356,7 @@ export default function AdminDashboard() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Buscar por Código / Nome</label>
-                <input type="text" placeholder="Ex: #855-1..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 bg-slate-50 text-sm" />
+                <input type="text" placeholder="Código, nome do cliente ou telefone/WhatsApp..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 bg-slate-50 text-sm" />
               </div>
 
               <div>
@@ -1743,7 +1790,12 @@ export default function AdminDashboard() {
             <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center pb-2 border-b">
                 <h3 className="text-xl font-bold text-slate-800">👥 Gerenciar Clientes</h3>
-                <button type="button" onClick={() => { setIsGerenciarClientesModalOpen(false); setClienteEditandoId(null); }} className="text-slate-400 font-bold">✕</button>
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={handleExportarClientesCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                    ⬇ Exportar CSV
+                  </button>
+                  <button type="button" onClick={() => { setIsGerenciarClientesModalOpen(false); setClienteEditandoId(null); }} className="text-slate-400 font-bold">✕</button>
+                </div>
               </div>
 
               {(() => {
@@ -1755,6 +1807,11 @@ export default function AdminDashboard() {
                   <div className="space-y-2">
                     {listaClientes.map((cliente) => {
                       const qtdPedidos = orders.filter(o => String(o.cliente_id) === String(cliente.id)).length;
+                      const qtdConcluidos = orders.filter(o => {
+                        if (String(o.cliente_id) !== String(cliente.id)) return false;
+                        const bidsDoPedido = bidsByOrder[String(o.id)] || [];
+                        return bidsDoPedido.some(b => b.status === 'Aceito' && b.entregue_em);
+                      }).length;
                       const estaEditando = clienteEditandoId === cliente.id;
 
                       return (
@@ -1774,9 +1831,10 @@ export default function AdminDashboard() {
                               <div>
                                 <p className="text-sm font-bold text-slate-800">{cliente.nome || 'Sem nome'}</p>
                                 <p className="text-xs text-slate-500">Cidade: {cliente.cidade || 'Não informada'} | Tel: {cliente.telefone || 'Não informado'}</p>
+                                <p className="text-xs text-slate-500">E-mail: {cliente.email || 'Não informado'}</p>
                                 <p className="text-xs font-semibold text-amber-600 mt-1">
                                   ⭐ {cliente.reputacao_media != null ? Number(cliente.reputacao_media).toFixed(1) : '5.0'}
-                                  <span className="text-slate-400 font-normal"> · {qtdPedidos} pedido(s) feito(s) na plataforma</span>
+                                  <span className="text-slate-400 font-normal"> · {qtdPedidos} feito(s) · {qtdConcluidos} concluído(s)</span>
                                 </p>
                               </div>
                               <div className="flex flex-col gap-1 items-end shrink-0">
