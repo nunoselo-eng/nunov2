@@ -1515,18 +1515,18 @@ export default function LojistaDashboard() {
       {/* Modal de Preenchimento de Proposta */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <form onSubmit={handleSendBid} className="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-2xl shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-5">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">
+          <form onSubmit={handleSendBid} className="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-2xl shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto overflow-x-hidden space-y-5">
+            <div className="flex justify-between items-start gap-2 pb-3 border-b border-slate-100">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-lg font-bold text-slate-800 break-words">
                   Preencher Orçamento — Pedido #{selectedOrder.codigo_pedido || selectedOrder.id}
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">{selectedOrder.descricao}</p>
+                <p className="text-xs text-slate-500 mt-0.5 break-words">{selectedOrder.descricao}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedOrder(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-lg"
+                className="text-slate-400 hover:text-slate-600 font-bold text-lg shrink-0"
               >
                 ✕
               </button>
@@ -1536,9 +1536,9 @@ export default function LojistaDashboard() {
             <div className="space-y-3">
               {orderItems.map((oItem, idx) => (
                 <div key={oItem.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3">
-                  <div className="flex justify-between items-start gap-2">
-                    <div>
-                      <p className="font-bold text-slate-800 text-sm">{oItem.descricao} (Qtd: {oItem.quantidade})</p>
+                  <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-slate-800 text-sm break-words">{oItem.descricao} (Qtd: {oItem.quantidade})</p>
                       {oItem.imagem_url && (
                         <div className="mt-2 flex items-center gap-2">
                           <span className="text-[11px] text-slate-500 font-semibold">Foto do Cliente:</span>
@@ -1552,7 +1552,7 @@ export default function LojistaDashboard() {
                       )}
                     </div>
 
-                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer shrink-0">
                       <input
                         type="checkbox"
                         checked={bidItemsData[idx]?.atendido}
