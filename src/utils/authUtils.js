@@ -27,3 +27,19 @@ export async function inserirPerfilComRetry(supabase, perfilData, tentativas = 4
 
   return { error: ultimoErro };
 }
+
+// Aceita e-mail de verdade OU telefone no campo de cadastro. Se for
+// telefone, monta um "e-mail interno" fixo baseado nos dígitos — a pessoa
+// nunca precisa saber disso, é só pra satisfazer o Supabase Auth (que
+// exige um e-mail por baixo dos panos, mesmo pra quem loga por telefone).
+export function montarEmailDeCadastro(entradaBruta) {
+  const entrada = (entradaBruta || '').trim();
+  const somenteDigitos = entrada.replace(/\D/g, '');
+  const pareceTelefone = !entrada.includes('@') && somenteDigitos.length >= 8 &&
+    somenteDigitos.length === entrada.replace(/[\s\-().]/g, '').length;
+
+  if (pareceTelefone) {
+    return { email: `${somenteDigitos}@fone.nunoselo.app`, ehTelefone: true };
+  }
+  return { email: entrada, ehTelefone: false };
+}
