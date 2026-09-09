@@ -1074,8 +1074,8 @@ export default function LojistaDashboard() {
           </div>
         </div>
 
-        {/* Filtro por Data e Ordenação */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-xl border border-slate-200">
+        {/* Filtro por Data, Ordenação e Busca */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 bg-white p-3 rounded-xl border border-slate-200">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
             <span>📅 Período:</span>
             <input
@@ -1103,9 +1103,20 @@ export default function LojistaDashboard() {
 
           <div className="flex-1" />
 
+          <div className="relative w-full lg:w-64">
+            <input
+              type="text"
+              placeholder="Buscar por pedido, item ou bairro..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
+            />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+          </div>
+
           <button
             onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition whitespace-nowrap"
           >
             {sortOrder === 'desc' ? '⬇ Mais recentes primeiro' : '⬆ Mais antigos primeiro'}
           </button>
@@ -1140,34 +1151,21 @@ export default function LojistaDashboard() {
           ))}
         </div>
 
-        {/* Filtros e Busca (aplicam à aba "Em Aberto") */}
+        {/* Filtro extra (aplica à aba "Em Aberto") */}
         {abaSelecionadaLojista === 'aberto' && (
-          <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-            <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 overflow-x-auto">
-              <button
-                onClick={() => setStatusFilter('todas')}
-                className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'todas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
-              >
-                Todas ({orders.length})
-              </button>
-              <button
-                onClick={() => setStatusFilter('urgentes')}
-                className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'urgentes' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
-              >
-                🔴 Urgentes (1h)
-              </button>
-            </div>
-
-            <div className="relative min-w-[240px]">
-              <input
-                type="text"
-                placeholder="Buscar por pedido, item ou bairro..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-              />
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
-            </div>
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 overflow-x-auto w-fit">
+            <button
+              onClick={() => setStatusFilter('todas')}
+              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'todas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
+            >
+              Todas ({orders.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('urgentes')}
+              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'urgentes' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
+            >
+              🔴 Urgentes (1h)
+            </button>
           </div>
         )}
 
