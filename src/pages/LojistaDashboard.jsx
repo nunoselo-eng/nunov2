@@ -1503,11 +1503,11 @@ export default function LojistaDashboard() {
       {/* Rodapé Institucional */}
       <footer className="mt-12 bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
         <div className="flex flex-wrap justify-center items-center gap-2 mb-1.5 text-slate-600 font-medium">
-          <a href="#" className="hover:underline">Central de Ajuda</a>
+          <a href="https://www.comprecomnuno.com.br/contato" target="_blank" rel="noreferrer" className="hover:underline">Central de Ajuda</a>
           <span>•</span>
-          <a href="#" className="hover:underline">Termos de Uso</a>
+          <a href="https://www.comprecomnuno.com.br/termos" target="_blank" rel="noreferrer" className="hover:underline">Termos de Uso</a>
           <span>•</span>
-          <a href="#" className="hover:underline">Privacidade</a>
+          <a href="https://www.comprecomnuno.com.br/privacidade" target="_blank" rel="noreferrer" className="hover:underline">Privacidade</a>
         </div>
         <div>nunoselo.com — 2026 © Todos os direitos reservados</div>
       </footer>
