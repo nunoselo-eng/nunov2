@@ -70,6 +70,8 @@ export default function LojistaDashboard() {
   // Encolher/expandir seções e cards individuais
   const [collapsedSections, setCollapsedSections] = useState({ abertas: false, fechadas: false, enviadas: false });
   const [collapsedCards, setCollapsedCards] = useState(new Set());
+  const [abaSelecionadaLojista, setAbaSelecionadaLojista] = useState('aberto');
+  const [detalheBidAberto, setDetalheBidAberto] = useState(null);
 
   // Detalhes expandidos por card (itens, fotos, bairro, status da concorrência)
   const [expandedDetails, setExpandedDetails] = useState(new Set());
@@ -88,6 +90,7 @@ export default function LojistaDashboard() {
   const [paginaAbertas, setPaginaAbertas] = useState(1);
   const [paginaFechadas, setPaginaFechadas] = useState(1);
   const [paginaEnviadas, setPaginaEnviadas] = useState(1);
+  const [paginaEncerradas, setPaginaEncerradas] = useState(1);
 
   const toggleExpandedDetails = (cardKey) => {
     setExpandedDetails(prev => {
@@ -232,6 +235,7 @@ export default function LojistaDashboard() {
     setPaginaAbertas(1);
     setPaginaFechadas(1);
     setPaginaEnviadas(1);
+    setPaginaEncerradas(1);
   }, [statusFilter, searchTerm, dateFrom, dateTo, sortOrder]);
 
   // Penalidade automática: pedido era elegível pra este lojista e expirou
@@ -777,15 +781,19 @@ export default function LojistaDashboard() {
 
   const acceptedBidsOrdenados = ordenarPorData(acceptedBids.filter(bid => dentroDoPeriodo(bid.created_at)));
   const pendingBidsOrdenados = ordenarPorData(pendingBids.filter(bid => dentroDoPeriodo(bid.created_at)));
+  const enviadasOrdenadas = pendingBidsOrdenados.filter(bid => !ordersFechadosComOutro.has(Number(bid.order_id || bid.pedido_id)));
+  const encerradasOrdenadas = pendingBidsOrdenados.filter(bid => ordersFechadosComOutro.has(Number(bid.order_id || bid.pedido_id)));
 
   // Paginação (10 por página) de cada seção
   const totalPaginasAbertas = Math.max(1, Math.ceil(filteredOrders.length / ITENS_POR_PAGINA));
   const totalPaginasFechadas = Math.max(1, Math.ceil(acceptedBidsOrdenados.length / ITENS_POR_PAGINA));
-  const totalPaginasEnviadas = Math.max(1, Math.ceil(pendingBidsOrdenados.length / ITENS_POR_PAGINA));
+  const totalPaginasEnviadas = Math.max(1, Math.ceil(enviadasOrdenadas.length / ITENS_POR_PAGINA));
+  const totalPaginasEncerradas = Math.max(1, Math.ceil(encerradasOrdenadas.length / ITENS_POR_PAGINA));
 
   const paginatedAbertas = filteredOrders.slice((paginaAbertas - 1) * ITENS_POR_PAGINA, paginaAbertas * ITENS_POR_PAGINA);
   const paginatedFechadas = acceptedBidsOrdenados.slice((paginaFechadas - 1) * ITENS_POR_PAGINA, paginaFechadas * ITENS_POR_PAGINA);
-  const paginatedEnviadas = pendingBidsOrdenados.slice((paginaEnviadas - 1) * ITENS_POR_PAGINA, paginaEnviadas * ITENS_POR_PAGINA);
+  const paginatedEnviadas = enviadasOrdenadas.slice((paginaEnviadas - 1) * ITENS_POR_PAGINA, paginaEnviadas * ITENS_POR_PAGINA);
+  const paginatedEncerradas = encerradasOrdenadas.slice((paginaEncerradas - 1) * ITENS_POR_PAGINA, paginaEncerradas * ITENS_POR_PAGINA);
 
   // Controles de "Anterior / Próxima" reaproveitados nas 3 seções
   const renderPaginacao = (paginaAtual, totalPaginas, setPagina) => {
@@ -1103,371 +1111,350 @@ export default function LojistaDashboard() {
           </button>
         </div>
 
-        {/* ================= SEÇÃO 1: ABERTAS (prioridade máxima) ================= */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm">
-          <button
-            onClick={() => toggleSection('abertas')}
-            className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
-          >
-            <span className="flex items-center gap-2">
-              <span className="text-lg">📋</span>
-              <h2 className="text-lg font-bold text-slate-800">Cotações Abertas ({filteredOrders.length})</h2>
-            </span>
-            <span className="text-slate-400 text-xs font-semibold">
-              {collapsedSections.abertas ? '▸ Expandir' : '▾ Encolher'}
-            </span>
-          </button>
-
-          {!collapsedSections.abertas && (
-            <div className="px-6 pb-6 space-y-4">
-              {/* Filtros e Busca */}
-              <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-                <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 overflow-x-auto">
-                  <button
-                    onClick={() => setStatusFilter('todas')}
-                    className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'todas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-white'}`}
-                  >
-                    Todas ({orders.length})
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('urgentes')}
-                    className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'urgentes' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-white'}`}
-                  >
-                    🔴 Urgentes (1h)
-                  </button>
-                </div>
-
-                <div className="relative min-w-[240px]">
-                  <input
-                    type="text"
-                    placeholder="Buscar por pedido, item ou bairro..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
-                </div>
-              </div>
-
-              {/* Lista de Cotações Disponíveis */}
-              <div className="space-y-3">
-                {loading ? (
-                  <div className="bg-slate-50 rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
-                    Carregando cotações disponíveis...
-                  </div>
-                ) : filteredOrders.length === 0 ? (
-                  <div className="bg-slate-50 rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
-                    Nenhuma cotação disponível no momento para suas categorias e filtros.
-                  </div>
-                ) : (
-                  <>
-                  {paginatedAbertas.map((order) => {
-                    const tempo = getRemainingTime(order);
-                    const cardKey = `aberta-${order.id}`;
-                    const isCollapsed = collapsedCards.has(cardKey);
-
-                    return (
-                      <div key={order.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                          <div className="space-y-1 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <button
-                                onClick={() => toggleCard(cardKey)}
-                                className="text-slate-400 hover:text-slate-600 text-xs w-4"
-                                title={isCollapsed ? 'Expandir' : 'Encolher'}
-                              >
-                                {isCollapsed ? '▸' : '▾'}
-                              </button>
-
-                              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
-                                Pedido #{order.codigo_pedido || order.id}
-                              </span>
-
-                              {order.prazo_opcao === 'urgente' && (
-                                <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md animate-pulse">
-                                  🔴 URGENTE (1h)
-                                </span>
-                              )}
-
-                              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                                tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
-                              }`}>
-                                {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
-                              </span>
-
-                              {reputacaoClientesPorPedido[order.id] && (
-                                <span
-                                  className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                                    Number(reputacaoClientesPorPedido[order.id].reputacao_media) < 4
-                                      ? 'bg-rose-100 text-rose-700'
-                                      : 'bg-emerald-100 text-emerald-700'
-                                  }`}
-                                  title="Reputação deste cliente"
-                                >
-                                  ⭐ {Number(reputacaoClientesPorPedido[order.id].reputacao_media).toFixed(1)}
-                                </span>
-                              )}
-
-                              {contagemPropostasPorPedido[order.id] > 0 && (
-                                <span
-                                  className="text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 bg-orange-100 text-orange-700 animate-pulse"
-                                  title="Concorrentes que já enviaram proposta pra este pedido"
-                                >
-                                  🔥 {contagemPropostasPorPedido[order.id]} {contagemPropostasPorPedido[order.id] === 1 ? 'concorrente já respondeu' : 'concorrentes já responderam'}
-                                </span>
-                              )}
-
-                              {isCollapsed && (
-                                <span className="text-xs font-semibold text-slate-600 truncate">{order.descricao}</span>
-                              )}
-                            </div>
-
-                            {!isCollapsed && (
-                              <>
-                                <h2 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h2>
-                                <p className="text-xs text-slate-500">
-                                  <b>Categoria:</b> {order.categoria_nome_exibicao} | <b>Cidade:</b> {order.cidade_nome_exibicao} {order.bairro && `(${order.bairro})`}
-                                </p>
-                              </>
-                            )}
-                          </div>
-
-                          <div>
-                            {tempo.expirado ? (
-                              <span className="text-xs font-bold text-slate-400 bg-slate-100 px-4 py-2.5 rounded-xl cursor-not-allowed inline-block">
-                                Prazo Encerrado
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => openBidModal(order)}
-                                className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center gap-1.5"
-                              >
-                                Preencher Orçamento
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {renderPaginacao(paginaAbertas, totalPaginasAbertas, setPaginaAbertas)}
-                  </>
-                )}
-              </div>
-            </div>
-          )}
+        {/* Abas: Em Aberto / Enviadas / Confirmadas / Encerradas */}
+        <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+          {[
+            { key: 'aberto', label: 'Em Aberto', count: filteredOrders.length, aviso: novosPedidosCount },
+            { key: 'enviadas', label: 'Enviadas', count: enviadasOrdenadas.length, aviso: 0 },
+            { key: 'confirmadas', label: 'Confirmadas', count: acceptedBidsOrdenados.length, aviso: novaVendaConfirmadaCount },
+            { key: 'encerradas', label: 'Encerradas', count: encerradasOrdenadas.length, aviso: 0 },
+          ].map((aba) => (
+            <button
+              key={aba.key}
+              onClick={() => {
+                setAbaSelecionadaLojista(aba.key);
+                if (aba.key === 'confirmadas') {
+                  setNovaVendaConfirmadaCount(0);
+                  setShowVendaConfirmadaBanner(false);
+                }
+              }}
+              className={`relative flex-1 min-w-[110px] py-3 text-xs sm:text-sm font-bold rounded-xl transition ${abaSelecionadaLojista === aba.key ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              {aba.label} ({aba.count})
+              {aba.aviso > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
+                  {aba.aviso}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
 
-        {/* ================= SEÇÃO 2: FECHADAS (vendas confirmadas) ================= */}
-        {acceptedBidsOrdenados.length > 0 && (
-          <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl shadow-sm">
-            <button
-              onClick={() => toggleSection('fechadas')}
-              className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
-            >
-              <span className="flex items-center gap-2">
-                <span className="text-lg">🎉</span>
-                <h2 className="text-lg font-bold text-emerald-900">Vendas Confirmadas ({acceptedBidsOrdenados.length})</h2>
-              </span>
-              <span className="text-emerald-700/60 text-xs font-semibold">
-                {collapsedSections.fechadas ? '▸ Expandir' : '▾ Encolher'}
-              </span>
-            </button>
+        {/* Filtros e Busca (aplicam à aba "Em Aberto") */}
+        {abaSelecionadaLojista === 'aberto' && (
+          <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+            <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 overflow-x-auto">
+              <button
+                onClick={() => setStatusFilter('todas')}
+                className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'todas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
+              >
+                Todas ({orders.length})
+              </button>
+              <button
+                onClick={() => setStatusFilter('urgentes')}
+                className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'urgentes' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
+              >
+                🔴 Urgentes (1h)
+              </button>
+            </div>
 
-            {!collapsedSections.fechadas && (
-              <div className="px-6 pb-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {paginatedFechadas.map((bid) => {
-                    const cardKey = `fechada-${bid.id}`;
-                    const isCollapsed = collapsedCards.has(cardKey);
-
-                    return (
-                      <div key={bid.id} className="bg-white p-4 rounded-xl border border-emerald-200/80 shadow-xs flex flex-col justify-between gap-3">
-                        <div>
-                          <div className="flex justify-between items-start gap-2">
-                            <span className="flex items-center gap-2">
-                              <button
-                                onClick={() => toggleCard(cardKey)}
-                                className="text-slate-400 hover:text-slate-600 text-xs w-4"
-                                title={isCollapsed ? 'Expandir' : 'Encolher'}
-                              >
-                                {isCollapsed ? '▸' : '▾'}
-                              </button>
-                              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                                Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
-                              </span>
-                            </span>
-                            <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                              Confirmado
-                            </span>
-                          </div>
-
-                          {!isCollapsed && (
-                            <>
-                              <h3 className="font-bold text-slate-800 mt-2 text-sm">{bid.pedido?.descricao}</h3>
-                              <p className="text-sm font-extrabold text-emerald-700 mt-1">
-                                Total: R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
-                                <span className="text-xs text-slate-400 font-normal"> (Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})</span>
-                              </p>
-                              <p className="text-xs text-slate-600 mt-1"><b>Cliente:</b> {bid.pedido?.cliente?.nome || 'Cliente'}</p>
-                              <p className="text-xs text-slate-600"><b>WhatsApp:</b> {bid.pedido?.cliente?.telefone || 'Não informado'}</p>
-                              {renderDetalhesExpandido(bid, cardKey, false)}
-                            </>
-                          )}
-                        </div>
-
-                        {!isCollapsed && bid.pedido?.cliente?.telefone && (
-                          <a
-                            href={`https://wa.me/55${bid.pedido?.cliente?.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                              `Olá, ${bid.pedido?.cliente?.nome || 'tudo bem'}! Sou da ${profile?.nome || 'loja'} e vamos continuar com o pedido do ${bid.pedido?.descricao || 'produto'} - ${bid.pedido?.codigo_pedido || bid.pedido?.id}.`
-                            )}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
-                          >
-                            <span>💬</span> Chamar no WhatsApp
-                          </a>
-                        )}
-
-                        {!isCollapsed && (
-                          bid.entregue_em ? (
-                            <span className="w-full text-center text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 py-2 px-3 rounded-xl">
-                              ✅ Entregue em {new Date(bid.entregue_em).toLocaleDateString('pt-BR')}
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleMarcarEntregue(bid)}
-                              className="w-full bg-slate-800 hover:bg-slate-900 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
-                            >
-                              ✅ Cliente comprou e recebeu
-                            </button>
-                          )
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                {renderPaginacao(paginaFechadas, totalPaginasFechadas, setPaginaFechadas)}
-              </div>
-            )}
+            <div className="relative min-w-[240px]">
+              <input
+                type="text"
+                placeholder="Buscar por pedido, item ou bairro..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
+              />
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+            </div>
           </div>
         )}
 
-        {/* ================= SEÇÃO 3: ENVIADAS (aguardando resposta do cliente) ================= */}
-        {pendingBidsOrdenados.length > 0 && (
-          <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl shadow-sm">
-            <button
-              onClick={() => toggleSection('enviadas')}
-              className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
-            >
-              <span className="flex items-center gap-2">
-                <span className="text-lg">📨</span>
-                <h2 className="text-lg font-bold text-indigo-900">Propostas Enviadas ({pendingBidsOrdenados.length})</h2>
-              </span>
-              <span className="text-indigo-700/60 text-xs font-semibold">
-                {collapsedSections.enviadas ? '▸ Expandir' : '▾ Encolher'}
-              </span>
-            </button>
+        {/* Lista da aba selecionada */}
+        {loading ? (
+          <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
+            Carregando...
+          </div>
+        ) : (
+          <div className="space-y-3">
 
-            {!collapsedSections.enviadas && (
-              <div className="px-6 pb-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {paginatedEnviadas.map((bid) => {
-                    const cardKey = `enviada-${bid.id}`;
-                    const isCollapsed = collapsedCards.has(cardKey);
-                    const orderIdNum = Number(bid.order_id || bid.pedido_id);
-                    const fechadoComOutro = ordersFechadosComOutro.has(orderIdNum);
-
-                    return (
-                      <div key={bid.id} className="bg-white p-4 rounded-xl border border-indigo-200/80 shadow-xs space-y-2">
-                        <div className="flex justify-between items-start gap-2">
-                          <span className="flex items-center gap-2">
-                            <button
-                              onClick={() => toggleCard(cardKey)}
-                              className="text-slate-400 hover:text-slate-600 text-xs w-4"
-                              title={isCollapsed ? 'Expandir' : 'Encolher'}
-                            >
-                              {isCollapsed ? '▸' : '▾'}
-                            </button>
-                            <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                              Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
-                            </span>
+            {/* ---- EM ABERTO ---- */}
+            {abaSelecionadaLojista === 'aberto' && (
+              filteredOrders.length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
+                  Nenhuma cotação disponível no momento para suas categorias e filtros.
+                </div>
+              ) : (
+                <>
+                {paginatedAbertas.map((order) => {
+                  const tempo = getRemainingTime(order);
+                  return (
+                    <button
+                      key={order.id}
+                      onClick={() => { if (!tempo.expirado) openBidModal(order); }}
+                      disabled={tempo.expirado}
+                      className={`w-full flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white rounded-2xl p-4 shadow-sm border text-left transition ${
+                        tempo.expirado ? 'border-slate-200 opacity-60 cursor-not-allowed' : 'border-slate-200 hover:border-indigo-300 hover:shadow-md'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
+                            Pedido #{order.codigo_pedido || order.id}
                           </span>
-                          {fechadoComOutro ? (
-                            <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
-                              Seu concorrente venceu a cotação
+                          {order.prazo_opcao === 'urgente' && (
+                            <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md animate-pulse">
+                              🔴 URGENTE (1h)
                             </span>
-                          ) : (
-                            <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                              Aguardando Resposta
+                          )}
+                          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                            tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
+                          </span>
+                          {reputacaoClientesPorPedido[order.id] && (
+                            <span
+                              className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                                Number(reputacaoClientesPorPedido[order.id].reputacao_media) < 4
+                                  ? 'bg-rose-100 text-rose-700'
+                                  : 'bg-emerald-100 text-emerald-700'
+                              }`}
+                            >
+                              ⭐ {Number(reputacaoClientesPorPedido[order.id].reputacao_media).toFixed(1)}
+                            </span>
+                          )}
+                          {contagemPropostasPorPedido[order.id] > 0 && (
+                            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 bg-orange-100 text-orange-700 animate-pulse">
+                              🔥 {contagemPropostasPorPedido[order.id]} {contagemPropostasPorPedido[order.id] === 1 ? 'concorrente já respondeu' : 'concorrentes já responderam'}
                             </span>
                           )}
                         </div>
-
-                        {!isCollapsed && (
-                          <>
-                            <h3 className="font-bold text-slate-800 text-sm">{bid.pedido?.descricao}</h3>
-                            <p className="text-xs text-slate-600">
-                              <b>Total enviado:</b> R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
-                              {' '}<span className="text-slate-400">(Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})</span>
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {bid.is_completo ? 'Atendimento: 100%' : 'Atendimento: Parcial'}
-                            </p>
-
-                            {fechadoComOutro && profile?.premium && (
-                              <div className="pt-1">
-                                <button
-                                  onClick={() => handleVerRankingConcorrentes(bid)}
-                                  className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg hover:bg-amber-100 transition"
-                                >
-                                  🏆 {rankingAbertoBidId === bid.id ? 'Ocultar Ranking de Concorrentes' : 'Revelar Proposta do Concorrente'}
-                                </button>
-
-                                {rankingAbertoBidId === bid.id && (
-                                  <div className="mt-2 space-y-1.5">
-                                    {carregandoRanking ? (
-                                      <p className="text-xs text-slate-400">Carregando ranking...</p>
-                                    ) : (
-                                      rankingConcorrentes.map((item) => (
-                                        <div
-                                          key={item.bidId}
-                                          className={`flex items-center justify-between text-xs p-2 rounded-lg border ${
-                                            item.souEu ? 'border-indigo-300 bg-indigo-50 font-bold' : 'border-slate-200 bg-slate-50'
-                                          }`}
-                                        >
-                                          <span>
-                                            {item.posicao}º {item.souEu ? '(Você)' : 'Concorrente'} — R$ {item.total.toFixed(2)}
-                                            {item.retirada && ' · Retirada disponível'}
-                                            {item.frete === 0 && ' · Frete grátis'}
-                                            {' · Respondeu em '}{item.tempoResposta}
-                                          </span>
-                                          <span className="text-slate-500">
-                                            {item.formasPagamento.length > 0 ? item.formasPagamento.join(', ') : 'Pagamento não informado'}
-                                          </span>
-                                        </div>
-                                      ))
-                                    )}
-                                    <p className="text-[10px] text-slate-400 italic">
-                                      Nomes e telefones das lojas concorrentes não são revelados.
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {renderDetalhesExpandido(bid, cardKey, true)}
-                          </>
+                        <p className="text-sm font-bold text-slate-800 mt-1.5 truncate">{order.descricao}</p>
+                        <p className="text-xs text-slate-500">
+                          {order.categoria_nome_exibicao} · {order.cidade_nome_exibicao}{order.bairro && ` (${order.bairro})`}
+                        </p>
+                      </div>
+                      <div className="shrink-0">
+                        {tempo.expirado ? (
+                          <span className="text-xs font-bold text-slate-400 bg-slate-100 px-4 py-2.5 rounded-xl inline-block">
+                            Prazo Encerrado
+                          </span>
+                        ) : (
+                          <span className="text-xs font-bold text-indigo-600">Preencher Orçamento ›</span>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-                {renderPaginacao(paginaEnviadas, totalPaginasEnviadas, setPaginaEnviadas)}
-              </div>
+                    </button>
+                  );
+                })}
+                {renderPaginacao(paginaAbertas, totalPaginasAbertas, setPaginaAbertas)}
+                </>
+              )
             )}
+
+            {/* ---- ENVIADAS ---- */}
+            {abaSelecionadaLojista === 'enviadas' && (
+              enviadasOrdenadas.length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
+                  Nenhuma proposta aguardando resposta do cliente.
+                </div>
+              ) : (
+                <>
+                {paginatedEnviadas.map((bid) => (
+                  <button
+                    key={bid.id}
+                    onClick={() => setDetalheBidAberto(bid)}
+                    className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:border-indigo-300 hover:shadow-md transition text-left"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate">Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id} · {bid.pedido?.descricao}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Total: R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full shrink-0">
+                      Aguardando Resposta
+                    </span>
+                  </button>
+                ))}
+                {renderPaginacao(paginaEnviadas, totalPaginasEnviadas, setPaginaEnviadas)}
+                </>
+              )
+            )}
+
+            {/* ---- CONFIRMADAS ---- */}
+            {abaSelecionadaLojista === 'confirmadas' && (
+              acceptedBidsOrdenados.length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
+                  Nenhuma venda confirmada ainda.
+                </div>
+              ) : (
+                <>
+                {paginatedFechadas.map((bid) => (
+                  <button
+                    key={bid.id}
+                    onClick={() => setDetalheBidAberto(bid)}
+                    className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 shadow-sm border border-emerald-200 hover:border-emerald-400 hover:shadow-md transition text-left"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate">Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id} · {bid.pedido?.descricao}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {bid.pedido?.cliente?.nome || 'Cliente'} · Total: R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full shrink-0">
+                      {bid.entregue_em ? 'Entregue' : 'Confirmado'}
+                    </span>
+                  </button>
+                ))}
+                {renderPaginacao(paginaFechadas, totalPaginasFechadas, setPaginaFechadas)}
+                </>
+              )
+            )}
+
+            {/* ---- ENCERRADAS ---- */}
+            {abaSelecionadaLojista === 'encerradas' && (
+              encerradasOrdenadas.length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
+                  Nenhuma cotação perdida por aqui.
+                </div>
+              ) : (
+                <>
+                {paginatedEncerradas.map((bid) => (
+                  <button
+                    key={bid.id}
+                    onClick={() => setDetalheBidAberto(bid)}
+                    className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:border-rose-300 hover:shadow-md transition text-left"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate">Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id} · {bid.pedido?.descricao}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Total enviado: R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-full shrink-0">
+                      Seu concorrente venceu
+                    </span>
+                  </button>
+                ))}
+                {renderPaginacao(paginaEncerradas, totalPaginasEncerradas, setPaginaEncerradas)}
+                </>
+              )
+            )}
+
           </div>
         )}
+
+        {/* Modal de detalhe (Enviadas / Confirmadas / Encerradas) */}
+        {detalheBidAberto && (() => {
+          const bid = detalheBidAberto;
+          const cardKey = `modal-${bid.id}`;
+          const orderIdNum = Number(bid.order_id || bid.pedido_id);
+          const fechadoComOutro = ordersFechadosComOutro.has(orderIdNum);
+
+          return (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDetalheBidAberto(null)}>
+              <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto relative space-y-3" onClick={(e) => e.stopPropagation()}>
+                <button onClick={() => setDetalheBidAberto(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 font-bold" aria-label="Fechar">✕</button>
+
+                <div className="flex justify-between items-start gap-2 pb-2 border-b border-slate-100">
+                  <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
+                    Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
+                  </span>
+                  {abaSelecionadaLojista === 'confirmadas' ? (
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Confirmado</span>
+                  ) : fechadoComOutro ? (
+                    <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">Seu concorrente venceu a cotação</span>
+                  ) : (
+                    <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Aguardando Resposta</span>
+                  )}
+                </div>
+
+                <h3 className="font-bold text-slate-800 text-base">{bid.pedido?.descricao}</h3>
+                <p className="text-sm font-extrabold text-emerald-700">
+                  Total: R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
+                  <span className="text-xs text-slate-400 font-normal"> (Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})</span>
+                </p>
+                <p className="text-xs text-slate-500">{bid.is_completo ? 'Atendimento: 100%' : 'Atendimento: Parcial'}</p>
+
+                {abaSelecionadaLojista === 'confirmadas' && (
+                  <>
+                    <p className="text-xs text-slate-600"><b>Cliente:</b> {bid.pedido?.cliente?.nome || 'Cliente'}</p>
+                    <p className="text-xs text-slate-600"><b>WhatsApp:</b> {bid.pedido?.cliente?.telefone || 'Não informado'}</p>
+
+                    {bid.pedido?.cliente?.telefone && (
+                      <a
+                        href={`https://wa.me/55${bid.pedido?.cliente?.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                          `Olá, ${bid.pedido?.cliente?.nome || 'tudo bem'}! Sou da ${profile?.nome || 'loja'} e vamos continuar com o pedido do ${bid.pedido?.descricao || 'produto'} - ${bid.pedido?.codigo_pedido || bid.pedido?.id}.`
+                        )}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <span>💬</span> Chamar no WhatsApp
+                      </a>
+                    )}
+
+                    {bid.entregue_em ? (
+                      <span className="w-full text-center text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 py-2 px-3 rounded-xl block">
+                        ✅ Entregue em {new Date(bid.entregue_em).toLocaleDateString('pt-BR')}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleMarcarEntregue(bid)}
+                        className="w-full bg-slate-800 hover:bg-slate-900 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        ✅ Cliente comprou e recebeu
+                      </button>
+                    )}
+                  </>
+                )}
+
+                {abaSelecionadaLojista === 'encerradas' && fechadoComOutro && profile?.premium && (
+                  <div className="pt-1">
+                    <button
+                      onClick={() => handleVerRankingConcorrentes(bid)}
+                      className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg hover:bg-amber-100 transition"
+                    >
+                      🏆 {rankingAbertoBidId === bid.id ? 'Ocultar Ranking de Concorrentes' : 'Revelar Proposta do Concorrente'}
+                    </button>
+
+                    {rankingAbertoBidId === bid.id && (
+                      <div className="mt-2 space-y-1.5">
+                        {carregandoRanking ? (
+                          <p className="text-xs text-slate-400">Carregando ranking...</p>
+                        ) : (
+                          rankingConcorrentes.map((item) => (
+                            <div
+                              key={item.bidId}
+                              className={`flex items-center justify-between text-xs p-2 rounded-lg border ${
+                                item.souEu ? 'border-indigo-300 bg-indigo-50 font-bold' : 'border-slate-200 bg-slate-50'
+                              }`}
+                            >
+                              <span>
+                                {item.posicao}º {item.souEu ? '(Você)' : 'Concorrente'} — R$ {item.total.toFixed(2)}
+                                {item.retirada && ' · Retirada disponível'}
+                                {item.frete === 0 && ' · Frete grátis'}
+                                {' · Respondeu em '}{item.tempoResposta}
+                              </span>
+                              <span className="text-slate-500">
+                                {item.formasPagamento.length > 0 ? item.formasPagamento.join(', ') : 'Pagamento não informado'}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                        <p className="text-[10px] text-slate-400 italic">Nomes e telefones das lojas concorrentes não são revelados.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {renderDetalhesExpandido(bid, cardKey, abaSelecionadaLojista !== 'confirmadas')}
+              </div>
+            </div>
+          );
+        })()}
+
 
         {/* ================= SEÇÃO: MINHAS AVALIAÇÕES ================= */}
         {minhasAvaliacoes.length > 0 && (
