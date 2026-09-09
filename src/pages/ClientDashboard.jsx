@@ -653,7 +653,7 @@ export default function ClientDashboard() {
                   </button>
                 </div>
               )}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className={`grid grid-cols-1 gap-3 ${orderBids.length > 1 ? 'md:grid-cols-2' : ''}`}>
               {[...orderBids].sort((a, b) => {
                 if (a.is_completo !== b.is_completo) return a.is_completo ? -1 : 1;
                 if (ordenarPropostasPor === 'prazo') {
@@ -1183,7 +1183,7 @@ export default function ClientDashboard() {
         return (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setPedidoModalId(null)}>
             <div
-              className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto relative"
+              className="bg-white rounded-2xl p-6 w-full max-w-5xl shadow-2xl max-h-[90vh] overflow-y-auto relative"
               onClick={(e) => e.stopPropagation()}
             >
               <button
