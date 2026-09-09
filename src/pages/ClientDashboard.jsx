@@ -964,7 +964,16 @@ export default function ClientDashboard() {
     return (
       <button
         key={order.id}
-        onClick={() => setPedidoModalId(order.id)}
+        onClick={() => {
+          setPedidoModalId(order.id);
+          if (pedidosComPropostaNova.has(order.id)) {
+            setPedidosComPropostaNova(prev => {
+              const novo = new Set(prev);
+              novo.delete(order.id);
+              return novo;
+            });
+          }
+        }}
         className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:border-indigo-300 hover:shadow-md transition text-left"
       >
         <div>
