@@ -976,28 +976,29 @@ export default function ClientDashboard() {
             });
           }
         }}
-        className={`w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 shadow-sm border hover:shadow-md transition text-left ${
+        className={`w-full flex flex-col gap-2 bg-white rounded-2xl p-4 shadow-sm border hover:shadow-md transition text-left ${
           temAvisoNovo ? 'border-rose-300' : 'border-slate-200 hover:border-indigo-300'
         }`}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-2 min-w-0">
           {temAvisoNovo && (
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" title="Novidade neste pedido" />
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0 mt-1.5" title="Novidade neste pedido" />
           )}
-          <div>
-            <p className="text-sm font-bold text-slate-800">Pedido #{order.codigo_pedido || order.id} · {order.descricao}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-800 truncate">Pedido #{order.codigo_pedido || order.id}</p>
+            <p className="text-xs text-slate-600 truncate">{order.descricao}</p>
             <p className="text-xs text-slate-500 mt-0.5">
               {orderBids.length === 0 ? 'Aguardando propostas' : `${orderBids.length} proposta${orderBids.length > 1 ? 's' : ''} recebida${orderBids.length > 1 ? 's' : ''}`}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+        <div className="flex items-center justify-between gap-2">
+          <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1 max-w-[80%] ${
             tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
           }`}>
-            {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
+            {tempo.pausado ? '⏸️' : '⏱️'} <span className="break-words">{tempo.texto}</span>
           </span>
-          <span className="text-slate-400">›</span>
+          <span className="text-slate-400 shrink-0">›</span>
         </div>
       </button>
     );
