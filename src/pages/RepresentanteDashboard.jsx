@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo.svg';
-import { inserirPerfilComRetry } from '../utils/authUtils';
+import { inserirPerfilComRetry, montarEmailDeCadastro } from '../utils/authUtils';
 
 export default function RepresentanteDashboard() {
   const [userEmail, setUserEmail] = useState('');
@@ -88,7 +88,8 @@ export default function RepresentanteDashboard() {
       const supabaseAnonKey = supabase.supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       const tempClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
-      const { data: authData, error: authError } = await tempClient.auth.signUp({ email: novoEmailCliente, password: novaSenhaCliente });
+      const { email: emailLoginCliente } = montarEmailDeCadastro(novoEmailCliente);
+      const { data: authData, error: authError } = await tempClient.auth.signUp({ email: emailLoginCliente, password: novaSenhaCliente });
       if (authError) throw authError;
 
       const userId = authData.user?.id;
@@ -100,7 +101,8 @@ export default function RepresentanteDashboard() {
         nome: novoNomeCliente,
         cidade: novaCidadeCliente,
         telefone: novoTelefoneCliente,
-        ativo: true
+        ativo: true,
+        precisa_trocar_senha: true
       });
 
       if (profileError) throw profileError;
@@ -120,7 +122,8 @@ export default function RepresentanteDashboard() {
       const supabaseAnonKey = supabase.supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       const tempClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
-      const { data: authData, error: authError } = await tempClient.auth.signUp({ email: novoEmailLojista, password: novaSenhaLojista });
+      const { email: emailLoginLojista } = montarEmailDeCadastro(novoEmailLojista);
+      const { data: authData, error: authError } = await tempClient.auth.signUp({ email: emailLoginLojista, password: novaSenhaLojista });
       if (authError) throw authError;
 
       const userId = authData.user?.id;
@@ -133,6 +136,7 @@ export default function RepresentanteDashboard() {
         cidade: novaCidadeLojista,
         telefone: novoTelefoneLojista,
         ativo: true,
+        precisa_trocar_senha: true,
         horario_abertura: novoHorarioAbertura,
         horario_fechamento: novoHorarioFechamento,
         dias_funcionamento: novosDiasFuncionamento
@@ -223,7 +227,7 @@ export default function RepresentanteDashboard() {
               <button type="button" onClick={() => setIsClientModalOpen(false)} className="text-slate-400 font-bold">✕</button>
             </div>
             <input type="text" placeholder="Nome do Cliente" value={novoNomeCliente} onChange={(e) => setNovoNomeCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
-            <input type="email" placeholder="E-mail" value={novoEmailCliente} onChange={(e) => setNovoEmailCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
+            <input type="text" placeholder="E-mail ou Telefone (com DDD)" value={novoEmailCliente} onChange={(e) => setNovoEmailCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
             <input type="password" placeholder="Senha Inicial" value={novaSenhaCliente} onChange={(e) => setNovaSenhaCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
             <input type="text" placeholder="Cidade" value={novaCidadeCliente} onChange={(e) => setNovaCidadeCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
             <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefoneCliente} onChange={(e) => setNovoTelefoneCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
@@ -245,7 +249,7 @@ export default function RepresentanteDashboard() {
               <button type="button" onClick={() => setIsLojistaModalOpen(false)} className="text-slate-400 font-bold">✕</button>
             </div>
             <input type="text" placeholder="Nome da Loja" value={novoNomeLojista} onChange={(e) => setNovoNomeLojista(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
-            <input type="email" placeholder="E-mail" value={novoEmailLojista} onChange={(e) => setNovoEmailLojista(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
+            <input type="text" placeholder="E-mail ou Telefone (com DDD)" value={novoEmailLojista} onChange={(e) => setNovoEmailLojista(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
             <input type="password" placeholder="Senha Inicial" value={novaSenhaLojista} onChange={(e) => setNovaSenhaLojista(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
             <input type="text" placeholder="Cidade" value={novaCidadeLojista} onChange={(e) => setNovaCidadeLojista(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
             <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefoneLojista} onChange={(e) => setNovoTelefoneLojista(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
