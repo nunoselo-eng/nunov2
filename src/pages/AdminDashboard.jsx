@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo.svg';
-import { inserirPerfilComRetry } from '../utils/authUtils';
+import { inserirPerfilComRetry, montarEmailDeCadastro } from '../utils/authUtils';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('lojistas'); // 'lojistas' ou 'pedidos'
@@ -322,7 +322,8 @@ export default function AdminDashboard() {
       const supabaseAnonKey = supabase.supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       const tempClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
-      const { data: authData, error: authError } = await tempClient.auth.signUp({ email: novoEmail, password: novaSenha });
+      const { email: emailLogin } = montarEmailDeCadastro(novoEmail);
+      const { data: authData, error: authError } = await tempClient.auth.signUp({ email: emailLogin, password: novaSenha });
       if (authError) throw authError;
 
       const userId = authData.user?.id;
@@ -335,6 +336,7 @@ export default function AdminDashboard() {
         cidade: novaCidade,
         telefone: novoTelefone,
         ativo: true,
+        precisa_trocar_senha: true,
         horario_abertura: novoHorarioAbertura,
         horario_fechamento: novoHorarioFechamento,
         dias_funcionamento: novosDiasFuncionamento
@@ -364,7 +366,8 @@ export default function AdminDashboard() {
       const supabaseAnonKey = supabase.supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       const tempClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
-      const { data: authData, error: authError } = await tempClient.auth.signUp({ email: novoEmailCliente, password: novaSenhaCliente });
+      const { email: emailLoginCliente } = montarEmailDeCadastro(novoEmailCliente);
+      const { data: authData, error: authError } = await tempClient.auth.signUp({ email: emailLoginCliente, password: novaSenhaCliente });
       if (authError) throw authError;
 
       const userId = authData.user?.id;
@@ -376,7 +379,8 @@ export default function AdminDashboard() {
         nome: novoNomeCliente,
         cidade: novaCidadeCliente,
         telefone: novoTelefoneCliente,
-        ativo: true
+        ativo: true,
+        precisa_trocar_senha: true
       });
 
       if (profileError) throw profileError;
@@ -1451,7 +1455,7 @@ export default function AdminDashboard() {
                 <button type="button" onClick={() => setIsClientModalOpen(false)} className="text-slate-400 font-bold">✕</button>
               </div>
               <input type="text" placeholder="Nome do Cliente" value={novoNomeCliente} onChange={(e) => setNovoNomeCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
-              <input type="email" placeholder="E-mail" value={novoEmailCliente} onChange={(e) => setNovoEmailCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
+              <input type="text" placeholder="E-mail ou Telefone (com DDD)" value={novoEmailCliente} onChange={(e) => setNovoEmailCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="password" placeholder="Senha Inicial" value={novaSenhaCliente} onChange={(e) => setNovaSenhaCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="text" placeholder="Cidade" value={novaCidadeCliente} onChange={(e) => setNovaCidadeCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
               <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefoneCliente} onChange={(e) => setNovoTelefoneCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
@@ -1931,7 +1935,7 @@ export default function AdminDashboard() {
             <form onSubmit={handleCreateLojista} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
               <h3 className="text-xl font-bold text-slate-800">Cadastrar Novo Lojista</h3>
               <input type="text" placeholder="Nome da Loja" value={novoNome} onChange={(e) => setNovoNome(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
-              <input type="email" placeholder="E-mail" value={novoEmail} onChange={(e) => setNovoEmail(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
+              <input type="text" placeholder="E-mail ou Telefone (com DDD)" value={novoEmail} onChange={(e) => setNovoEmail(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="password" placeholder="Senha Inicial" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="text" placeholder="Cidade" value={novaCidade} onChange={(e) => setNovaCidade(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefone} onChange={(e) => setNovoTelefone(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
