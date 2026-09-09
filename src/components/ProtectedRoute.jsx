@@ -42,7 +42,7 @@ export default function ProtectedRoute({ allowedRole, children }) {
 
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('tipo, ativo')
+        .select('tipo, ativo, precisa_trocar_senha')
         .eq('id', user.id)
         .single();
 
@@ -60,6 +60,15 @@ export default function ProtectedRoute({ allowedRole, children }) {
         await supabase.auth.signOut();
         if (ativo) {
           setRedirectTo('/login');
+          setStatus('blocked');
+        }
+        return;
+      }
+
+      // Conta com senha provisória: obriga a trocar antes de ver qualquer painel.
+      if (profile.precisa_trocar_senha) {
+        if (ativo) {
+          setRedirectTo('/trocar-senha');
           setStatus('blocked');
         }
         return;
