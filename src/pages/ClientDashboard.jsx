@@ -961,6 +961,8 @@ export default function ClientDashboard() {
   const renderOrderRow = (order) => {
     const orderBids = bidsByOrder[String(order.id)] || [];
     const tempo = getRemainingTime(order);
+    const temAvisoNovo = pedidosComPropostaNova.has(order.id) ||
+      orderBids.some(b => b.status === 'Aceito' && b.entregue_em && !bidsJaAvaliados.has(b.id));
     return (
       <button
         key={order.id}
@@ -974,13 +976,20 @@ export default function ClientDashboard() {
             });
           }
         }}
-        className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:border-indigo-300 hover:shadow-md transition text-left"
+        className={`w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 shadow-sm border hover:shadow-md transition text-left ${
+          temAvisoNovo ? 'border-rose-300' : 'border-slate-200 hover:border-indigo-300'
+        }`}
       >
-        <div>
-          <p className="text-sm font-bold text-slate-800">Pedido #{order.codigo_pedido || order.id} · {order.descricao}</p>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {orderBids.length === 0 ? 'Aguardando propostas' : `${orderBids.length} proposta${orderBids.length > 1 ? 's' : ''} recebida${orderBids.length > 1 ? 's' : ''}`}
-          </p>
+        <div className="flex items-center gap-2">
+          {temAvisoNovo && (
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" title="Novidade neste pedido" />
+          )}
+          <div>
+            <p className="text-sm font-bold text-slate-800">Pedido #{order.codigo_pedido || order.id} · {order.descricao}</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {orderBids.length === 0 ? 'Aguardando propostas' : `${orderBids.length} proposta${orderBids.length > 1 ? 's' : ''} recebida${orderBids.length > 1 ? 's' : ''}`}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
