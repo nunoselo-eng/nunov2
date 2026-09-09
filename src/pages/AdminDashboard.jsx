@@ -544,10 +544,18 @@ export default function AdminDashboard() {
     })));
   };
 
-  const handleReverterPenalidade = async (penalidadeId) => {
-    if (!window.confirm('Reverter essa penalidade automática? A reputação da pessoa volta a subir.')) return;
+  const handleReverterPenalidade = async (penalidadeId, estaRevertida) => {
+    const confirmar = window.confirm(
+      estaRevertida
+        ? 'Reaplicar essa penalidade? Ela volta a contar contra a reputação da pessoa.'
+        : 'Reverter essa penalidade automática? A reputação da pessoa volta a subir, e ela não será recriada automaticamente de novo pra esse mesmo pedido.'
+    );
+    if (!confirmar) return;
     try {
-      const { error } = await supabase.from('penalidades_processadas').delete().eq('id', penalidadeId);
+      const { error } = await supabase
+        .from('penalidades_processadas')
+        .update({ revertida: !estaRevertida })
+        .eq('id', penalidadeId);
       if (error) throw error;
       carregarPenalidades();
     } catch (err) {
@@ -1838,13 +1846,16 @@ export default function AdminDashboard() {
                 ) : (
                   <div className="space-y-2">
                     {penalidadesAutomaticas.map((p) => (
-                      <div key={p.id} className="p-3 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-3">
+                      <div key={p.id} className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${p.revertida ? 'border-slate-200 bg-slate-50 opacity-60' : 'border-slate-200 bg-white'}`}>
                         <div>
                           <p className="text-sm font-bold text-slate-800">{p.nomeUsuario} <span className="text-xs font-normal text-slate-500">({p.tipo})</span></p>
-                          <p className="text-xs text-slate-500">Pedido #{p.codigoPedido} · {new Date(p.criado_em).toLocaleDateString('pt-BR')}</p>
+                          <p className="text-xs text-slate-500">
+                            Pedido #{p.codigoPedido} · {new Date(p.criado_em).toLocaleDateString('pt-BR')}
+                            {p.revertida && ' · Revertida (não conta mais na nota)'}
+                          </p>
                         </div>
-                        <button onClick={() => handleReverterPenalidade(p.id)} className="text-xs font-bold text-emerald-600 whitespace-nowrap">
-                          Reverter
+                        <button onClick={() => handleReverterPenalidade(p.id, p.revertida)} className="text-xs font-bold text-emerald-600 whitespace-nowrap">
+                          {p.revertida ? 'Reaplicar' : 'Reverter'}
                         </button>
                       </div>
                     ))}
