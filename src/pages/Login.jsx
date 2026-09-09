@@ -3,6 +3,25 @@ import { supabase } from '../supabaseClient';
 import { useNavigate, Link } from 'react-router-dom';
 import logo from '../assets/logo.svg'; // Se for .png, altere para '../assets/logo.png'
 
+// Detecta se o texto digitado parece um telefone (só dígitos, com ou sem
+// espaço/traço/parênteses/+, tamanho de telefone real) — nesse caso vira
+// um "e-mail interno" fixo baseado no número, do mesmo jeito que já
+// fazemos com o usuário do representante.
+function pareceTelefone(texto) {
+  const somenteDigitos = texto.replace(/\D/g, '');
+  return !texto.includes('@') && somenteDigitos.length >= 8 && somenteDigitos.length === texto.replace(/[\s\-().]/g, '').length;
+}
+
+function montarEmailDeLogin(entradaBruta) {
+  const entrada = entradaBruta.trim();
+  if (entrada.includes('@')) return entrada;
+  if (pareceTelefone(entrada)) {
+    const digitos = entrada.replace(/\D/g, '');
+    return `${digitos}@fone.nunoselo.app`;
+  }
+  return `${entrada.toLowerCase()}@interno.nunoselo.app`;
+}
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,12 +39,9 @@ export default function Login() {
     setErrorMsg('');
 
     try {
-      // Aceita e-mail normal (cliente/lojista/admin) ou um "usuário"
-      // sem @ (caso do representante, que não usa e-mail de verdade).
-      const entrada = email.trim();
-      const emailLogin = entrada.includes('@')
-        ? entrada
-        : `${entrada.toLowerCase()}@interno.nunoselo.app`;
+      // Aceita e-mail normal, telefone (vira e-mail interno @fone.nunoselo.app),
+      // ou "usuário" sem @ (caso do representante, @interno.nunoselo.app).
+      const emailLogin = montarEmailDeLogin(email);
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email: emailLogin,
@@ -36,13 +52,21 @@ export default function Login() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('tipo, ativo')
+        .select('tipo, ativo, precisa_trocar_senha')
         .eq('id', data.user.id)
         .single();
 
       if (profile?.ativo === false) {
         await supabase.auth.signOut();
-        throw new Error('Sua conta está temporariamente desativada por falta de pagamento, entre em contato com nosso suporte.');
+        throw new Error('Sua conta está temporariamente desativada.');
+      }
+
+      // Se essa conta foi criada pelo Admin/Representante com senha
+      // provisória, obriga a pessoa a definir a senha dela antes de
+      // qualquer outra coisa.
+      if (profile?.precisa_trocar_senha) {
+        navigate('/trocar-senha');
+        return;
       }
 
       if (profile?.tipo === 'admin') {
@@ -55,7 +79,7 @@ export default function Login() {
         navigate('/client-dashboard');
       }
     } catch (err) {
-      setErrorMsg(err.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : err.message);
+      setErrorMsg(err.message === 'Invalid login credentials' ? 'E-mail, telefone, usuário ou senha incorretos.' : err.message);
     } finally {
       setLoading(false);
     }
@@ -64,6 +88,15 @@ export default function Login() {
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     setForgotMsg('');
+
+    // Recuperação automática só existe pra quem loga com e-mail de verdade.
+    // Telefone e usuário (representante) usam e-mails internos falsos —
+    // ninguém recebe nada ali, então precisa pedir pro Admin resetar.
+    if (!forgotEmail.includes('@') || forgotEmail.endsWith('@fone.nunoselo.app') || forgotEmail.endsWith('@interno.nunoselo.app')) {
+      setForgotMsg('Login por telefone ou usuário não tem recuperação automática. Peça para o administrador redefinir sua senha.');
+      return;
+    }
+
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
@@ -103,15 +136,15 @@ export default function Login() {
           )}
 
           <form className="w-full flex flex-col" onSubmit={handleLogin}>
-            {/* Campo E-mail ou Usuário */}
+            {/* Campo E-mail, Telefone ou Usuário */}
             <div className="mb-4">
               <label className="block text-xs font-semibold text-slate-600 mb-1.5" htmlFor="email">
-                E-mail ou Usuário
+                E-mail, Telefone ou Usuário
               </label>
               <input 
                 type="text" 
                 id="email"
-                placeholder="Seu e-mail de acesso ou usuário" 
+                placeholder="Seu e-mail, telefone ou usuário de acesso" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -203,7 +236,7 @@ export default function Login() {
             </div>
             
             <p className="text-xs text-slate-600">
-              Digite seu e-mail para receber o link de redefinição de senha.
+              Digite seu e-mail de acesso pra receber o link de redefinição de senha. (Só funciona pra quem loga com e-mail de verdade — telefone e usuário precisam pedir pro administrador.)
             </p>
 
             {forgotMsg && (
@@ -211,7 +244,7 @@ export default function Login() {
             )}
 
             <input 
-              type="email" 
+              type="text" 
               placeholder="seu@email.com" 
               value={forgotEmail} 
               onChange={(e) => setForgotEmail(e.target.value)} 
