@@ -73,7 +73,6 @@ export default function LojistaDashboard() {
   const [collapsedCards, setCollapsedCards] = useState(new Set());
   const [abaSelecionadaLojista, setAbaSelecionadaLojista] = useState('aberto');
   const [detalheBidAberto, setDetalheBidAberto] = useState(null);
-  const [bidsRecemConfirmados, setBidsRecemConfirmados] = useState(new Set());
 
   // Detalhes expandidos por card (itens, fotos, bairro, status da concorrência)
   const [expandedDetails, setExpandedDetails] = useState(new Set());
@@ -318,7 +317,6 @@ export default function LojistaDashboard() {
               playNotificationSound();
               setNovaVendaConfirmadaCount(prev => prev + 1);
               setShowVendaConfirmadaBanner(true);
-              setBidsRecemConfirmados(prev => new Set(prev).add(payload.new.id));
               fetchLojistaData();
             }
           }
@@ -1294,18 +1292,14 @@ export default function LojistaDashboard() {
               ) : (
                 <>
                 {paginatedFechadas.map((bid) => {
-                  const destacar = bidsRecemConfirmados.has(bid.id) && !bid.entregue_em;
+                  const destacar = !bid.visualizado_pelo_lojista && !bid.entregue_em;
                   return (
                   <button
                     key={bid.id}
                     onClick={() => {
                       setDetalheBidAberto(bid);
                       if (destacar) {
-                        setBidsRecemConfirmados(prev => {
-                          const novo = new Set(prev);
-                          novo.delete(bid.id);
-                          return novo;
-                        });
+                        supabase.from('bids').update({ visualizado_pelo_lojista: true }).eq('id', bid.id).then(() => fetchLojistaData());
                       }
                     }}
                     className={`w-full flex items-center justify-between gap-3 rounded-2xl p-4 shadow-sm border transition text-left ${
