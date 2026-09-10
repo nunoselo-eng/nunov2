@@ -75,6 +75,7 @@ export default function AdminDashboard() {
   const [penalidadesAutomaticas, setPenalidadesAutomaticas] = useState([]);
   const [avaliacaoEditando, setAvaliacaoEditando] = useState(null);
   const [notaEditada, setNotaEditada] = useState('');
+  const [entregaEditada, setEntregaEditada] = useState(null);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingLojistaId, setEditingLojistaId] = useState(null);
@@ -499,13 +500,13 @@ export default function AdminDashboard() {
       return;
     }
     try {
-      const { error } = await supabase.from('avaliacoes').update({ nota, contestada: false }).eq('id', avaliacaoId);
+      const { error } = await supabase.from('avaliacoes').update({ nota, entrega_no_prazo: entregaEditada, contestada: false }).eq('id', avaliacaoId);
       if (error) throw error;
-      alert('Nota corrigida! A média foi recalculada automaticamente.');
+      alert('Avaliação corrigida! A média foi recalculada automaticamente.');
       setAvaliacaoEditando(null);
       carregarAvaliacoes(filtroAvaliacoes);
     } catch (err) {
-      alert('Erro ao corrigir nota: ' + err.message);
+      alert('Erro ao corrigir avaliação: ' + err.message);
     }
   };
 
@@ -1930,20 +1931,36 @@ export default function AdminDashboard() {
                           <p className="text-xs text-slate-500"><b>Lojista avaliado:</b> {av.nomeAvaliado}</p>
                           <p className="text-xs text-slate-500"><b>Cliente:</b> {av.nomeAvaliador}</p>
                           {avaliacaoEditando === av.id ? (
-                            <div className="flex items-center gap-2 mt-1">
-                              <input
-                                type="number"
-                                min="1"
-                                max="5"
-                                value={notaEditada}
-                                onChange={(e) => setNotaEditada(e.target.value)}
-                                className="w-16 p-1.5 rounded-lg border text-sm"
-                              />
-                              <button onClick={() => handleSalvarNotaEditada(av.id)} className="text-xs font-bold text-emerald-600">Salvar</button>
-                              <button onClick={() => setAvaliacaoEditando(null)} className="text-xs font-bold text-slate-500">Cancelar</button>
+                            <div className="space-y-2 mt-1">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="5"
+                                  value={notaEditada}
+                                  onChange={(e) => setNotaEditada(e.target.value)}
+                                  className="w-16 p-1.5 rounded-lg border text-sm"
+                                />
+                                <span className="text-[11px] text-slate-500">nota (1-5)</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button type="button" onClick={() => setEntregaEditada(true)} className={`px-2 py-1 rounded-lg text-xs font-bold border ${entregaEditada === true ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300'}`}>No prazo</button>
+                                <button type="button" onClick={() => setEntregaEditada(false)} className={`px-2 py-1 rounded-lg text-xs font-bold border ${entregaEditada === false ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-300'}`}>Atrasou</button>
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => handleSalvarNotaEditada(av.id)} className="text-xs font-bold text-emerald-600">Salvar</button>
+                                <button onClick={() => setAvaliacaoEditando(null)} className="text-xs font-bold text-slate-500">Cancelar</button>
+                              </div>
                             </div>
                           ) : (
-                            <p className="text-sm font-bold text-amber-600 mt-1">{'⭐'.repeat(av.nota)}{'☆'.repeat(5 - av.nota)}</p>
+                            <>
+                              <p className="text-sm font-bold text-amber-600 mt-1">{'⭐'.repeat(av.nota)}{'☆'.repeat(5 - av.nota)}</p>
+                              {av.entrega_no_prazo != null && (
+                                <p className="text-[11px] font-semibold text-slate-600">
+                                  {av.entrega_no_prazo ? '📦 Entrega no prazo' : '📦 Entrega atrasou'}
+                                </p>
+                              )}
+                            </>
                           )}
                           {av.comentario && <p className="text-xs text-slate-600 mt-1">{av.comentario}</p>}
                           <p className="text-[11px] text-slate-400 mt-1">{new Date(av.criado_em).toLocaleDateString('pt-BR')}</p>
@@ -1959,8 +1976,8 @@ export default function AdminDashboard() {
                       </div>
                       <div className="flex gap-3 pt-1 border-t border-slate-100">
                         {avaliacaoEditando !== av.id && (
-                          <button onClick={() => { setAvaliacaoEditando(av.id); setNotaEditada(String(av.nota)); }} className="text-xs font-bold text-indigo-600">
-                            Corrigir nota
+                          <button onClick={() => { setAvaliacaoEditando(av.id); setNotaEditada(String(av.nota)); setEntregaEditada(av.entrega_no_prazo); }} className="text-xs font-bold text-indigo-600">
+                            Corrigir avaliação
                           </button>
                         )}
                         <button
