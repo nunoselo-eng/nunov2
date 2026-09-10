@@ -17,6 +17,7 @@ export default function LojistaDashboard() {
   const [prazoEntrega, setPrazoEntrega] = useState('');
   const [garantia, setGarantia] = useState('');
   const [retiradaDisponivel, setRetiradaDisponivel] = useState(false);
+  const [parcelasSemJuros, setParcelasSemJuros] = useState('');
   const [formasPagamento, setFormasPagamento] = useState([]);
   const [ofereceCashback, setOfereceCashback] = useState(false);
   const [valorCashbackOferecido, setValorCashbackOferecido] = useState('');
@@ -72,6 +73,7 @@ export default function LojistaDashboard() {
   const [collapsedCards, setCollapsedCards] = useState(new Set());
   const [abaSelecionadaLojista, setAbaSelecionadaLojista] = useState('aberto');
   const [detalheBidAberto, setDetalheBidAberto] = useState(null);
+  const [bidsRecemConfirmados, setBidsRecemConfirmados] = useState(new Set());
 
   // Detalhes expandidos por card (itens, fotos, bairro, status da concorrência)
   const [expandedDetails, setExpandedDetails] = useState(new Set());
@@ -316,6 +318,7 @@ export default function LojistaDashboard() {
               playNotificationSound();
               setNovaVendaConfirmadaCount(prev => prev + 1);
               setShowVendaConfirmadaBanner(true);
+              setBidsRecemConfirmados(prev => new Set(prev).add(payload.new.id));
               fetchLojistaData();
             }
           }
@@ -692,6 +695,7 @@ export default function LojistaDashboard() {
           garantia: garantia || null,
           retirada_disponivel: retiradaDisponivel,
           formas_pagamento: formasPagamento.length > 0 ? formasPagamento : null,
+          parcelas_sem_juros: formasPagamento.includes('cartao') && parcelasSemJuros ? parseInt(parcelasSemJuros) : null,
           oferece_cashback: cashbackAtivo ? ofereceCashback : false,
           valor_cashback_oferecido: cashbackAtivo && ofereceCashback ? parseFloat(valorCashbackOferecido || 0) : null,
           aceita_cashback: cashbackAtivo ? aceitaCashback : false
@@ -721,6 +725,7 @@ export default function LojistaDashboard() {
       setPrazoEntrega('');
       setGarantia('');
       setRetiradaDisponivel(false);
+      setParcelasSemJuros('');
       setFormasPagamento([]);
       setOfereceCashback(false);
       setValorCashbackOferecido('');
@@ -1288,23 +1293,39 @@ export default function LojistaDashboard() {
                 </div>
               ) : (
                 <>
-                {paginatedFechadas.map((bid) => (
+                {paginatedFechadas.map((bid) => {
+                  const destacar = bidsRecemConfirmados.has(bid.id) && !bid.entregue_em;
+                  return (
                   <button
                     key={bid.id}
-                    onClick={() => setDetalheBidAberto(bid)}
-                    className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 shadow-sm border border-emerald-200 hover:border-emerald-400 hover:shadow-md transition text-left"
+                    onClick={() => {
+                      setDetalheBidAberto(bid);
+                      if (destacar) {
+                        setBidsRecemConfirmados(prev => {
+                          const novo = new Set(prev);
+                          novo.delete(bid.id);
+                          return novo;
+                        });
+                      }
+                    }}
+                    className={`w-full flex items-center justify-between gap-3 rounded-2xl p-4 shadow-sm border transition text-left ${
+                      destacar
+                        ? 'bg-emerald-600 border-emerald-600 hover:bg-emerald-700'
+                        : 'bg-white border-emerald-200 hover:border-emerald-400 hover:shadow-md'
+                    }`}
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-800 truncate">Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id} · {bid.pedido?.descricao}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className={`text-sm font-bold truncate ${destacar ? 'text-white' : 'text-slate-800'}`}>Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id} · {bid.pedido?.descricao}</p>
+                      <p className={`text-xs mt-0.5 ${destacar ? 'text-emerald-50' : 'text-slate-500'}`}>
                         {bid.pedido?.cliente?.nome || 'Cliente'} · Total: R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
                       </p>
                     </div>
-                    <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full shrink-0">
-                      {bid.entregue_em ? 'Entregue' : 'Confirmado'}
+                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full shrink-0 ${destacar ? 'bg-white text-emerald-700' : 'text-emerald-700 bg-emerald-100'}`}>
+                      {bid.entregue_em ? 'Entregue' : destacar ? 'Novo!' : 'Confirmado'}
                     </span>
                   </button>
-                ))}
+                  );
+                })}
                 {renderPaginacao(paginaFechadas, totalPaginasFechadas, setPaginaFechadas)}
                 </>
               )
@@ -1683,6 +1704,20 @@ export default function LojistaDashboard() {
                   </button>
                 ))}
               </div>
+              {formasPagamento.includes('cartao') && (
+                <div className="mt-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Parcela em até quantas vezes sem juros?</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="24"
+                    placeholder="Ex: 3 (deixe em branco se for só à vista no cartão)"
+                    value={parcelasSemJuros}
+                    onChange={(e) => setParcelasSemJuros(e.target.value)}
+                    className="w-full p-2 rounded-lg border border-slate-300 text-sm"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Cashback (só aparece se a função estiver ativada no Admin) */}
