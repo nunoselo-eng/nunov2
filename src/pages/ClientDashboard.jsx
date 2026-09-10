@@ -523,6 +523,15 @@ export default function ClientDashboard() {
   const getRemainingTime = (order) => {
     if (!order?.expira_em) return { texto: 'Sem prazo', expirado: false, pausado: false };
     const status = getStatusPrazo(order, lojistasElegiveisPorPedido[order.id] || [], new Date(now));
+
+    // Se todas as lojas elegíveis já responderam, não faz sentido continuar
+    // mostrando contagem regressiva — o cliente já pode decidir.
+    const elegiveis = lojistasElegiveisPorPedido[order.id] || [];
+    const orderBids = bidsByOrder[String(order.id)] || [];
+    if (!status.expirado && elegiveis.length > 0 && orderBids.length >= elegiveis.length) {
+      return { texto: 'Todos os lojistas já responderam — escolha sua proposta!', expirado: false, pausado: false, todosResponderam: true };
+    }
+
     return { texto: status.texto, expirado: status.expirado, pausado: status.pausado };
   };
 
@@ -597,9 +606,9 @@ export default function ClientDashboard() {
                 Pedido #{order.codigo_pedido || order.id}
               </span>
               <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.todosResponderam ? 'bg-emerald-100 text-emerald-700' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
               }`}>
-                {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
+                {tempo.todosResponderam ? '✅' : tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
               </span>
             </div>
             <h2 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h2>
@@ -764,6 +773,7 @@ export default function ClientDashboard() {
                             {(bid.formas_pagamento || []).map(fp => (
                               <span key={fp} className="text-[11px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
                                 💰 {LABEL_FORMA_PAGAMENTO[fp] || fp}
+                                {fp === 'cartao' && bid.parcelas_sem_juros > 1 && ` (até ${bid.parcelas_sem_juros}x sem juros)`}
                               </span>
                             ))}
                             {cashbackAtivo && bid.oferece_cashback && bid.valor_cashback_oferecido > 0 && (
@@ -994,9 +1004,9 @@ export default function ClientDashboard() {
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1 max-w-[80%] ${
-            tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+            tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.todosResponderam ? 'bg-emerald-100 text-emerald-700' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
           }`}>
-            {tempo.pausado ? '⏸️' : '⏱️'} <span className="break-words">{tempo.texto}</span>
+            {tempo.todosResponderam ? '✅' : tempo.pausado ? '⏸️' : '⏱️'} <span className="break-words">{tempo.texto}</span>
           </span>
           <span className="text-slate-400 shrink-0">›</span>
         </div>
