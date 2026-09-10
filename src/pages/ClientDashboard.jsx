@@ -58,6 +58,7 @@ export default function ClientDashboard() {
   // pedidos entregues ainda precisam de pesquisa de satisfação.
   const [bidsJaAvaliados, setBidsJaAvaliados] = useState(new Set());
   const [notaSelecionada, setNotaSelecionada] = useState({});
+  const [entregaNoPrazoSelecionada, setEntregaNoPrazoSelecionada] = useState({});
   const [enviandoAvaliacao, setEnviandoAvaliacao] = useState(null);
 
   const toggleSection = (key) => {
@@ -335,7 +336,7 @@ export default function ClientDashboard() {
             if (lojistaIds.length > 0) {
               const { data: lojistasData } = await supabase
                 .from('profiles')
-                .select('id, nome, telefone, reputacao_media, total_avaliacoes, logo_url')
+                .select('id, nome, telefone, reputacao_media, total_avaliacoes, logo_url, percentual_entrega_no_prazo')
                 .in('id', lojistaIds);
 
               const lojistaMap = {};
@@ -373,8 +374,13 @@ export default function ClientDashboard() {
 
   const handleAvaliarLojista = async (bid) => {
     const nota = notaSelecionada[bid.id];
+    const entregaNoPrazo = entregaNoPrazoSelecionada[bid.id];
     if (!nota) {
       alert('Selecione de 1 a 5 estrelas antes de enviar.');
+      return;
+    }
+    if (entregaNoPrazo === undefined) {
+      alert('Diz pra gente se a entrega chegou no prazo combinado.');
       return;
     }
     setEnviandoAvaliacao(bid.id);
@@ -385,6 +391,7 @@ export default function ClientDashboard() {
         avaliador_id: user.id,
         avaliado_id: bid.lojista_id,
         nota: nota,
+        entrega_no_prazo: entregaNoPrazo,
       }]);
       if (error) throw error;
       alert('Obrigado pela avaliação!');
@@ -524,11 +531,20 @@ export default function ClientDashboard() {
     if (!order?.expira_em) return { texto: 'Sem prazo', expirado: false, pausado: false };
     const status = getStatusPrazo(order, lojistasElegiveisPorPedido[order.id] || [], new Date(now));
 
-    // Se todas as lojas elegíveis já responderam, não faz sentido continuar
-    // mostrando contagem regressiva — o cliente já pode decidir.
-    const elegiveis = lojistasElegiveisPorPedido[order.id] || [];
     const orderBids = bidsByOrder[String(order.id)] || [];
-    if (!status.expirado && elegiveis.length > 0 && orderBids.length >= elegiveis.length) {
+    const bidAceito = orderBids.find(b => b.status === 'Aceito');
+
+    // Já entregue e ainda não avaliado: pede a avaliação em vez de mostrar
+    // qualquer coisa sobre prazo (o pedido já foi concluído).
+    if (bidAceito && bidAceito.entregue_em && !bidsJaAvaliados.has(bidAceito.id)) {
+      return { texto: 'Avalie sua compra!', expirado: false, pausado: false, precisaAvaliar: true };
+    }
+
+    // Se todas as lojas elegíveis já responderam E ainda não tem proposta
+    // aceita, não faz sentido continuar mostrando contagem regressiva — o
+    // cliente já pode decidir. (Some depois que ele confirma alguma.)
+    const elegiveis = lojistasElegiveisPorPedido[order.id] || [];
+    if (!status.expirado && !bidAceito && elegiveis.length > 0 && orderBids.length >= elegiveis.length) {
       return { texto: 'Todos os lojistas já responderam — escolha sua proposta!', expirado: false, pausado: false, todosResponderam: true };
     }
 
@@ -606,9 +622,9 @@ export default function ClientDashboard() {
                 Pedido #{order.codigo_pedido || order.id}
               </span>
               <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.todosResponderam ? 'bg-emerald-100 text-emerald-700' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.precisaAvaliar ? 'bg-violet-100 text-violet-700' : tempo.todosResponderam ? 'bg-emerald-100 text-emerald-700' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
               }`}>
-                {tempo.todosResponderam ? '✅' : tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
+                {tempo.precisaAvaliar ? '⭐' : tempo.todosResponderam ? '✅' : tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
               </span>
             </div>
             <h2 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h2>
@@ -718,13 +734,25 @@ export default function ClientDashboard() {
                                 ⭐ {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
                                 <span className="text-slate-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações)</span>
                               </p>
+                              {lojistaPorBid[bid.lojista_id]?.percentual_entrega_no_prazo != null && (
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full inline-block mt-0.5">
+                                  📦 Entrega {lojistaPorBid[bid.lojista_id].percentual_entrega_no_prazo}% no prazo combinado
+                                </span>
+                              )}
                             </div>
                           </div>
                         ) : (
-                          <p className="text-[11px] font-semibold text-amber-600 mt-1">
-                            ⭐ {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
-                            <span className="text-slate-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações) · loja revelada após aprovar</span>
-                          </p>
+                          <div className="mt-1">
+                            <p className="text-[11px] font-semibold text-amber-600">
+                              ⭐ {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
+                              <span className="text-slate-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações) · loja revelada após aprovar</span>
+                            </p>
+                            {lojistaPorBid[bid.lojista_id]?.percentual_entrega_no_prazo != null && (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full inline-block mt-0.5">
+                                📦 Entrega {lojistaPorBid[bid.lojista_id].percentual_entrega_no_prazo}% no prazo combinado
+                              </span>
+                            )}
+                          </div>
                         )}
 
                         <p className="text-[10px] text-slate-400 mt-0.5">
@@ -884,20 +912,47 @@ export default function ClientDashboard() {
                     )}
 
                     {isAccepted && bid.entregue_em && !bidsJaAvaliados.has(bid.id) && (
-                      <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-2">
-                        <p className="text-xs font-bold text-amber-800">Como foi sua experiência com esse lojista?</p>
-                        <div className="flex items-center gap-1">
-                          {[1, 2, 3, 4, 5].map((estrela) => (
-                            <button
-                              key={estrela}
-                              type="button"
-                              onClick={() => setNotaSelecionada(prev => ({ ...prev, [bid.id]: estrela }))}
-                              className="text-2xl leading-none"
-                            >
-                              {(notaSelecionada[bid.id] || 0) >= estrela ? '⭐' : '☆'}
-                            </button>
-                          ))}
+                      <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-3">
+                        <div>
+                          <p className="text-xs font-bold text-amber-800 mb-1">Como foi o atendimento dessa loja?</p>
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((estrela) => (
+                              <button
+                                key={estrela}
+                                type="button"
+                                onClick={() => setNotaSelecionada(prev => ({ ...prev, [bid.id]: estrela }))}
+                                className="text-2xl leading-none"
+                              >
+                                {(notaSelecionada[bid.id] || 0) >= estrela ? '⭐' : '☆'}
+                              </button>
+                            ))}
+                          </div>
                         </div>
+
+                        <div>
+                          <p className="text-xs font-bold text-amber-800 mb-1">A entrega chegou no prazo combinado?</p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setEntregaNoPrazoSelecionada(prev => ({ ...prev, [bid.id]: true }))}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                                entregaNoPrazoSelecionada[bid.id] === true ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300'
+                              }`}
+                            >
+                              Sim, no prazo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEntregaNoPrazoSelecionada(prev => ({ ...prev, [bid.id]: false }))}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                                entregaNoPrazoSelecionada[bid.id] === false ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-300'
+                              }`}
+                            >
+                              Não, atrasou
+                            </button>
+                          </div>
+                        </div>
+
                         <button
                           onClick={() => handleAvaliarLojista(bid)}
                           disabled={enviandoAvaliacao === bid.id}
@@ -1004,9 +1059,9 @@ export default function ClientDashboard() {
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1 max-w-[80%] ${
-            tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.todosResponderam ? 'bg-emerald-100 text-emerald-700' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+            tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.precisaAvaliar ? 'bg-violet-100 text-violet-700' : tempo.todosResponderam ? 'bg-emerald-100 text-emerald-700' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
           }`}>
-            {tempo.todosResponderam ? '✅' : tempo.pausado ? '⏸️' : '⏱️'} <span className="break-words">{tempo.texto}</span>
+            {tempo.precisaAvaliar ? '⭐' : tempo.todosResponderam ? '✅' : tempo.pausado ? '⏸️' : '⏱️'} <span className="break-words">{tempo.texto}</span>
           </span>
           <span className="text-slate-400 shrink-0">›</span>
         </div>
