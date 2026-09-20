@@ -68,6 +68,11 @@ export default function AdminDashboard() {
   const [enviandoSom, setEnviandoSom] = useState(false);
   const [somAtualUrl, setSomAtualUrl] = useState(null);
 
+  // Modal de Limite Diário do Plano Básico
+  const [isLimitePlanoModalOpen, setIsLimitePlanoModalOpen] = useState(false);
+  const [limiteDiarioBasico, setLimiteDiarioBasico] = useState(5);
+  const [salvandoLimitePlano, setSalvandoLimitePlano] = useState(false);
+
   // Modal de Avaliações (contestações e correções de reputação)
   const [isAvaliacoesModalOpen, setIsAvaliacoesModalOpen] = useState(false);
   const [avaliacoes, setAvaliacoes] = useState([]);
@@ -439,6 +444,23 @@ export default function AdminDashboard() {
   // Caminho fixo do arquivo dentro do bucket 'audio' — sempre sobrescreve
   // o mesmo arquivo, então o lojista sempre busca a versão mais recente.
   const CAMINHO_SOM_NOTIFICACAO = 'notificacao-lojista';
+
+  const carregarConfigLimitePlano = async () => {
+    const { data } = await supabase.from('configuracoes_planos').select('limite_diario_basico').eq('id', 1).single();
+    if (data?.limite_diario_basico != null) setLimiteDiarioBasico(data.limite_diario_basico);
+  };
+
+  const handleSalvarLimitePlano = async (novoValor) => {
+    setSalvandoLimitePlano(true);
+    try {
+      const { error } = await supabase.from('configuracoes_planos').update({ limite_diario_basico: novoValor }).eq('id', 1);
+      if (error) throw error;
+    } catch (err) {
+      alert('Erro ao salvar limite do plano: ' + err.message);
+    } finally {
+      setSalvandoLimitePlano(false);
+    }
+  };
 
   const carregarSomAtual = () => {
     const { data } = supabase.storage.from('audio').getPublicUrl(CAMINHO_SOM_NOTIFICACAO);
@@ -1152,6 +1174,13 @@ export default function AdminDashboard() {
                   <span>🔊</span> {!sidebarColapsada && <span className="truncate">Som de Notificação</span>}
                 </button>
                 <button
+                  onClick={() => { carregarConfigLimitePlano(); setIsLimitePlanoModalOpen(true); }}
+                  title="Limite do Plano Básico"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  <span>📊</span> {!sidebarColapsada && <span className="truncate">Limite do Plano Básico</span>}
+                </button>
+                <button
                   onClick={() => { carregarAvaliacoes('contestadas'); setIsAvaliacoesModalOpen(true); }}
                   title="Avaliações"
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
@@ -1576,6 +1605,40 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* Modal de Limite Diário do Plano Básico */}
+        {isLimitePlanoModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b">
+                <h3 className="text-xl font-bold text-slate-800">📊 Limite do Plano Básico</h3>
+                <button type="button" onClick={() => setIsLimitePlanoModalOpen(false)} className="text-slate-400 font-bold">✕</button>
+              </div>
+
+              <p className="text-xs text-slate-500">
+                Quantas propostas por dia um lojista do plano Básico pode enviar. Ele continua vendo todos os pedidos normalmente — o limite só trava o envio de novas propostas quando bater esse número, com uma sugestão pra virar Pro.
+              </p>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Propostas por dia (plano Básico)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={limiteDiarioBasico}
+                  onChange={(e) => setLimiteDiarioBasico(parseInt(e.target.value) || 1)}
+                  onBlur={(e) => handleSalvarLimitePlano(parseInt(e.target.value) || 1)}
+                  className="w-full p-2.5 rounded-xl border text-sm"
+                />
+              </div>
+
+              {salvandoLimitePlano && <p className="text-xs text-slate-400 text-center">Salvando...</p>}
+
+              <div className="pt-2 border-t flex justify-end">
+                <button type="button" onClick={() => setIsLimitePlanoModalOpen(false)} className="bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-semibold">Fechar</button>
+              </div>
+            </div>
           </div>
         )}
 
