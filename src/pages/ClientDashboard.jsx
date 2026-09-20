@@ -336,7 +336,7 @@ export default function ClientDashboard() {
             if (lojistaIds.length > 0) {
               const { data: lojistasData } = await supabase
                 .from('profiles')
-                .select('id, nome, telefone, reputacao_media, total_avaliacoes, logo_url, percentual_entrega_no_prazo')
+                .select('id, nome, telefone, reputacao_media, total_avaliacoes, logo_url, percentual_entrega_no_prazo, plano')
                 .in('id', lojistaIds);
 
               const lojistaMap = {};
@@ -605,11 +605,15 @@ export default function ClientDashboard() {
     const items = orderItemsMap[order.id] || [];
     const tempo = getRemainingTime(order);
 
-    const rankingPorPreco = [...orderBids].sort((a, b) => {
-      const totalA = parseFloat(a.preco || 0) + parseFloat(a.frete || 0);
-      const totalB = parseFloat(b.preco || 0) + parseFloat(b.frete || 0);
-      return totalA - totalB;
-    });
+    // Propostas sem nenhum item em estoque (preço zerado) não competem
+    // no ranking de "mais barato" — não é uma oferta de preço de verdade.
+    const rankingPorPreco = [...orderBids]
+      .filter(b => parseFloat(b.preco || 0) > 0)
+      .sort((a, b) => {
+        const totalA = parseFloat(a.preco || 0) + parseFloat(a.frete || 0);
+        const totalB = parseFloat(b.preco || 0) + parseFloat(b.frete || 0);
+        return totalA - totalB;
+      });
 
     return (
       <div key={order.id} className="space-y-4">
@@ -693,6 +697,7 @@ export default function ClientDashboard() {
                 const total = (parseFloat(bid.preco || 0)) + (parseFloat(bid.frete || 0));
                 const bItems = bidItemsMap[bid.id] || [];
                 const isAccepted = bid.status === 'Aceito';
+                const lojistaPremium = lojistaPorBid[bid.lojista_id]?.plano === 'premium';
 
                 return (
                   <div
@@ -719,7 +724,7 @@ export default function ClientDashboard() {
                           )}
                         </div>
 
-                        {isAccepted ? (
+                        {(isAccepted || lojistaPremium) ? (
                           <div className="flex items-center gap-2 mt-1.5">
                             {lojistaPorBid[bid.lojista_id]?.logo_url && (
                               <img
@@ -729,7 +734,12 @@ export default function ClientDashboard() {
                               />
                             )}
                             <div>
-                              <p className="text-sm font-bold text-slate-800">{lojistaPorBid[bid.lojista_id]?.nome || 'Loja'}</p>
+                              <p className="text-sm font-bold text-slate-800">
+                                {lojistaPorBid[bid.lojista_id]?.nome || 'Loja'}
+                                {!isAccepted && lojistaPremium && (
+                                  <span className="ml-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full align-middle">🏆 Premium</span>
+                                )}
+                              </p>
                               <p className="text-[11px] font-semibold text-amber-600">
                                 ⭐ {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
                                 <span className="text-slate-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações)</span>
