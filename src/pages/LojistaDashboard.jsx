@@ -694,9 +694,9 @@ export default function LojistaDashboard() {
           retirada_disponivel: retiradaDisponivel,
           formas_pagamento: formasPagamento.length > 0 ? formasPagamento : null,
           parcelas_sem_juros: formasPagamento.includes('cartao') && parcelasSemJuros ? parseInt(parcelasSemJuros) : null,
-          oferece_cashback: cashbackAtivo ? ofereceCashback : false,
-          valor_cashback_oferecido: cashbackAtivo && ofereceCashback ? parseFloat(valorCashbackOferecido || 0) : null,
-          aceita_cashback: cashbackAtivo ? aceitaCashback : false
+          oferece_cashback: cashbackAtivo && (profile?.plano === 'pro' || profile?.plano === 'premium') ? ofereceCashback : false,
+          valor_cashback_oferecido: cashbackAtivo && (profile?.plano === 'pro' || profile?.plano === 'premium') && ofereceCashback ? parseFloat(valorCashbackOferecido || 0) : null,
+          aceita_cashback: cashbackAtivo && profile?.plano === 'premium' ? aceitaCashback : false
         }])
         .select()
         .single();
@@ -853,18 +853,27 @@ export default function LojistaDashboard() {
         return horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
       };
 
-      const ranking = (todasPropostas || [])
-        .map(b => ({
-          bidId: b.id,
-          total: parseFloat(b.preco || 0) + parseFloat(b.frete || 0),
-          frete: parseFloat(b.frete || 0),
-          retirada: b.retirada_disponivel,
-          formasPagamento: (b.formas_pagamento || []).map(fp => OPCOES_PAGAMENTO.find(o => o.value === fp)?.label || fp),
-          tempoResposta: formatarTempoResposta(b.created_at),
-          souEu: b.id === bid.id,
-        }))
+      const todasFormatadas = (todasPropostas || []).map(b => ({
+        bidId: b.id,
+        total: parseFloat(b.preco || 0) + parseFloat(b.frete || 0),
+        frete: parseFloat(b.frete || 0),
+        retirada: b.retirada_disponivel,
+        formasPagamento: (b.formas_pagamento || []).map(fp => OPCOES_PAGAMENTO.find(o => o.value === fp)?.label || fp),
+        tempoResposta: formatarTempoResposta(b.created_at),
+        souEu: b.id === bid.id,
+        // Sem nenhum item em estoque (preço zerado) não é uma oferta de
+        // preço de verdade — não pode competir no ranking como "mais barato".
+        semEstoque: parseFloat(b.preco || 0) === 0,
+      }));
+
+      const comEstoque = todasFormatadas
+        .filter(item => !item.semEstoque)
         .sort((a, b2) => a.total - b2.total)
         .map((item, idx) => ({ ...item, posicao: idx + 1 }));
+
+      const semEstoque = todasFormatadas.filter(item => item.semEstoque).map(item => ({ ...item, posicao: null }));
+
+      const ranking = [...comEstoque, ...semEstoque];
 
       setRankingConcorrentes(ranking);
     } catch (err) {
@@ -1423,7 +1432,7 @@ export default function LojistaDashboard() {
                   </>
                 )}
 
-                {abaSelecionadaLojista === 'encerradas' && fechadoComOutro && profile?.premium && (
+                {abaSelecionadaLojista === 'encerradas' && fechadoComOutro && profile?.plano === 'premium' && (
                   <div className="pt-1">
                     <button
                       onClick={() => handleVerRankingConcorrentes(bid)}
@@ -1445,9 +1454,11 @@ export default function LojistaDashboard() {
                               }`}
                             >
                               <span>
-                                {item.posicao}º {item.souEu ? '(Você)' : 'Concorrente'} — R$ {item.total.toFixed(2)}
-                                {item.retirada && ' · Retirada disponível'}
-                                {item.frete === 0 && ' · Frete grátis'}
+                                {item.semEstoque
+                                  ? `Sem estoque (${item.souEu ? 'Você' : 'Concorrente'}) — fora do comparativo de preço`
+                                  : `${item.posicao}º ${item.souEu ? '(Você)' : 'Concorrente'} — R$ ${item.total.toFixed(2)}`}
+                                {!item.semEstoque && item.retirada && ' · Retirada disponível'}
+                                {!item.semEstoque && item.frete === 0 && ' · Frete grátis'}
                                 {' · Respondeu em '}{item.tempoResposta}
                               </span>
                               <span className="text-slate-500">
@@ -1714,8 +1725,8 @@ export default function LojistaDashboard() {
               )}
             </div>
 
-            {/* Cashback (só aparece se a função estiver ativada no Admin) */}
-            {cashbackAtivo && (
+            {/* Cashback (só aparece se a função estiver ativada no Admin e o plano permitir) */}
+            {cashbackAtivo && (profile?.plano === 'pro' || profile?.plano === 'premium') && (
               <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-3">
                 <p className="text-xs font-bold text-amber-800">💰 Cashback</p>
 
@@ -1741,15 +1752,17 @@ export default function LojistaDashboard() {
                   />
                 )}
 
-                <label className="flex items-center gap-2 text-xs text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={aceitaCashback}
-                    onChange={(e) => setAceitaCashback(e.target.checked)}
-                    className="w-4 h-4 text-amber-600 rounded"
-                  />
-                  Você aceita receber cashback como parte do pagamento?
-                </label>
+                {profile?.plano === 'premium' && (
+                  <label className="flex items-center gap-2 text-xs text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={aceitaCashback}
+                      onChange={(e) => setAceitaCashback(e.target.checked)}
+                      className="w-4 h-4 text-amber-600 rounded"
+                    />
+                    Você aceita receber cashback como parte do pagamento?
+                  </label>
+                )}
               </div>
             )}
 
