@@ -57,6 +57,7 @@ export default function LojistaDashboard() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profile, setProfile] = useState(null);
   const [cashbackAtivo, setCashbackAtivo] = useState(false);
+  const [limiteDiarioBasico, setLimiteDiarioBasico] = useState(5);
   const [minhasAvaliacoes, setMinhasAvaliacoes] = useState([]);
   const [collapsedAvaliacoes, setCollapsedAvaliacoes] = useState(true);
   const [userEmail, setUserEmail] = useState('');
@@ -341,6 +342,9 @@ export default function LojistaDashboard() {
 
       const { data: cashbackConfig } = await supabase.from('configuracoes_cashback').select('ativo').eq('id', 1).single();
       setCashbackAtivo(cashbackConfig?.ativo || false);
+
+      const { data: planosConfig } = await supabase.from('configuracoes_planos').select('limite_diario_basico').eq('id', 1).single();
+      if (planosConfig?.limite_diario_basico != null) setLimiteDiarioBasico(planosConfig.limite_diario_basico);
 
       const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       if (profileData) setProfile(profileData);
@@ -647,6 +651,11 @@ export default function LojistaDashboard() {
       return;
     }
 
+    if (atingiuLimiteBasico) {
+      alert(`Você usou suas ${limiteDiarioBasico} propostas de hoje (plano Básico). Vire Pro e responda sem limite!`);
+      return;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -783,6 +792,15 @@ export default function LojistaDashboard() {
   }));
 
   const acceptedBidsOrdenados = ordenarPorData(acceptedBids.filter(bid => dentroDoPeriodo(bid.created_at)));
+
+  // Quantas propostas este lojista já enviou HOJE — usado só pro plano
+  // Básico, que tem limite diário configurável pelo Admin.
+  const inicioDeHoje = new Date();
+  inicioDeHoje.setHours(0, 0, 0, 0);
+  const propostasHojeCount = [...acceptedBids, ...pendingBids].filter(
+    b => b.created_at && new Date(b.created_at) >= inicioDeHoje
+  ).length;
+  const atingiuLimiteBasico = profile?.plano === 'basico' && propostasHojeCount >= limiteDiarioBasico;
   const pendingBidsOrdenados = ordenarPorData(pendingBids.filter(bid => dentroDoPeriodo(bid.created_at)));
   const enviadasOrdenadas = pendingBidsOrdenados.filter(bid => !ordersFechadosComOutro.has(Number(bid.order_id || bid.pedido_id)));
   const encerradasOrdenadas = pendingBidsOrdenados.filter(bid => ordersFechadosComOutro.has(Number(bid.order_id || bid.pedido_id)));
@@ -1073,6 +1091,12 @@ export default function LojistaDashboard() {
                 ⭐ {profile?.reputacao_media != null ? Number(profile.reputacao_media).toFixed(1) : '5.0'}
                 <span className="text-indigo-100 font-normal"> ({profile?.total_avaliacoes || 0} avaliações)</span>
               </p>
+              {profile?.plano === 'basico' && (
+                <p className={`text-xs font-bold mt-1 ${atingiuLimiteBasico ? 'text-rose-300' : 'text-indigo-100'}`}>
+                  📊 {propostasHojeCount} de {limiteDiarioBasico} propostas usadas hoje
+                  {atingiuLimiteBasico && ' · Limite atingido — vire Pro pra continuar'}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -1766,6 +1790,13 @@ export default function LojistaDashboard() {
               </div>
             )}
 
+            {/* Aviso de limite do plano Básico */}
+            {atingiuLimiteBasico && (
+              <div className="p-3 rounded-xl border border-rose-200 bg-rose-50 text-xs font-semibold text-rose-700">
+                🚫 Você usou suas {limiteDiarioBasico} propostas de hoje (plano Básico). Vire Pro pra responder sem limite.
+              </div>
+            )}
+
             {/* Botões de Ação */}
             <div className="flex gap-2.5 pt-3">
               <button
@@ -1777,7 +1808,8 @@ export default function LojistaDashboard() {
               </button>
               <button
                 type="submit"
-                className="w-1/2 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-bold transition shadow-sm shadow-indigo-200"
+                disabled={atingiuLimiteBasico}
+                className="w-1/2 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition shadow-sm shadow-indigo-200"
               >
                 Confirmar e Enviar Orçamento
               </button>
