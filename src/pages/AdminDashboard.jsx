@@ -972,28 +972,95 @@ export default function AdminDashboard() {
 
   // Exporta os pedidos filtrados (respeitando cidade/cliente/lojista/data/busca) em CSV
   const handleExportarCSV = () => {
+    const LABEL_PRAZO_ENTREGA = {
+      em_2h: 'Em até 2 horas',
+      hoje: 'Ainda hoje',
+      amanha: 'Amanhã',
+      '2_3_dias': '2 a 3 dias',
+    };
+    const LABEL_FORMA_PAGAMENTO = {
+      cartao: 'Cartão',
+      a_vista: 'À vista',
+      faturado: 'Faturado',
+    };
+    const LABEL_PRAZO_PEDIDO = {
+      urgente: 'Urgente (1h)',
+      padrao: 'Padrão',
+      sem_pressa: 'Sem pressa',
+    };
+
     const linhas = [
-      ['Codigo Pedido', 'Data', 'Cliente', 'Cidade', 'Descricao', 'Status', 'Lojista Aceito', 'Valor Total'].join(';')
+      [
+        'Codigo Pedido', 'Data do Pedido', 'Cliente', 'Telefone Cliente', 'Cidade', 'Bairro',
+        'Descricao do Pedido', 'Itens Pedidos', 'Prazo do Pedido', 'Status do Pedido',
+        'Loja', 'Telefone da Loja', 'Proposta Enviada Em', 'Ganhou a Cotacao', 'Status da Proposta',
+        'Atendimento', 'Preco Produto', 'Preco Maximo Faixa', 'Frete', 'Total',
+        'Prazo de Entrega Oferecido', 'Garantia', 'Observacao', 'Formas de Pagamento', 'Parcelas Sem Juros',
+        'Retirada na Loja', 'Oferece Cashback', 'Valor Cashback Oferecido', 'Aceita Cashback',
+        'Itens Ofertados', 'Aceito Em', 'Entregue Em'
+      ].join(';')
     ];
 
-    filteredOrders.forEach((order) => {
-      const orderBids = bidsByOrder[String(order.id)] || [];
-      const bidAceito = orderBids.find(b => b.status === 'Aceito');
-      const lojistaAceito = bidAceito ? (stores.find(st => String(st.id) === String(bidAceito.lojista_id))?.nome || '') : '';
-      const valorTotal = bidAceito ? (parseFloat(bidAceito.preco || 0) + parseFloat(bidAceito.frete || 0)).toFixed(2) : '';
+    const montarLinha = (order, bid) => {
+      const orderItems = orderItemsMap[order.id] || [];
+      const itensPedido = orderItems.map(i => `${i.descricao} (Qtd: ${i.quantidade})`).join(' | ');
 
-      const linha = [
+      const lojista = bid ? (profilesMap.get(String(bid.lojista_id)) || stores.find(st => String(st.id) === String(bid.lojista_id))) : null;
+      const bItems = bid ? (bidItemsMap[bid.id] || []) : [];
+      const itensOfertados = bItems.map(bi => {
+        const origItem = orderItems.find(i => i.id === bi.order_item_id);
+        const partes = [`${origItem?.descricao || 'Item'}: ${bi.atendido ? `R$ ${parseFloat(bi.preco_unitario || 0).toFixed(2)}` : 'Indisponível'}`];
+        if (bi.nome_opcao) partes.push(`opção: ${bi.nome_opcao}`);
+        if (bi.garantia_opcao) partes.push(`garantia: ${bi.garantia_opcao}`);
+        if (bi.observacao_opcao) partes.push(`obs: ${bi.observacao_opcao}`);
+        return partes.join(' / ');
+      }).join(' | ');
+
+      const total = bid ? (parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2) : '';
+
+      return [
         order.codigo_pedido || order.id,
         formatDataHora(order.created_at),
         order.cliente?.nome || '',
+        order.cliente?.telefone || '',
         order.cidade_nome_exibicao || '',
+        order.bairro || '',
         (order.descricao || '').replace(/;/g, ','),
+        itensPedido,
+        LABEL_PRAZO_PEDIDO[order.prazo_opcao] || order.prazo_opcao || '',
         order.status || '',
-        lojistaAceito,
-        valorTotal
+        lojista?.nome || '',
+        lojista?.telefone || '',
+        bid ? formatDataHora(bid.created_at) : '',
+        bid ? (bid.status === 'Aceito' ? 'Sim' : 'Não') : '',
+        bid?.status || '',
+        bid ? (bid.is_completo ? '100%' : 'Parcial') : '',
+        bid ? parseFloat(bid.preco || 0).toFixed(2) : '',
+        bid?.preco_faixa_maximo != null ? parseFloat(bid.preco_faixa_maximo).toFixed(2) : '',
+        bid ? parseFloat(bid.frete || 0).toFixed(2) : '',
+        total,
+        bid?.prazo_entrega ? (LABEL_PRAZO_ENTREGA[bid.prazo_entrega] || bid.prazo_entrega) : '',
+        bid?.garantia || '',
+        bid?.observacao || '',
+        bid?.formas_pagamento ? bid.formas_pagamento.map(fp => LABEL_FORMA_PAGAMENTO[fp] || fp).join(', ') : '',
+        bid?.parcelas_sem_juros || '',
+        bid?.retirada_disponivel ? 'Sim' : 'Não',
+        bid?.oferece_cashback ? 'Sim' : 'Não',
+        bid?.valor_cashback_oferecido != null ? parseFloat(bid.valor_cashback_oferecido).toFixed(2) : '',
+        bid?.aceita_cashback ? 'Sim' : 'Não',
+        itensOfertados,
+        bid?.accepted_at ? formatDataHora(bid.accepted_at) : '',
+        bid?.entregue_em ? formatDataHora(bid.entregue_em) : '',
       ].map(campo => `"${String(campo).replace(/"/g, '""')}"`).join(';');
+    };
 
-      linhas.push(linha);
+    filteredOrders.forEach((order) => {
+      const orderBids = bidsByOrder[String(order.id)] || [];
+      if (orderBids.length === 0) {
+        linhas.push(montarLinha(order, null));
+      } else {
+        orderBids.forEach(bid => linhas.push(montarLinha(order, bid)));
+      }
     });
 
     const csvContent = '\uFEFF' + linhas.join('\n');
