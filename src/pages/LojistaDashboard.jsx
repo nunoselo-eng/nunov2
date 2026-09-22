@@ -563,7 +563,10 @@ export default function LojistaDashboard() {
       order_item_id: item.id,
       preco_unitario: '',
       atendido: true,
-      imagem_url: ''
+      imagem_url: '',
+      nome_opcao: '',
+      garantia_opcao: '',
+      observacao_opcao: ''
     })));
     setOpcoesExtras([]);
   };
@@ -767,7 +770,7 @@ export default function LojistaDashboard() {
             atendido: true,
             available: true,
             imagem_url: op.imagem_url,
-            nome_opcao: i === 0 ? (op.nome_opcao || null) : (op.nome_opcao || null),
+            nome_opcao: op.nome_opcao || null,
             garantia_opcao: op.garantia_opcao || null,
             observacao_opcao: op.observacao_opcao || null,
           }))
@@ -1675,6 +1678,18 @@ export default function LojistaDashboard() {
 
                   {bidItemsData[idx]?.atendido && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                      {idx === 0 && orderItems.length === 1 && (profile?.plano === 'pro' || profile?.plano === 'premium') && (
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Nome do produto (opcional, ajuda se você for oferecer mais de uma opção)</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: capa dura"
+                            value={bidItemsData[idx]?.nome_opcao}
+                            onChange={(e) => handleBidItemChange(idx, 'nome_opcao', e.target.value)}
+                            className="w-full p-2 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
+                          />
+                        </div>
+                      )}
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Preço Unitário (R$)</label>
                         <input
@@ -1707,6 +1722,30 @@ export default function LojistaDashboard() {
                           )}
                         </div>
                       </div>
+                      {idx === 0 && orderItems.length === 1 && (profile?.plano === 'pro' || profile?.plano === 'premium') && (
+                        <>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Garantia dessa opção (opcional)</label>
+                            <input
+                              type="text"
+                              placeholder="Ex: 3 meses"
+                              value={bidItemsData[idx]?.garantia_opcao}
+                              onChange={(e) => handleBidItemChange(idx, 'garantia_opcao', e.target.value)}
+                              className="w-full p-2 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Observação dessa opção (opcional)</label>
+                            <input
+                              type="text"
+                              placeholder="Ex: cor azul"
+                              value={bidItemsData[idx]?.observacao_opcao}
+                              onChange={(e) => handleBidItemChange(idx, 'observacao_opcao', e.target.value)}
+                              className="w-full p-2 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
 
