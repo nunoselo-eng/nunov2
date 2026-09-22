@@ -732,14 +732,15 @@ export default function ClientDashboard() {
                               <img
                                 src={lojistaPorBid[bid.lojista_id].logo_url}
                                 alt="Logo da loja"
-                                className="w-8 h-8 rounded-lg object-cover border border-slate-200"
+                                onClick={() => setActiveImage(lojistaPorBid[bid.lojista_id].logo_url)}
+                                className="w-8 h-8 rounded-lg object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition"
                               />
                             )}
                             <div>
                               <p className="text-sm font-bold text-slate-800">
                                 {lojistaPorBid[bid.lojista_id]?.nome || 'Loja'}
                                 {!isAccepted && lojistaPremium && (
-                                  <span className="ml-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full align-middle">🏆 Premium</span>
+                                  <span className="ml-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full align-middle">🏆 Loja Patrocinada</span>
                                 )}
                               </p>
                               <p className="text-[11px] font-semibold text-amber-600">
