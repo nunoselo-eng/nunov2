@@ -12,6 +12,10 @@ export default function LojistaDashboard() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
   const [bidItemsData, setBidItemsData] = useState([]);
+  // Opções extras de preço pro item único (faixa de preço, Pro/Premium) —
+  // cada uma vira outra linha em bid_items, ligada ao mesmo item do pedido.
+  const [opcoesExtras, setOpcoesExtras] = useState([]);
+  const [uploadingOpcaoIndex, setUploadingOpcaoIndex] = useState(null);
   const [frete, setFrete] = useState('');
   const [observacao, setObservacao] = useState('');
   const [prazoEntrega, setPrazoEntrega] = useState('');
@@ -561,6 +565,7 @@ export default function LojistaDashboard() {
       atendido: true,
       imagem_url: ''
     })));
+    setOpcoesExtras([]);
   };
 
   const handleBidItemChange = (index, field, value) => {
@@ -579,6 +584,31 @@ export default function LojistaDashboard() {
       alert('Erro no envio da foto: ' + err.message);
     } finally {
       setUploadingImageIndex(null);
+    }
+  };
+
+  const handleAdicionarOpcaoExtra = () => {
+    setOpcoesExtras(prev => [...prev, { nome_opcao: '', preco_unitario: '', garantia_opcao: '', observacao_opcao: '', imagem_url: '' }]);
+  };
+
+  const handleOpcaoExtraChange = (index, field, value) => {
+    setOpcoesExtras(prev => prev.map((op, i) => i === index ? { ...op, [field]: value } : op));
+  };
+
+  const handleRemoverOpcaoExtra = (index) => {
+    setOpcoesExtras(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleOpcaoExtraImagem = async (index, file) => {
+    if (!file) return;
+    try {
+      setUploadingOpcaoIndex(index);
+      const url = await uploadImageToStorage(file, 'lojista');
+      handleOpcaoExtraChange(index, 'imagem_url', url);
+    } catch (err) {
+      alert('Erro no envio da foto: ' + err.message);
+    } finally {
+      setUploadingOpcaoIndex(null);
     }
   };
 
@@ -675,16 +705,31 @@ export default function LojistaDashboard() {
       }
 
       let totalProdutos = 0;
+      let totalProdutosMax = null;
       let atendeuTodos = true;
 
-      bidItemsData.forEach((bItem, idx) => {
-        if (bItem.atendido) {
-          const qtd = orderItems[idx]?.quantidade || 1;
-          totalProdutos += (parseFloat(bItem.preco_unitario || 0) * qtd);
-        } else {
-          atendeuTodos = false;
-        }
-      });
+      // Faixa de preço: só pra pedido de item único, quando o lojista
+      // adicionou opções extras de preço pro mesmo item.
+      const temFaixaDePreco = orderItems.length === 1 && opcoesExtras.length > 0;
+
+      if (temFaixaDePreco) {
+        const qtd = orderItems[0]?.quantidade || 1;
+        const totaisOpcoes = [bidItemsData[0], ...opcoesExtras]
+          .map(op => parseFloat(op.preco_unitario || 0) * qtd)
+          .filter(v => v > 0);
+        totalProdutos = totaisOpcoes.length > 0 ? Math.min(...totaisOpcoes) : 0;
+        totalProdutosMax = totaisOpcoes.length > 0 ? Math.max(...totaisOpcoes) : null;
+        atendeuTodos = bidItemsData[0]?.atendido || false;
+      } else {
+        bidItemsData.forEach((bItem, idx) => {
+          if (bItem.atendido) {
+            const qtd = orderItems[idx]?.quantidade || 1;
+            totalProdutos += (parseFloat(bItem.preco_unitario || 0) * qtd);
+          } else {
+            atendeuTodos = false;
+          }
+        });
+      }
 
       const { data: newBid, error: bidErr } = await supabase
         .from('bids')
@@ -694,6 +739,7 @@ export default function LojistaDashboard() {
           lojista_id: user?.id,
           preco: totalProdutos,
           valor: totalProdutos,
+          preco_faixa_maximo: temFaixaDePreco && totalProdutosMax > totalProdutos ? totalProdutosMax : null,
           frete: parseFloat(frete || 0),
           observacao: observacao,
           status: 'Enviado',
@@ -712,15 +758,28 @@ export default function LojistaDashboard() {
 
       if (bidErr) throw bidErr;
 
-      const itemsToInsert = bidItemsData.map(bItem => ({
-        bid_id: newBid.id,
-        order_item_id: bItem.order_item_id,
-        preco_unitario: parseFloat(bItem.preco_unitario || 0),
-        price: parseFloat(bItem.preco_unitario || 0),
-        atendido: bItem.atendido,
-        available: bItem.atendido,
-        imagem_url: bItem.imagem_url
-      }));
+      const itemsToInsert = temFaixaDePreco
+        ? [bidItemsData[0], ...opcoesExtras].map((op, i) => ({
+            bid_id: newBid.id,
+            order_item_id: orderItems[0].id,
+            preco_unitario: parseFloat(op.preco_unitario || 0),
+            price: parseFloat(op.preco_unitario || 0),
+            atendido: true,
+            available: true,
+            imagem_url: op.imagem_url,
+            nome_opcao: i === 0 ? (op.nome_opcao || null) : (op.nome_opcao || null),
+            garantia_opcao: op.garantia_opcao || null,
+            observacao_opcao: op.observacao_opcao || null,
+          }))
+        : bidItemsData.map(bItem => ({
+            bid_id: newBid.id,
+            order_item_id: bItem.order_item_id,
+            preco_unitario: parseFloat(bItem.preco_unitario || 0),
+            price: parseFloat(bItem.preco_unitario || 0),
+            atendido: bItem.atendido,
+            available: bItem.atendido,
+            imagem_url: bItem.imagem_url
+          }));
 
       const { error: itemsErr } = await supabase.from('bid_items').insert(itemsToInsert);
       if (itemsErr) throw itemsErr;
@@ -737,6 +796,7 @@ export default function LojistaDashboard() {
       setOfereceCashback(false);
       setValorCashbackOferecido('');
       setAceitaCashback(false);
+      setOpcoesExtras([]);
       setNovosPedidosCount(prev => {
         const novo = Math.max(0, prev - 1);
         if (novo === 0) setNewOrderAlert(false);
@@ -1647,6 +1707,71 @@ export default function LojistaDashboard() {
                           )}
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Faixa de preço: só pra item único, Pro/Premium */}
+                  {idx === 0 && orderItems.length === 1 && bidItemsData[0]?.atendido && (profile?.plano === 'pro' || profile?.plano === 'premium') && (
+                    <div className="pt-3 border-t border-slate-200/60 space-y-3">
+                      {opcoesExtras.map((op, opIdx) => (
+                        <div key={opIdx} className="p-3 rounded-xl border border-indigo-200 bg-indigo-50/40 space-y-2">
+                          <div className="flex justify-between items-center">
+                            <p className="text-xs font-bold text-indigo-700">Opção extra #{opIdx + 2}</p>
+                            <button type="button" onClick={() => handleRemoverOpcaoExtra(opIdx)} className="text-xs font-bold text-rose-600">Remover</button>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              placeholder="Nome dessa opção (ex: capa dura)"
+                              value={op.nome_opcao}
+                              onChange={(e) => handleOpcaoExtraChange(opIdx, 'nome_opcao', e.target.value)}
+                              className="w-full p-2 rounded-lg border border-slate-300 text-sm"
+                            />
+                            <input
+                              type="number"
+                              step="0.01"
+                              required
+                              placeholder="Preço unitário (R$)"
+                              value={op.preco_unitario}
+                              onChange={(e) => handleOpcaoExtraChange(opIdx, 'preco_unitario', e.target.value)}
+                              className="w-full p-2 rounded-lg border border-slate-300 text-sm"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Garantia (opcional)"
+                              value={op.garantia_opcao}
+                              onChange={(e) => handleOpcaoExtraChange(opIdx, 'garantia_opcao', e.target.value)}
+                              className="w-full p-2 rounded-lg border border-slate-300 text-sm"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Observação (opcional)"
+                              value={op.observacao_opcao}
+                              onChange={(e) => handleOpcaoExtraChange(opIdx, 'observacao_opcao', e.target.value)}
+                              className="w-full p-2 rounded-lg border border-slate-300 text-sm"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleOpcaoExtraImagem(opIdx, e.target.files[0])}
+                              className="text-xs text-slate-500 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:bg-slate-200 file:text-slate-700 hover:file:bg-slate-300"
+                            />
+                            {uploadingOpcaoIndex === opIdx && <span className="text-xs text-indigo-600">Enviando...</span>}
+                            {op.imagem_url && (
+                              <img src={op.imagem_url} alt="Opção" className="w-8 h-8 object-cover rounded-lg border border-indigo-200" />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={handleAdicionarOpcaoExtra}
+                        className="text-xs font-bold text-indigo-600 hover:underline"
+                      >
+                        + Adicionar outra opção de preço (faixa de preço)
+                      </button>
                     </div>
                   )}
                 </div>
