@@ -695,6 +695,8 @@ export default function ClientDashboard() {
                 return totalA - totalB;
               }).map((bid, index) => {
                 const total = (parseFloat(bid.preco || 0)) + (parseFloat(bid.frete || 0));
+                const temFaixaDePreco = bid.preco_faixa_maximo != null && parseFloat(bid.preco_faixa_maximo) > parseFloat(bid.preco || 0);
+                const totalMax = temFaixaDePreco ? parseFloat(bid.preco_faixa_maximo) + parseFloat(bid.frete || 0) : null;
                 const bItems = bidItemsMap[bid.id] || [];
                 const isAccepted = bid.status === 'Aceito';
                 const lojistaPremium = lojistaPorBid[bid.lojista_id]?.plano === 'premium';
@@ -771,7 +773,14 @@ export default function ClientDashboard() {
                         </p>
 
                         <p className="text-xs text-slate-500 mt-1.5 space-x-3">
-                          <span>Produto: <b className="text-slate-700">R$ {parseFloat(bid.preco || 0).toFixed(2)}</b></span>
+                          <span>
+                            Produto:{' '}
+                            <b className="text-slate-700">
+                              {temFaixaDePreco
+                                ? `de R$ ${parseFloat(bid.preco || 0).toFixed(2)} até R$ ${parseFloat(bid.preco_faixa_maximo).toFixed(2)}`
+                                : `R$ ${parseFloat(bid.preco || 0).toFixed(2)}`}
+                            </b>
+                          </span>
                           <span>
                             Frete:{' '}
                             <b className={parseFloat(bid.frete || 0) === 0 ? 'text-emerald-600' : 'text-slate-700'}>
@@ -780,7 +789,7 @@ export default function ClientDashboard() {
                           </span>
                         </p>
                         <p className="text-xl font-bold text-slate-900 mt-1">
-                          Total: R$ {total.toFixed(2)}
+                          {temFaixaDePreco ? `Total: de R$ ${total.toFixed(2)} até R$ ${totalMax.toFixed(2)}` : `Total: R$ ${total.toFixed(2)}`}
                         </p>
                         {(parseFloat(bid.frete || 0) === 0 || bid.retirada_disponivel) && (
                           <div className="flex flex-wrap gap-1.5 mt-1">
@@ -978,43 +987,67 @@ export default function ClientDashboard() {
                     {showDetails[bid.id] && (
                       <div className="pt-3 border-t border-slate-200 space-y-2">
                         {items.map((oItem) => {
-                          const bItem = bItems.find(bi => bi.order_item_id === oItem.id);
-                          return (
-                            <div
-                              key={oItem.id}
-                              className="text-xs text-slate-700 flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs"
-                            >
-                              <div>
+                          const bItensDoItem = bItems.filter(bi => bi.order_item_id === oItem.id);
+                          const temVariasOpcoes = bItensDoItem.length > 1;
+                          if (bItensDoItem.length === 0) {
+                            return (
+                              <div key={oItem.id} className="text-xs text-slate-700 bg-white p-3 rounded-xl border border-slate-200/80">
                                 <p className="font-bold text-slate-800">{oItem.descricao} (Qtd: {oItem.quantidade})</p>
-                                <p className={`font-semibold mt-0.5 ${bItem?.atendido ? 'text-emerald-600' : 'text-rose-600 font-bold'}`}>
-                                  {bItem?.atendido ? `R$ ${parseFloat(bItem.preco_unitario || 0).toFixed(2)} / unid` : 'Item indisponível'}
-                                </p>
+                                <p className="font-semibold mt-0.5 text-rose-600">Item indisponível</p>
                               </div>
+                            );
+                          }
+                          return (
+                            <div key={oItem.id} className="space-y-1.5">
+                              {!temVariasOpcoes && (
+                                <p className="font-bold text-slate-800 text-xs">{oItem.descricao} (Qtd: {oItem.quantidade})</p>
+                              )}
+                              {bItensDoItem.map((bItem, opIdx) => (
+                                <div
+                                  key={bItem.id}
+                                  className="text-xs text-slate-700 flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs"
+                                >
+                                  <div>
+                                    {temVariasOpcoes ? (
+                                      <p className="font-bold text-slate-800">
+                                        Opção {opIdx + 1}{bItem.nome_opcao ? ` — ${bItem.nome_opcao}` : ''} <span className="text-slate-400 font-normal">({oItem.descricao}, Qtd: {oItem.quantidade})</span>
+                                      </p>
+                                    ) : (
+                                      <p className="font-bold text-slate-800">&nbsp;</p>
+                                    )}
+                                    <p className={`font-semibold mt-0.5 ${bItem?.atendido ? 'text-emerald-600' : 'text-rose-600 font-bold'}`}>
+                                      {bItem?.atendido ? `R$ ${parseFloat(bItem.preco_unitario || 0).toFixed(2)} / unid` : 'Item indisponível'}
+                                    </p>
+                                    {bItem.garantia_opcao && <p className="text-slate-500 mt-0.5">Garantia: {bItem.garantia_opcao}</p>}
+                                    {bItem.observacao_opcao && <p className="text-slate-500 mt-0.5">Obs: {bItem.observacao_opcao}</p>}
+                                  </div>
 
-                              <div className="flex gap-2">
-                                {oItem.imagem_url && (
-                                  <div className="text-center">
-                                    <p className="text-[10px] text-slate-400 font-medium mb-1">Cliente</p>
-                                    <img
-                                      src={oItem.imagem_url}
-                                      alt="Cliente"
-                                      onClick={() => setActiveImage(oItem.imagem_url)}
-                                      className="w-9 h-9 object-cover rounded-lg border border-indigo-100 cursor-pointer hover:opacity-80 transition"
-                                    />
+                                  <div className="flex gap-2">
+                                    {!temVariasOpcoes && oItem.imagem_url && (
+                                      <div className="text-center">
+                                        <p className="text-[10px] text-slate-400 font-medium mb-1">Cliente</p>
+                                        <img
+                                          src={oItem.imagem_url}
+                                          alt="Cliente"
+                                          onClick={() => setActiveImage(oItem.imagem_url)}
+                                          className="w-9 h-9 object-cover rounded-lg border border-indigo-100 cursor-pointer hover:opacity-80 transition"
+                                        />
+                                      </div>
+                                    )}
+                                    {bItem?.imagem_url && (
+                                      <div className="text-center">
+                                        <p className="text-[10px] text-indigo-600 font-bold mb-1">Lojista</p>
+                                        <img
+                                          src={bItem.imagem_url}
+                                          alt="Lojista"
+                                          onClick={() => setActiveImage(bItem.imagem_url)}
+                                          className="w-9 h-9 object-cover rounded-lg border border-indigo-200 cursor-pointer hover:opacity-80 transition"
+                                        />
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                                {bItem?.imagem_url && (
-                                  <div className="text-center">
-                                    <p className="text-[10px] text-indigo-600 font-bold mb-1">Lojista</p>
-                                    <img
-                                      src={bItem.imagem_url}
-                                      alt="Lojista"
-                                      onClick={() => setActiveImage(bItem.imagem_url)}
-                                      className="w-9 h-9 object-cover rounded-lg border border-indigo-200 cursor-pointer hover:opacity-80 transition"
-                                    />
-                                  </div>
-                                )}
-                              </div>
+                                </div>
+                              ))}
                             </div>
                           );
                         })}
