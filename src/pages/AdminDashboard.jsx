@@ -117,6 +117,7 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [bidsByOrder, setBidsByOrder] = useState({});
   const [penalidadesPorUsuario, setPenalidadesPorUsuario] = useState({});
+  const [avaliacoesPorBid, setAvaliacoesPorBid] = useState({});
   const [lojistaExpandidoId, setLojistaExpandidoId] = useState(null);
   const [clients, setClients] = useState([]);
   const [stores, setStores] = useState([]);
@@ -265,6 +266,14 @@ export default function AdminDashboard() {
       contagemPenalidades[p.usuario_id] = (contagemPenalidades[p.usuario_id] || 0) + 1;
     });
     setPenalidadesPorUsuario(contagemPenalidades);
+
+    // Avaliações do cliente sobre cada proposta, pra usar na exportação
+    const { data: avaliacoesData } = await supabase.from('avaliacoes').select('*');
+    const mapaAvaliacoes = {};
+    (avaliacoesData || []).forEach(av => {
+      mapaAvaliacoes[av.bid_id] = av;
+    });
+    setAvaliacoesPorBid(mapaAvaliacoes);
 
     const lojistaIdsInBids = Array.from(new Set(bidsData.map(b => b.lojista_id).filter(Boolean)));
     setStores((profilesData || []).filter(p => lojistaIdsInBids.includes(p.id)));
@@ -991,13 +1000,14 @@ export default function AdminDashboard() {
 
     const linhas = [
       [
-        'Codigo Pedido', 'Data do Pedido', 'Cliente', 'Telefone Cliente', 'Cidade', 'Bairro',
-        'Descricao do Pedido', 'Itens Pedidos', 'Prazo do Pedido', 'Status do Pedido',
-        'Loja', 'Telefone da Loja', 'Proposta Enviada Em', 'Ganhou a Cotacao', 'Status da Proposta',
-        'Atendimento', 'Preco Produto', 'Preco Maximo Faixa', 'Frete', 'Total',
-        'Prazo de Entrega Oferecido', 'Garantia', 'Observacao', 'Formas de Pagamento', 'Parcelas Sem Juros',
-        'Retirada na Loja', 'Oferece Cashback', 'Valor Cashback Oferecido', 'Aceita Cashback',
-        'Itens Ofertados', 'Aceito Em', 'Entregue Em'
+        'Codigo Pedido', 'Data e Hora do Pedido', 'Cliente', 'Telefone Cliente', 'Cidade', 'Bairro',
+        'Descricao do Pedido', 'Itens Pedidos', 'Prazo de Urgencia do Pedido', 'Status do Pedido',
+        'Loja', 'Telefone da Loja', 'Data e Hora da Resposta', 'Ganhou a Cotacao', 'Status da Proposta',
+        'Atendimento', 'Teve Item Sem Estoque', 'Preco Produto', 'Preco Maximo Faixa', 'Valor do Frete', 'Forma de Entrega', 'Total',
+        'Prazo de Entrega Oferecido', 'Garantia', 'Observacao do Lojista', 'Formas de Pagamento', 'Parcelas Sem Juros',
+        'Oferece Cashback', 'Valor Cashback Oferecido', 'Aceita Cashback',
+        'Itens e Produtos Ofertados', 'Data e Hora do Aceite', 'Data e Hora da Entrega',
+        'Nota da Avaliacao', 'Entrega no Prazo (avaliacao)', 'Comentario da Avaliacao'
       ].join(';')
     ];
 
@@ -1007,9 +1017,10 @@ export default function AdminDashboard() {
 
       const lojista = bid ? (profilesMap.get(String(bid.lojista_id)) || stores.find(st => String(st.id) === String(bid.lojista_id))) : null;
       const bItems = bid ? (bidItemsMap[bid.id] || []) : [];
+      const teveSemEstoque = bItems.some(bi => !bi.atendido);
       const itensOfertados = bItems.map(bi => {
         const origItem = orderItems.find(i => i.id === bi.order_item_id);
-        const partes = [`${origItem?.descricao || 'Item'}: ${bi.atendido ? `R$ ${parseFloat(bi.preco_unitario || 0).toFixed(2)}` : 'Indisponível'}`];
+        const partes = [`${origItem?.descricao || 'Item'}: ${bi.atendido ? `R$ ${parseFloat(bi.preco_unitario || 0).toFixed(2)}` : 'SEM ESTOQUE'}`];
         if (bi.nome_opcao) partes.push(`opção: ${bi.nome_opcao}`);
         if (bi.garantia_opcao) partes.push(`garantia: ${bi.garantia_opcao}`);
         if (bi.observacao_opcao) partes.push(`obs: ${bi.observacao_opcao}`);
@@ -1017,6 +1028,8 @@ export default function AdminDashboard() {
       }).join(' | ');
 
       const total = bid ? (parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2) : '';
+      const formaEntrega = bid ? (bid.retirada_disponivel ? 'Retirada na loja' : (parseFloat(bid.frete || 0) === 0 ? 'Entrega grátis' : 'Entrega')) : '';
+      const avaliacao = bid ? avaliacoesPorBid[bid.id] : null;
 
       return [
         order.codigo_pedido || order.id,
@@ -1035,22 +1048,26 @@ export default function AdminDashboard() {
         bid ? (bid.status === 'Aceito' ? 'Sim' : 'Não') : '',
         bid?.status || '',
         bid ? (bid.is_completo ? '100%' : 'Parcial') : '',
+        bid ? (teveSemEstoque ? 'Sim' : 'Não') : '',
         bid ? parseFloat(bid.preco || 0).toFixed(2) : '',
         bid?.preco_faixa_maximo != null ? parseFloat(bid.preco_faixa_maximo).toFixed(2) : '',
         bid ? parseFloat(bid.frete || 0).toFixed(2) : '',
+        formaEntrega,
         total,
         bid?.prazo_entrega ? (LABEL_PRAZO_ENTREGA[bid.prazo_entrega] || bid.prazo_entrega) : '',
         bid?.garantia || '',
         bid?.observacao || '',
         bid?.formas_pagamento ? bid.formas_pagamento.map(fp => LABEL_FORMA_PAGAMENTO[fp] || fp).join(', ') : '',
         bid?.parcelas_sem_juros || '',
-        bid?.retirada_disponivel ? 'Sim' : 'Não',
         bid?.oferece_cashback ? 'Sim' : 'Não',
         bid?.valor_cashback_oferecido != null ? parseFloat(bid.valor_cashback_oferecido).toFixed(2) : '',
         bid?.aceita_cashback ? 'Sim' : 'Não',
         itensOfertados,
         bid?.accepted_at ? formatDataHora(bid.accepted_at) : '',
         bid?.entregue_em ? formatDataHora(bid.entregue_em) : '',
+        avaliacao ? avaliacao.nota : '',
+        avaliacao?.entrega_no_prazo != null ? (avaliacao.entrega_no_prazo ? 'Sim' : 'Não') : '',
+        avaliacao?.comentario || '',
       ].map(campo => `"${String(campo).replace(/"/g, '""')}"`).join(';');
     };
 
