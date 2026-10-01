@@ -33,6 +33,7 @@ export default function RepresentanteDashboard() {
   const [novaSenhaCliente, setNovaSenhaCliente] = useState('');
   const [novoTelefoneCliente, setNovoTelefoneCliente] = useState('');
   const [novaCidadeCliente, setNovaCidadeCliente] = useState('');
+  const [novoDocumentoCliente, setNovoDocumentoCliente] = useState('');
 
   // --- Modal de Cadastro de Lojista ---
   const [isLojistaModalOpen, setIsLojistaModalOpen] = useState(false);
@@ -41,6 +42,14 @@ export default function RepresentanteDashboard() {
   const [novaSenhaLojista, setNovaSenhaLojista] = useState('');
   const [novaCidadeLojista, setNovaCidadeLojista] = useState('');
   const [novoTelefoneLojista, setNovoTelefoneLojista] = useState('');
+  const [novoDocumentoLojista, setNovoDocumentoLojista] = useState('');
+
+  // CPF/CNPJ opcional: guarda só os dígitos; aceita vazio, 11 (CPF) ou 14 (CNPJ)
+  const somenteDigitos = (txt) => (txt || '').replace(/\D/g, '');
+  const documentoValidoOuVazio = (doc) => {
+    const d = somenteDigitos(doc);
+    return d.length === 0 || d.length === 11 || d.length === 14;
+  };
   const [novasCategoriasIds, setNovasCategoriasIds] = useState([]);
   const [novoHorarioAbertura, setNovoHorarioAbertura] = useState('08:00');
   const [novoHorarioFechamento, setNovoHorarioFechamento] = useState('18:00');
@@ -83,6 +92,10 @@ export default function RepresentanteDashboard() {
 
   const handleCreateCliente = async (e) => {
     e.preventDefault();
+    if (!documentoValidoOuVazio(novoDocumentoCliente)) {
+      alert('CPF precisa ter 11 dígitos e CNPJ 14. Deixe em branco se não quiser informar.');
+      return;
+    }
     try {
       const supabaseUrl = supabase.supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = supabase.supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -102,6 +115,7 @@ export default function RepresentanteDashboard() {
         email: emailLoginCliente,
         cidade: novaCidadeCliente,
         telefone: novoTelefoneCliente,
+        documento: somenteDigitos(novoDocumentoCliente) || null,
         ativo: true,
         precisa_trocar_senha: true
       });
@@ -110,7 +124,7 @@ export default function RepresentanteDashboard() {
 
       alert('Cliente cadastrado com sucesso!');
       setIsClientModalOpen(false);
-      setNovoNomeCliente(''); setNovoEmailCliente(''); setNovaSenhaCliente(''); setNovaCidadeCliente(''); setNovoTelefoneCliente('');
+      setNovoNomeCliente(''); setNovoEmailCliente(''); setNovaSenhaCliente(''); setNovaCidadeCliente(''); setNovoTelefoneCliente(''); setNovoDocumentoCliente('');
     } catch (err) {
       alert('Erro ao cadastrar cliente: ' + err.message);
     }
@@ -118,6 +132,10 @@ export default function RepresentanteDashboard() {
 
   const handleCreateLojista = async (e) => {
     e.preventDefault();
+    if (!documentoValidoOuVazio(novoDocumentoLojista)) {
+      alert('CPF precisa ter 11 dígitos e CNPJ 14. Deixe em branco se não quiser informar.');
+      return;
+    }
     try {
       const supabaseUrl = supabase.supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = supabase.supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -137,6 +155,7 @@ export default function RepresentanteDashboard() {
         email: emailLoginLojista,
         cidade: novaCidadeLojista,
         telefone: novoTelefoneLojista,
+        documento: somenteDigitos(novoDocumentoLojista) || null,
         ativo: true,
         precisa_trocar_senha: true,
         horario_abertura: novoHorarioAbertura,
@@ -153,7 +172,7 @@ export default function RepresentanteDashboard() {
 
       alert('Lojista cadastrado com sucesso!');
       setIsLojistaModalOpen(false);
-      setNovoNomeLojista(''); setNovoEmailLojista(''); setNovaSenhaLojista(''); setNovaCidadeLojista(''); setNovoTelefoneLojista(''); setNovasCategoriasIds([]);
+      setNovoNomeLojista(''); setNovoEmailLojista(''); setNovaSenhaLojista(''); setNovaCidadeLojista(''); setNovoTelefoneLojista(''); setNovoDocumentoLojista(''); setNovasCategoriasIds([]);
       setNovoHorarioAbertura('08:00'); setNovoHorarioFechamento('18:00'); setNovosDiasFuncionamento(['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
     } catch (err) {
       alert('Erro ao cadastrar lojista: ' + err.message);
@@ -233,6 +252,7 @@ export default function RepresentanteDashboard() {
             <input type="password" placeholder="Senha Inicial" value={novaSenhaCliente} onChange={(e) => setNovaSenhaCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
             <input type="text" placeholder="Cidade" value={novaCidadeCliente} onChange={(e) => setNovaCidadeCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
             <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefoneCliente} onChange={(e) => setNovoTelefoneCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
+            <input type="text" placeholder="CPF ou CNPJ (opcional)" value={novoDocumentoCliente} onChange={(e) => setNovoDocumentoCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
 
             <div className="flex space-x-3 pt-3">
               <button type="button" onClick={() => setIsClientModalOpen(false)} className="w-1/2 bg-slate-200 text-slate-700 p-2 rounded-xl font-semibold text-sm">Cancelar</button>
@@ -255,6 +275,7 @@ export default function RepresentanteDashboard() {
             <input type="password" placeholder="Senha Inicial" value={novaSenhaLojista} onChange={(e) => setNovaSenhaLojista(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
             <input type="text" placeholder="Cidade" value={novaCidadeLojista} onChange={(e) => setNovaCidadeLojista(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
             <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefoneLojista} onChange={(e) => setNovoTelefoneLojista(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
+            <input type="text" placeholder="CPF ou CNPJ (opcional)" value={novoDocumentoLojista} onChange={(e) => setNovoDocumentoLojista(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
 
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-2">Horário de Funcionamento</label>
