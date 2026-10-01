@@ -743,13 +743,15 @@ export default function LojistaDashboard() {
           preco: totalProdutos,
           valor: totalProdutos,
           preco_faixa_maximo: temFaixaDePreco && totalProdutosMax > totalProdutos ? totalProdutosMax : null,
-          frete: parseFloat(frete || 0),
+          frete: (selectedOrder.tipo_recebimento || 'ambos') === 'retirada' ? 0 : parseFloat(frete || 0),
           observacao: observacao,
           status: 'Enviado',
           is_completo: atendeuTodos,
           prazo_entrega: prazoEntrega || null,
           garantia: garantia || null,
-          retirada_disponivel: retiradaDisponivel,
+          retirada_disponivel: (selectedOrder.tipo_recebimento || 'ambos') === 'retirada'
+            ? true
+            : (selectedOrder.tipo_recebimento || 'ambos') === 'entrega' ? false : retiradaDisponivel,
           formas_pagamento: formasPagamento.length > 0 ? formasPagamento : null,
           parcelas_sem_juros: formasPagamento.includes('cartao') && parcelasSemJuros ? parseInt(parcelasSemJuros) : null,
           oferece_cashback: cashbackAtivo && (profile?.plano === 'pro' || profile?.plano === 'premium') ? ofereceCashback : false,
@@ -965,6 +967,50 @@ export default function LojistaDashboard() {
     }
   };
 
+  const LABEL_TIPO_RECEBIMENTO = { entrega: 'Entrega', retirada: 'Retirada na loja', ambos: 'Entrega ou retirada (ver as duas)' };
+
+  // Resumo completo do pedido + proposta, usado na mensagem do WhatsApp
+  const montarResumoPedido = (bid) => {
+    const orderIdNum = Number(bid.order_id || bid.pedido_id);
+    const itens = pedidoItemsMap[orderIdNum] || [];
+    const bItens = minhaPropostaItemsMap[bid.id] || [];
+    const pedido = bid.pedido || {};
+    const linhas = [];
+    linhas.push(`*Pedido #${pedido.codigo_pedido || pedido.id}*`);
+    if (pedido.tipo_recebimento) linhas.push(`Recebimento: ${LABEL_TIPO_RECEBIMENTO[pedido.tipo_recebimento] || pedido.tipo_recebimento}`);
+    if (pedido.bairro) linhas.push(`Bairro: ${pedido.bairro}`);
+    linhas.push('');
+    linhas.push('*Itens:*');
+    itens.forEach(item => {
+      const ofertas = bItens.filter(bi => bi.order_item_id === item.id);
+      if (ofertas.length === 0) {
+        linhas.push(`- ${item.descricao} (Qtd: ${item.quantidade})`);
+        return;
+      }
+      ofertas.forEach(bi => {
+        const partes = [`- ${item.descricao}${bi.nome_opcao ? ` (${bi.nome_opcao})` : ''} · Qtd: ${item.quantidade}`];
+        partes.push(bi.atendido ? `R$ ${parseFloat(bi.preco_unitario || 0).toFixed(2)}/unid` : 'sem estoque');
+        if (bi.garantia_opcao) partes.push(`garantia: ${bi.garantia_opcao}`);
+        if (bi.observacao_opcao) partes.push(`obs: ${bi.observacao_opcao}`);
+        linhas.push(partes.join(' · '));
+      });
+    });
+    linhas.push('');
+    linhas.push(`Produto: R$ ${parseFloat(bid.preco || 0).toFixed(2)}${bid.preco_faixa_maximo ? ` até R$ ${parseFloat(bid.preco_faixa_maximo).toFixed(2)}` : ''}`);
+    if (pedido.tipo_recebimento !== 'retirada') {
+      linhas.push(`Frete: ${parseFloat(bid.frete || 0) === 0 ? 'grátis' : `R$ ${parseFloat(bid.frete || 0).toFixed(2)}`}`);
+    }
+    if (bid.retirada_disponivel) linhas.push('Retirada na loja disponível');
+    if (bid.prazo_entrega) linhas.push(`Prazo de entrega: ${OPCOES_PRAZO_ENTREGA.find(o => o.value === bid.prazo_entrega)?.label || bid.prazo_entrega}`);
+    if (bid.formas_pagamento && bid.formas_pagamento.length > 0) {
+      linhas.push(`Pagamento: ${bid.formas_pagamento.map(fp => OPCOES_PAGAMENTO.find(o => o.value === fp)?.label || fp).join(', ')}${bid.parcelas_sem_juros > 1 ? ` (até ${bid.parcelas_sem_juros}x sem juros no cartão)` : ''}`);
+    }
+    if (bid.garantia) linhas.push(`Garantia: ${bid.garantia}`);
+    if (bid.observacao) linhas.push(`Observações: ${bid.observacao}`);
+    if (bid.cashback_aplicado > 0) linhas.push(`Cashback usado pelo cliente: R$ ${parseFloat(bid.cashback_aplicado).toFixed(2)}`);
+    return linhas.join('\n');
+  };
+
   const renderDetalhesExpandido = (bid, cardKey, mostrarStatusConcorrencia) => {
     const isExpanded = expandedDetails.has(cardKey);
     const orderIdNum = Number(bid.order_id || bid.pedido_id);
@@ -998,34 +1044,70 @@ export default function LojistaDashboard() {
                 <span className="text-amber-700 font-bold">Aguardando resposta do cliente</span>
               )}
             </p>
-            {bid.prazo_entrega && (
-              <p><b>Prazo de entrega informado:</b> {OPCOES_PRAZO_ENTREGA.find(o => o.value === bid.prazo_entrega)?.label || bid.prazo_entrega}</p>
-            )}
-            {bid.garantia && (
-              <p><b>Garantia informada:</b> {bid.garantia}</p>
-            )}
-            {bid.formas_pagamento && bid.formas_pagamento.length > 0 && (
-              <p><b>Formas de pagamento aceitas:</b> {bid.formas_pagamento.map(fp => OPCOES_PAGAMENTO.find(o => o.value === fp)?.label || fp).join(', ')}</p>
+            {bid.pedido?.tipo_recebimento && (
+              <p><b>Cliente quer:</b> {LABEL_TIPO_RECEBIMENTO[bid.pedido.tipo_recebimento] || bid.pedido.tipo_recebimento}</p>
             )}
 
-            {bid.observacao && (
-              <p><b>Sua observação:</b> {bid.observacao}</p>
-            )}
+            <div className="bg-indigo-50/60 border border-indigo-100 rounded-lg p-2.5 space-y-1">
+              <p className="font-bold text-indigo-700 uppercase text-[10px]">O que você enviou</p>
+              <p>
+                <b>Produto:</b> R$ {parseFloat(bid.preco || 0).toFixed(2)}
+                {bid.preco_faixa_maximo != null && ` até R$ ${parseFloat(bid.preco_faixa_maximo).toFixed(2)} (faixa de preço)`}
+              </p>
+              {bid.pedido?.tipo_recebimento !== 'retirada' && (
+                <p><b>Frete:</b> {parseFloat(bid.frete || 0) === 0 ? 'Grátis' : `R$ ${parseFloat(bid.frete || 0).toFixed(2)}`}</p>
+              )}
+              <p><b>Retirada na loja:</b> {bid.retirada_disponivel ? 'Sim' : 'Não'}</p>
+              <p><b>Atendimento:</b> {bid.is_completo ? '100% dos itens' : 'Parcial'}</p>
+              {bid.prazo_entrega && (
+                <p><b>Prazo de entrega:</b> {OPCOES_PRAZO_ENTREGA.find(o => o.value === bid.prazo_entrega)?.label || bid.prazo_entrega}</p>
+              )}
+              {bid.formas_pagamento && bid.formas_pagamento.length > 0 && (
+                <p>
+                  <b>Formas de pagamento:</b> {bid.formas_pagamento.map(fp => OPCOES_PAGAMENTO.find(o => o.value === fp)?.label || fp).join(', ')}
+                  {bid.parcelas_sem_juros > 1 && ` · até ${bid.parcelas_sem_juros}x sem juros no cartão`}
+                </p>
+              )}
+              {bid.garantia && <p><b>Garantia:</b> {bid.garantia}</p>}
+              {bid.observacao && <p><b>Observações:</b> {bid.observacao}</p>}
+              {bid.oferece_cashback && (
+                <p><b>Cashback oferecido:</b> R$ {parseFloat(bid.valor_cashback_oferecido || 0).toFixed(2)}</p>
+              )}
+              {bid.aceita_cashback && <p><b>Aceita cashback como pagamento:</b> Sim</p>}
+              {bid.cashback_aplicado > 0 && (
+                <p><b>Cashback usado pelo cliente:</b> R$ {parseFloat(bid.cashback_aplicado).toFixed(2)}</p>
+              )}
+            </div>
 
             {itensCliente.length > 0 && (
               <div className="space-y-1.5">
                 <p className="font-bold text-slate-500 uppercase text-[10px]">Itens do Pedido</p>
                 {itensCliente.map((item) => {
-                  const enviado = itensEnviados.find(ei => ei.order_item_id === item.id);
+                  const enviados = itensEnviados.filter(ei => ei.order_item_id === item.id);
+                  const enviado = enviados[0];
                   return (
-                    <div key={item.id} className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-200">
-                      <div>
+                    <div key={item.id} className="flex justify-between items-start bg-slate-50 p-2 rounded-lg border border-slate-200">
+                      <div className="space-y-1">
                         <p className="font-semibold text-slate-700">{item.descricao} (Qtd: {item.quantidade})</p>
-                        {enviado && (
-                          <p className={enviado.atendido ? 'text-emerald-600 font-semibold' : 'text-rose-600 font-bold'}>
-                            {enviado.atendido ? `Você enviou: R$ ${parseFloat(enviado.preco_unitario || 0).toFixed(2)} / unid` : 'Marcado como indisponível'}
-                          </p>
-                        )}
+                        {enviados.map((op, opIdx) => (
+                          <div key={op.id || opIdx}>
+                            <p className={op.atendido ? 'text-emerald-600 font-semibold' : 'text-rose-600 font-bold'}>
+                              {enviados.length > 1 && `Opção ${opIdx + 1}${op.nome_opcao ? ` (${op.nome_opcao})` : ''}: `}
+                              {enviados.length === 1 && op.nome_opcao && `${op.nome_opcao}: `}
+                              {op.atendido ? `R$ ${parseFloat(op.preco_unitario || 0).toFixed(2)} / unid` : 'Marcado como sem estoque'}
+                            </p>
+                            {op.garantia_opcao && <p className="text-slate-500">Garantia: {op.garantia_opcao}</p>}
+                            {op.observacao_opcao && <p className="text-slate-500">Obs: {op.observacao_opcao}</p>}
+                            {enviados.length > 1 && op.imagem_url && (
+                              <img
+                                src={op.imagem_url}
+                                alt="Foto da opção"
+                                onClick={() => setActiveImage(op.imagem_url)}
+                                className="w-9 h-9 object-cover rounded border cursor-pointer hover:opacity-80 mt-1"
+                              />
+                            )}
+                          </div>
+                        ))}
                       </div>
                       <div className="flex gap-2">
                         {item.imagem_url && (
@@ -1039,7 +1121,7 @@ export default function LojistaDashboard() {
                             />
                           </div>
                         )}
-                        {enviado?.imagem_url && (
+                        {enviados.length <= 1 && enviado?.imagem_url && (
                           <div className="text-center">
                             <p className="text-[9px] text-indigo-500 font-bold mb-0.5">Sua foto</p>
                             <img
@@ -1330,6 +1412,7 @@ export default function LojistaDashboard() {
                         <p className="text-sm font-bold text-slate-800 mt-1.5 truncate">{order.descricao}</p>
                         <p className="text-xs text-slate-500">
                           {order.categoria_nome_exibicao} · {order.cidade_nome_exibicao}{order.bairro && ` (${order.bairro})`}
+                          {order.tipo_recebimento && ` · ${LABEL_TIPO_RECEBIMENTO[order.tipo_recebimento] || order.tipo_recebimento}`}
                         </p>
                       </div>
                       <div className="shrink-0">
@@ -1494,7 +1577,7 @@ export default function LojistaDashboard() {
                     {bid.pedido?.cliente?.telefone && (
                       <a
                         href={`https://wa.me/55${bid.pedido?.cliente?.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                          `Olá, ${bid.pedido?.cliente?.nome || 'tudo bem'}! Sou da ${profile?.nome || 'loja'} e vamos continuar com o pedido do ${bid.pedido?.descricao || 'produto'} - ${bid.pedido?.codigo_pedido || bid.pedido?.id}.`
+                          `Olá, ${bid.pedido?.cliente?.nome || 'tudo bem'}! Sou da ${profile?.nome || 'loja'} e recebi a confirmação do seu pedido pelo Nuno. Segue o resumo:\n\n${montarResumoPedido(bid)}`
                         )}`}
                         target="_blank"
                         rel="noreferrer"
@@ -1820,24 +1903,37 @@ export default function LojistaDashboard() {
             {/* Frete e Observações */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Valor do Frete (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={frete}
-                  onChange={(e) => setFrete(e.target.value)}
-                  placeholder="0,00 (deixe 0 se for grátis)"
-                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-                />
-                <label className="flex items-center gap-2 text-xs text-slate-600 mt-1.5">
-                  <input
-                    type="checkbox"
-                    checked={retiradaDisponivel}
-                    onChange={(e) => setRetiradaDisponivel(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded"
-                  />
-                  Cliente pode retirar na loja (sem cobrar frete)
-                </label>
+                <p className="text-[11px] font-bold text-slate-500 mb-1.5">
+                  O cliente quer: {LABEL_TIPO_RECEBIMENTO[selectedOrder.tipo_recebimento || 'ambos']}
+                </p>
+                {(selectedOrder.tipo_recebimento || 'ambos') === 'retirada' ? (
+                  <p className="text-xs text-slate-600 bg-sky-50 border border-sky-200 rounded-xl p-2.5">
+                    🏬 Pedido para retirada na loja — sem frete.
+                  </p>
+                ) : (
+                  <>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Valor do Frete (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={frete}
+                      onChange={(e) => setFrete(e.target.value)}
+                      placeholder="0,00 (deixe 0 se for grátis)"
+                      className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
+                    />
+                    {(selectedOrder.tipo_recebimento || 'ambos') === 'ambos' && (
+                      <label className="flex items-center gap-2 text-xs text-slate-600 mt-1.5">
+                        <input
+                          type="checkbox"
+                          checked={retiradaDisponivel}
+                          onChange={(e) => setRetiradaDisponivel(e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 rounded"
+                        />
+                        Cliente também pode retirar na loja (sem frete)
+                      </label>
+                    )}
+                  </>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Observações</label>
