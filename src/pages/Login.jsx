@@ -22,6 +22,19 @@ function montarEmailDeLogin(entradaBruta) {
   return `${entrada.toLowerCase()}@interno.nunoselo.app`;
 }
 
+// Traduz as mensagens de erro do Supabase (que vêm em inglês) pra português
+function traduzirErroLogin(mensagem) {
+  const msg = (mensagem || '').toLowerCase();
+  if (msg.includes('invalid login credentials')) return 'Telefone ou senha incorretos.';
+  if (msg.includes('email not confirmed')) return 'Seu cadastro ainda não foi confirmado. Fale com o administrador.';
+  if (msg.includes('user not found')) return 'Cadastro não encontrado. Confira o número digitado.';
+  if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('security purposes')) return 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.';
+  if (msg.includes('failed to fetch') || msg.includes('network')) return 'Sem conexão com o servidor. Verifique sua internet e tente de novo.';
+  if (msg.includes('invalid email')) return 'Número de telefone inválido. Digite com DDD, só os números.';
+  if (msg.includes('password')) return 'Senha inválida. Confira e tente de novo.';
+  return 'Não foi possível entrar agora. Tente novamente em instantes.';
+}
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -58,7 +71,9 @@ export default function Login() {
 
       if (profile?.ativo === false) {
         await supabase.auth.signOut();
-        throw new Error('Sua conta está temporariamente desativada.');
+        const erroConta = new Error('Sua conta está temporariamente desativada. Fale com o administrador.');
+        erroConta.jaTraduzido = true;
+        throw erroConta;
       }
 
       // Se essa conta foi criada pelo Admin/Representante com senha
@@ -79,7 +94,7 @@ export default function Login() {
         navigate('/client-dashboard');
       }
     } catch (err) {
-      setErrorMsg(err.message === 'Invalid login credentials' ? 'E-mail, telefone, usuário ou senha incorretos.' : err.message);
+      setErrorMsg(err.jaTraduzido ? err.message : traduzirErroLogin(err.message));
     } finally {
       setLoading(false);
     }
@@ -93,7 +108,7 @@ export default function Login() {
     // Telefone e usuário (representante) usam e-mails internos falsos —
     // ninguém recebe nada ali, então precisa pedir pro Admin resetar.
     if (!forgotEmail.includes('@') || forgotEmail.endsWith('@fone.nunoselo.app') || forgotEmail.endsWith('@interno.nunoselo.app')) {
-      setForgotMsg('Login por telefone ou usuário não tem recuperação automática. Peça para o administrador redefinir sua senha.');
+      setForgotMsg('Para acesso por telefone, a senha é redefinida pelo administrador. Entre em contato com ele.');
       return;
     }
 
@@ -104,7 +119,7 @@ export default function Login() {
       if (error) throw error;
       setForgotMsg('E-mail de redefinição enviado com sucesso!');
     } catch (err) {
-      setForgotMsg('Erro ao enviar e-mail: ' + err.message);
+      setForgotMsg('Não foi possível enviar o e-mail agora. Tente novamente em instantes.');
     }
   };
 
@@ -136,15 +151,17 @@ export default function Login() {
           )}
 
           <form className="w-full flex flex-col" onSubmit={handleLogin}>
-            {/* Campo E-mail, Telefone ou Usuário */}
+            {/* Campo de acesso: a tela pede só o telefone. Por trás, continua
+                aceitando e-mail e usuário (admin, representante e contas antigas). */}
             <div className="mb-4">
               <label className="block text-xs font-semibold text-slate-600 mb-1.5" htmlFor="email">
-                E-mail, Telefone ou Usuário
+                Número de telefone
               </label>
               <input 
                 type="text" 
                 id="email"
-                placeholder="Seu e-mail, telefone ou usuário de acesso" 
+                autoComplete="username"
+                placeholder="(22) 99999-9999" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -212,11 +229,11 @@ export default function Login() {
       {/* Rodapé */}
       <footer className="mt-8 text-center text-[11px] text-slate-500 leading-relaxed">
         <div className="flex flex-wrap justify-center items-center gap-1.5 mb-1 text-slate-600">
-          <a href="#" className="hover:underline">Fale conosco</a>
+          <a href="https://www.comprecomnuno.com.br/contato" target="_blank" rel="noreferrer" className="hover:underline">Fale conosco</a>
           <span>|</span>
-          <a href="#" className="hover:underline">Termos de uso</a>
+          <a href="https://www.comprecomnuno.com.br/termos" target="_blank" rel="noreferrer" className="hover:underline">Termos de uso</a>
           <span>|</span>
-          <a href="#" className="hover:underline">Segurança e privacidade</a>
+          <a href="https://www.comprecomnuno.com.br/privacidade" target="_blank" rel="noreferrer" className="hover:underline">Segurança e privacidade</a>
         </div>
         <div>
           <a href="#" className="font-medium text-slate-700 hover:underline">www.selodacidade.com.br</a>
@@ -236,7 +253,8 @@ export default function Login() {
             </div>
             
             <p className="text-xs text-slate-600">
-              Digite seu e-mail de acesso pra receber o link de redefinição de senha. (Só funciona pra quem loga com e-mail de verdade — telefone e usuário precisam pedir pro administrador.)
+              Se você entra com número de telefone, peça ao administrador para redefinir sua senha.
+              Se o seu cadastro foi feito com e-mail, digite-o abaixo para receber o link de redefinição.
             </p>
 
             {forgotMsg && (
