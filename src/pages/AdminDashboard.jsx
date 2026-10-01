@@ -14,6 +14,19 @@ export default function AdminDashboard() {
   const [categories, setCategories] = useState([]);
   const [cities, setCities] = useState([]);
   const [selectedCityFilter, setSelectedCityFilter] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
+  const [buscaLojista, setBuscaLojista] = useState('');
+
+  // Compara textos ignorando maiúsculas, acentos e espaços extras — evita
+  // que "Campos dos Goytacazes " e "campos dos goytacazes" sejam tratados
+  // como cidades diferentes no filtro.
+  const normalizarTexto = (txt) => (txt || '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState('');
 
@@ -24,6 +37,7 @@ export default function AdminDashboard() {
   const [novaSenha, setNovaSenha] = useState('');
   const [novaCidade, setNovaCidade] = useState('');
   const [novoTelefone, setNovoTelefone] = useState('');
+  const [novoDocumento, setNovoDocumento] = useState('');
   const [novasCategoriasIds, setNovasCategoriasIds] = useState([]);
   const [novoHorarioAbertura, setNovoHorarioAbertura] = useState('08:00');
   const [novoHorarioFechamento, setNovoHorarioFechamento] = useState('18:00');
@@ -36,6 +50,7 @@ export default function AdminDashboard() {
   const [novaSenhaCliente, setNovaSenhaCliente] = useState('');
   const [novoTelefoneCliente, setNovoTelefoneCliente] = useState('');
   const [novaCidadeCliente, setNovaCidadeCliente] = useState('');
+  const [novoDocumentoCliente, setNovoDocumentoCliente] = useState('');
 
   // Modal de Gerenciar Clientes (editar/excluir/ver nota e uso)
   const [isGerenciarClientesModalOpen, setIsGerenciarClientesModalOpen] = useState(false);
@@ -43,6 +58,8 @@ export default function AdminDashboard() {
   const [editClienteNome, setEditClienteNome] = useState('');
   const [editClienteCidade, setEditClienteCidade] = useState('');
   const [editClienteTelefone, setEditClienteTelefone] = useState('');
+  const [editClienteDocumento, setEditClienteDocumento] = useState('');
+  const [buscaCliente, setBuscaCliente] = useState('');
 
   // Modal de Gerenciar Cashback (Fase A: só configuração geral por enquanto)
   const [isCashbackModalOpen, setIsCashbackModalOpen] = useState(false);
@@ -87,6 +104,7 @@ export default function AdminDashboard() {
   const [editNome, setEditNome] = useState('');
   const [editCidade, setEditCidade] = useState('');
   const [editTelefone, setEditTelefone] = useState('');
+  const [editDocumento, setEditDocumento] = useState('');
   const [editHorarioAbertura, setEditHorarioAbertura] = useState('08:00');
   const [editHorarioFechamento, setEditHorarioFechamento] = useState('18:00');
   const [editDiasFuncionamento, setEditDiasFuncionamento] = useState(['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
@@ -290,6 +308,19 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
+  // CPF/CNPJ: guarda só os dígitos; exibe formatado
+  const somenteDigitos = (txt) => (txt || '').replace(/\D/g, '');
+  const formatarDocumento = (doc) => {
+    const d = somenteDigitos(doc);
+    if (d.length === 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    return d;
+  };
+  const documentoValidoOuVazio = (doc) => {
+    const d = somenteDigitos(doc);
+    return d.length === 0 || d.length === 11 || d.length === 14;
+  };
+
   // Helper de Cidades
   const saveCityIfNew = async (cityName) => {
     if (!cityName) return;
@@ -331,6 +362,10 @@ export default function AdminDashboard() {
 
   const handleCreateLojista = async (e) => {
     e.preventDefault();
+    if (!documentoValidoOuVazio(novoDocumento)) {
+      alert('CPF precisa ter 11 dígitos e CNPJ 14. Deixe em branco se não quiser informar.');
+      return;
+    }
     try {
       const supabaseUrl = supabase.supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = supabase.supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -348,6 +383,7 @@ export default function AdminDashboard() {
         tipo: 'lojista',
         nome: novoNome,
         email: emailLogin,
+        documento: somenteDigitos(novoDocumento) || null,
         cidade: novaCidade,
         telefone: novoTelefone,
         ativo: true,
@@ -366,7 +402,7 @@ export default function AdminDashboard() {
 
       alert('Lojista cadastrado com sucesso!');
       setIsModalOpen(false);
-      setNovoNome(''); setNovoEmail(''); setNovaSenha(''); setNovaCidade(''); setNovoTelefone(''); setNovasCategoriasIds([]);
+      setNovoNome(''); setNovoEmail(''); setNovaSenha(''); setNovaCidade(''); setNovoTelefone(''); setNovoDocumento(''); setNovasCategoriasIds([]);
       setNovoHorarioAbertura('08:00'); setNovoHorarioFechamento('18:00'); setNovosDiasFuncionamento(['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
       fetchAllData();
     } catch (err) {
@@ -376,6 +412,10 @@ export default function AdminDashboard() {
 
   const handleCreateCliente = async (e) => {
     e.preventDefault();
+    if (!documentoValidoOuVazio(novoDocumentoCliente)) {
+      alert('CPF precisa ter 11 dígitos e CNPJ 14. Deixe em branco se não quiser informar.');
+      return;
+    }
     try {
       const supabaseUrl = supabase.supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = supabase.supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -393,6 +433,7 @@ export default function AdminDashboard() {
         tipo: 'cliente',
         nome: novoNomeCliente,
         email: emailLoginCliente,
+        documento: somenteDigitos(novoDocumentoCliente) || null,
         cidade: novaCidadeCliente,
         telefone: novoTelefoneCliente,
         ativo: true,
@@ -403,7 +444,7 @@ export default function AdminDashboard() {
 
       alert('Cliente cadastrado com sucesso!');
       setIsClientModalOpen(false);
-      setNovoNomeCliente(''); setNovoEmailCliente(''); setNovaSenhaCliente(''); setNovaCidadeCliente(''); setNovoTelefoneCliente('');
+      setNovoNomeCliente(''); setNovoEmailCliente(''); setNovaSenhaCliente(''); setNovaCidadeCliente(''); setNovoTelefoneCliente(''); setNovoDocumentoCliente('');
       fetchAllData();
     } catch (err) {
       alert('Erro ao cadastrar cliente: ' + err.message);
@@ -598,12 +639,17 @@ export default function AdminDashboard() {
   };
 
   const handleSalvarEdicaoCliente = async (clienteId) => {
+    if (!documentoValidoOuVazio(editClienteDocumento)) {
+      alert('CPF precisa ter 11 dígitos e CNPJ 14. Deixe em branco se não quiser informar.');
+      return;
+    }
     try {
       if (editClienteCidade) await saveCityIfNew(editClienteCidade);
       const { error } = await supabase.from('profiles').update({
         nome: editClienteNome,
         cidade: editClienteCidade,
         telefone: editClienteTelefone,
+        documento: somenteDigitos(editClienteDocumento) || null,
       }).eq('id', clienteId);
       if (error) throw error;
       alert('Cliente atualizado com sucesso!');
@@ -635,7 +681,7 @@ export default function AdminDashboard() {
     const listaClientes = clients.filter(p => !p.tipo || p.tipo === 'cliente');
 
     const linhas = [
-      ['Nome', 'Cidade', 'Email', 'Telefone', 'Nota', 'Pedidos Feitos', 'Pedidos Concluidos'].join(';')
+      ['Nome', 'CPF/CNPJ', 'Cidade', 'Email', 'Telefone', 'Nota', 'Pedidos Feitos', 'Pedidos Concluidos'].join(';')
     ];
 
     listaClientes.forEach((cliente) => {
@@ -648,6 +694,7 @@ export default function AdminDashboard() {
 
       const linha = [
         cliente.nome || '',
+        cliente.documento ? formatarDocumento(cliente.documento) : '',
         cliente.cidade || '',
         cliente.email || '',
         cliente.telefone || '',
@@ -881,6 +928,10 @@ export default function AdminDashboard() {
 
   const handleSaveEditLojista = async (e) => {
     e.preventDefault();
+    if (!documentoValidoOuVazio(editDocumento)) {
+      alert('CPF precisa ter 11 dígitos e CNPJ 14. Deixe em branco se não quiser informar.');
+      return;
+    }
     try {
       if (editCidade) await saveCityIfNew(editCidade);
 
@@ -900,6 +951,7 @@ export default function AdminDashboard() {
         nome: editNome,
         cidade: editCidade,
         telefone: editTelefone,
+        documento: somenteDigitos(editDocumento) || null,
         horario_abertura: editHorarioAbertura,
         horario_fechamento: editHorarioFechamento,
         dias_funcionamento: editDiasFuncionamento,
@@ -974,7 +1026,8 @@ export default function AdminDashboard() {
       const matchCodigo = order.codigo_pedido?.toLowerCase().includes(term);
       const matchCliente = order.cliente?.nome?.toLowerCase().includes(term);
       const matchTelefone = termDigitos.length >= 4 && order.cliente?.telefone?.replace(/\D/g, '').includes(termDigitos);
-      if (!matchDesc && !matchCodigo && !matchCliente && !matchTelefone) return false;
+      const matchDocumento = termDigitos.length >= 3 && (order.cliente?.documento || '').includes(termDigitos);
+      if (!matchDesc && !matchCodigo && !matchCliente && !matchTelefone && !matchDocumento) return false;
     }
     return true;
   });
@@ -1000,7 +1053,7 @@ export default function AdminDashboard() {
 
     const linhas = [
       [
-        'Codigo Pedido', 'Data e Hora do Pedido', 'Cliente', 'Telefone Cliente', 'Cidade', 'Bairro',
+        'Codigo Pedido', 'Data e Hora do Pedido', 'Cliente', 'Telefone Cliente', 'CPF/CNPJ Cliente', 'Cidade', 'Bairro', 'Recebimento Escolhido',
         'Descricao do Pedido', 'Itens Pedidos', 'Prazo de Urgencia do Pedido', 'Status do Pedido',
         'Loja', 'Telefone da Loja', 'Data e Hora da Resposta', 'Ganhou a Cotacao', 'Status da Proposta',
         'Atendimento', 'Teve Item Sem Estoque', 'Preco Produto', 'Preco Maximo Faixa', 'Valor do Frete', 'Forma de Entrega', 'Total',
@@ -1036,8 +1089,10 @@ export default function AdminDashboard() {
         formatDataHora(order.created_at),
         order.cliente?.nome || '',
         order.cliente?.telefone || '',
+        order.cliente?.documento ? formatarDocumento(order.cliente.documento) : '',
         order.cidade_nome_exibicao || '',
         order.bairro || '',
+        ({ entrega: 'Entrega', retirada: 'Retirada na loja', ambos: 'Entrega ou retirada' })[order.tipo_recebimento] || '',
         (order.descricao || '').replace(/;/g, ','),
         itensPedido,
         LABEL_PRAZO_PEDIDO[order.prazo_opcao] || order.prazo_opcao || '',
@@ -1305,9 +1360,9 @@ export default function AdminDashboard() {
         {/* ABA 1: GESTÃO DE LOJISTAS */}
         {activeTab === 'lojistas' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200">
-              <div className="flex items-center gap-3">
-                <label className="text-sm font-bold text-slate-700">Filtrar por Cidade:</label>
+            <div className="flex flex-col lg:flex-row lg:items-center gap-3 bg-white p-4 rounded-2xl border border-slate-200">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-bold text-slate-700 whitespace-nowrap">Cidade:</label>
                 <select
                   value={selectedCityFilter}
                   onChange={(e) => setSelectedCityFilter(e.target.value)}
@@ -1319,11 +1374,51 @@ export default function AdminDashboard() {
                   ))}
                 </select>
               </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-bold text-slate-700 whitespace-nowrap">Categoria:</label>
+                <select
+                  value={selectedCategoryFilter}
+                  onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                  className="p-2 rounded-xl border border-slate-300 text-slate-800 bg-slate-50 text-sm font-medium"
+                >
+                  <option value="">Todas as Categorias</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.nome}</option>
+                  ))}
+                </select>
+              </div>
+              <input
+                type="text"
+                placeholder="Buscar por nome, telefone ou CPF/CNPJ..."
+                value={buscaLojista}
+                onChange={(e) => setBuscaLojista(e.target.value)}
+                className="flex-1 p-2 rounded-xl border border-slate-300 text-slate-800 bg-slate-50 text-sm"
+              />
+              {(selectedCityFilter || selectedCategoryFilter || buscaLojista) && (
+                <button
+                  onClick={() => { setSelectedCityFilter(''); setSelectedCategoryFilter(''); setBuscaLojista(''); }}
+                  className="text-xs font-bold text-rose-600 hover:underline whitespace-nowrap"
+                >
+                  Limpar filtros
+                </button>
+              )}
             </div>
 
             {loading ? <p className="text-center py-8 text-slate-500">Carregando...</p> : (
               <div className="space-y-4">
-                {lojistas.filter(l => !selectedCityFilter || l.cidade?.toLowerCase() === selectedCityFilter.toLowerCase()).map((lojista) => (
+                {lojistas.filter(l => {
+                  if (selectedCityFilter && normalizarTexto(l.cidade) !== normalizarTexto(selectedCityFilter)) return false;
+                  if (selectedCategoryFilter && !l.categoriasSelecionadas.map(String).includes(String(selectedCategoryFilter))) return false;
+                  if (buscaLojista) {
+                    const termo = normalizarTexto(buscaLojista);
+                    const termoDigitos = buscaLojista.replace(/\D/g, '');
+                    const bateNome = normalizarTexto(l.nome).includes(termo);
+                    const bateDoc = termoDigitos.length >= 3 && (l.documento || '').includes(termoDigitos);
+                    const bateTel = termoDigitos.length >= 4 && (l.telefone || '').replace(/\D/g, '').includes(termoDigitos);
+                    if (!bateNome && !bateDoc && !bateTel) return false;
+                  }
+                  return true;
+                }).map((lojista) => (
                   <div key={lojista.id} className="bg-white rounded-2xl shadow-sm border border-slate-200">
                   <div className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div className="flex gap-3">
@@ -1341,6 +1436,7 @@ export default function AdminDashboard() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-500">Cidade: {lojista.cidade || 'Não informada'} | Tel: {lojista.telefone || 'Não informado'}</p>
+                        {lojista.documento && <p className="text-xs text-slate-500">CPF/CNPJ: {formatarDocumento(lojista.documento)}</p>}
                         <p className="text-xs text-slate-500 mt-0.5">
                           <b>Horário:</b>{' '}
                           {lojista.horario_abertura && lojista.horario_fechamento
@@ -1380,6 +1476,7 @@ export default function AdminDashboard() {
                         setEditNome(lojista.nome || '');
                         setEditCidade(lojista.cidade || '');
                         setEditTelefone(lojista.telefone || '');
+                        setEditDocumento(lojista.documento ? formatarDocumento(lojista.documento) : '');
                         setEditHorarioAbertura((lojista.horario_abertura || '08:00:00').slice(0, 5));
                         setEditHorarioFechamento((lojista.horario_fechamento || '18:00:00').slice(0, 5));
                         setEditDiasFuncionamento(lojista.dias_funcionamento || ['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
@@ -1485,7 +1582,7 @@ export default function AdminDashboard() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Buscar por Código / Nome</label>
-                <input type="text" placeholder="Código, nome do cliente ou telefone/WhatsApp..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 bg-slate-50 text-sm" />
+                <input type="text" placeholder="Código, nome, telefone ou CPF/CNPJ do cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 bg-slate-50 text-sm" />
               </div>
 
               <div>
@@ -1643,6 +1740,7 @@ export default function AdminDashboard() {
               <input type="password" placeholder="Senha Inicial" value={novaSenhaCliente} onChange={(e) => setNovaSenhaCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="text" placeholder="Cidade" value={novaCidadeCliente} onChange={(e) => setNovaCidadeCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
               <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefoneCliente} onChange={(e) => setNovoTelefoneCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
+              <input type="text" placeholder="CPF ou CNPJ (opcional)" value={novoDocumentoCliente} onChange={(e) => setNovoDocumentoCliente(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
 
               <div className="flex space-x-3 pt-3">
                 <button type="button" onClick={() => setIsClientModalOpen(false)} className="w-1/2 bg-slate-200 text-slate-700 p-2 rounded-xl font-semibold text-sm">Cancelar</button>
@@ -1962,12 +2060,31 @@ export default function AdminDashboard() {
               </div>
 
               {(() => {
-                const listaClientes = clients.filter(p => !p.tipo || p.tipo === 'cliente');
-                if (listaClientes.length === 0) {
-                  return <p className="text-sm text-slate-500 text-center py-6">Nenhum cliente cadastrado ainda.</p>;
-                }
+                const todosClientes = clients.filter(p => !p.tipo || p.tipo === 'cliente');
+                const termoBusca = normalizarTexto(buscaCliente);
+                const digitosBusca = buscaCliente.replace(/\D/g, '');
+                const listaClientes = todosClientes.filter(c => {
+                  if (!buscaCliente) return true;
+                  const bateNome = normalizarTexto(c.nome).includes(termoBusca);
+                  const bateEmail = normalizarTexto(c.email).includes(termoBusca);
+                  const bateDoc = digitosBusca.length >= 3 && (c.documento || '').includes(digitosBusca);
+                  const bateTel = digitosBusca.length >= 4 && (c.telefone || '').replace(/\D/g, '').includes(digitosBusca);
+                  return bateNome || bateEmail || bateDoc || bateTel;
+                });
                 return (
                   <div className="space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Buscar por nome, e-mail, telefone ou CPF/CNPJ..."
+                      value={buscaCliente}
+                      onChange={(e) => setBuscaCliente(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                    {listaClientes.length === 0 && (
+                      <p className="text-sm text-slate-500 text-center py-6">
+                        {todosClientes.length === 0 ? 'Nenhum cliente cadastrado ainda.' : 'Nenhum cliente encontrado com essa busca.'}
+                      </p>
+                    )}
                     {listaClientes.map((cliente) => {
                       const qtdPedidos = orders.filter(o => String(o.cliente_id) === String(cliente.id)).length;
                       const qtdConcluidos = orders.filter(o => {
@@ -1984,6 +2101,7 @@ export default function AdminDashboard() {
                               <input type="text" placeholder="Nome" value={editClienteNome} onChange={(e) => setEditClienteNome(e.target.value)} className="w-full p-2 rounded-lg border text-sm" />
                               <input type="text" placeholder="Cidade" value={editClienteCidade} onChange={(e) => setEditClienteCidade(e.target.value)} className="w-full p-2 rounded-lg border text-sm" />
                               <input type="text" placeholder="Telefone" value={editClienteTelefone} onChange={(e) => setEditClienteTelefone(e.target.value)} className="w-full p-2 rounded-lg border text-sm" />
+                              <input type="text" placeholder="CPF ou CNPJ (opcional)" value={editClienteDocumento} onChange={(e) => setEditClienteDocumento(e.target.value)} className="w-full p-2 rounded-lg border text-sm" />
                               <div className="flex gap-2">
                                 <button onClick={() => handleSalvarEdicaoCliente(cliente.id)} className="text-xs font-bold text-emerald-600">Salvar</button>
                                 <button onClick={() => setClienteEditandoId(null)} className="text-xs font-bold text-slate-500">Cancelar</button>
@@ -1995,6 +2113,7 @@ export default function AdminDashboard() {
                                 <p className="text-sm font-bold text-slate-800">{cliente.nome || 'Sem nome'}</p>
                                 <p className="text-xs text-slate-500">Cidade: {cliente.cidade || 'Não informada'} | Tel: {cliente.telefone || 'Não informado'}</p>
                                 <p className="text-xs text-slate-500">E-mail: {cliente.email || 'Não informado'}</p>
+                                {cliente.documento && <p className="text-xs text-slate-500">CPF/CNPJ: {formatarDocumento(cliente.documento)}</p>}
                                 <p className="text-xs font-semibold text-amber-600 mt-1">
                                   ⭐ {cliente.reputacao_media != null ? Number(cliente.reputacao_media).toFixed(1) : '5.0'}
                                   <span className="text-slate-400 font-normal"> · {qtdPedidos} feito(s) · {qtdConcluidos} concluído(s)</span>
@@ -2007,6 +2126,7 @@ export default function AdminDashboard() {
                                     setEditClienteNome(cliente.nome || '');
                                     setEditClienteCidade(cliente.cidade || '');
                                     setEditClienteTelefone(cliente.telefone || '');
+                                    setEditClienteDocumento(cliente.documento ? formatarDocumento(cliente.documento) : '');
                                   }}
                                   className="text-xs font-bold text-indigo-600"
                                 >
@@ -2187,6 +2307,7 @@ export default function AdminDashboard() {
               <input type="password" placeholder="Senha Inicial" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="text" placeholder="Cidade" value={novaCidade} onChange={(e) => setNovaCidade(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" required />
               <input type="text" placeholder="Telefone / WhatsApp" value={novoTelefone} onChange={(e) => setNovoTelefone(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
+              <input type="text" placeholder="CPF ou CNPJ (opcional)" value={novoDocumento} onChange={(e) => setNovoDocumento(e.target.value)} className="w-full p-2.5 rounded-lg border text-sm" />
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-2">Horário de Funcionamento</label>
@@ -2289,6 +2410,11 @@ export default function AdminDashboard() {
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone / WhatsApp</label>
                 <input type="text" placeholder="Telefone" value={editTelefone} onChange={(e) => setEditTelefone(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">CPF ou CNPJ (opcional)</label>
+                <input type="text" placeholder="Somente números ou formatado" value={editDocumento} onChange={(e) => setEditDocumento(e.target.value)} className="w-full p-2.5 rounded-xl border text-sm" />
               </div>
 
               <div>
