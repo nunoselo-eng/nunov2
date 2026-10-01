@@ -24,6 +24,8 @@ export default function ClientDashboard() {
 
   // Modais e Detalhes
   const [showDetails, setShowDetails] = useState({});
+  // Índice da foto mostrada no carrossel de cada proposta (bid_id -> índice)
+  const [fotoIndicePorBid, setFotoIndicePorBid] = useState({});
   const [activeImage, setActiveImage] = useState(null);
   const [now, setNow] = useState(Date.now());
 
@@ -638,6 +640,106 @@ export default function ClientDashboard() {
     return linhas.join('\n');
   };
 
+  // "há 12 min", "há 3 h", "há 2 dias"
+  const tempoRelativo = (dataStr) => {
+    if (!dataStr) return '';
+    const diffMin = Math.max(0, Math.floor((now - new Date(dataStr).getTime()) / 60000));
+    if (diffMin < 1) return 'agora';
+    if (diffMin < 60) return `há ${diffMin} min`;
+    const horas = Math.floor(diffMin / 60);
+    if (horas < 24) return `há ${horas} h`;
+    const dias = Math.floor(horas / 24);
+    return `há ${dias} dia${dias > 1 ? 's' : ''}`;
+  };
+
+  // Fotos do produto pra o carrossel: primeiro as fotos que a loja enviou
+  // (uma por item ou opção da faixa); se a loja não mandou nenhuma, usa as
+  // fotos de referência que o próprio cliente anexou ao pedido.
+  const montarFotosProposta = (bid, items) => {
+    const bItens = bidItemsMap[bid.id] || [];
+    const fotosLoja = bItens
+      .filter(bi => bi.imagem_url && bi.atendido !== false)
+      .map(bi => {
+        const item = items.find(i => i.id === bi.order_item_id);
+        return {
+          url: bi.imagem_url,
+          legenda: `${item?.descricao || 'Produto'}${bi.nome_opcao ? ` · ${bi.nome_opcao}` : ''}`,
+          preco: bi.preco_unitario != null ? `R$ ${parseFloat(bi.preco_unitario).toFixed(2)}` : '',
+          daLoja: true,
+        };
+      });
+    if (fotosLoja.length > 0) return fotosLoja;
+    return items
+      .filter(i => i.imagem_url)
+      .map(i => ({ url: i.imagem_url, legenda: `${i.descricao} · sua foto de referência`, preco: '', daLoja: false }));
+  };
+
+  const renderCarrosselFotos = (bid, items) => {
+    const fotos = montarFotosProposta(bid, items);
+    if (fotos.length === 0) {
+      return (
+        <div className="h-36 rounded-xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center text-slate-400">
+          <span className="text-2xl">📷</span>
+          <span className="text-[11px] mt-1">A loja não enviou foto</span>
+        </div>
+      );
+    }
+    const indice = Math.min(fotoIndicePorBid[bid.id] || 0, fotos.length - 1);
+    const foto = fotos[indice];
+    const irPara = (novo) => setFotoIndicePorBid(prev => ({ ...prev, [bid.id]: (novo + fotos.length) % fotos.length }));
+    return (
+      <div>
+        <div className="relative h-36 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden">
+          <img
+            src={foto.url}
+            alt={foto.legenda}
+            onClick={() => setActiveImage(foto.url)}
+            className="w-full h-full object-contain cursor-zoom-in"
+          />
+          {fotos.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={() => irPara(indice - 1)}
+                aria-label="Foto anterior"
+                className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 border border-slate-200 text-slate-700 font-bold flex items-center justify-center hover:bg-white"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={() => irPara(indice + 1)}
+                aria-label="Próxima foto"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 border border-slate-200 text-slate-700 font-bold flex items-center justify-center hover:bg-white"
+              >
+                ›
+              </button>
+              <span className="absolute top-1.5 right-1.5 text-[10px] font-bold bg-slate-900/70 text-white px-1.5 py-0.5 rounded">
+                {indice + 1}/{fotos.length}
+              </span>
+            </>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-2 mt-1">
+          <p className="text-[11px] text-slate-500 truncate">{foto.legenda}{foto.preco && ` · ${foto.preco}`}</p>
+          {fotos.length > 1 && (
+            <div className="flex gap-1 shrink-0">
+              {fotos.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => irPara(i)}
+                  aria-label={`Foto ${i + 1}`}
+                  className={`w-1.5 h-1.5 rounded-full ${i === indice ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // Loja patrocinada = lojista do plano Premium
   const ehPatrocinada = (bid) => lojistaPorBid[bid.lojista_id]?.plano === 'premium';
   // Proposta sem nenhum item em estoque (preço zerado) não é oferta de preço de verdade
@@ -756,8 +858,8 @@ export default function ClientDashboard() {
                   </button>
                 </div>
               )}
-              <div className={`grid grid-cols-1 gap-3 ${orderBids.length > 1 ? 'md:grid-cols-2' : ''}`}>
-              {[...orderBids].sort((a, b) => {
+              <div className={`grid grid-cols-1 gap-3 ${orderBids.filter(b => !semEstoqueTotal(b) || b.status === 'Aceito').length > 1 ? 'md:grid-cols-2' : ''}`}>
+              {[...orderBids].filter(b => !semEstoqueTotal(b) || b.status === 'Aceito').sort((a, b) => {
                 // Sem estoque sempre por último
                 if (semEstoqueTotal(a) !== semEstoqueTotal(b)) return semEstoqueTotal(a) ? 1 : -1;
                 // Patrocinadas sempre no topo
@@ -783,202 +885,141 @@ export default function ClientDashboard() {
                 const isAccepted = bid.status === 'Aceito';
                 const lojistaPremium = lojistaPorBid[bid.lojista_id]?.plano === 'premium';
 
+                const lojista = lojistaPorBid[bid.lojista_id] || {};
+                const revelaLoja = isAccepted || lojistaPremium;
+                const formasTexto = (bid.formas_pagamento || []).map(fp => {
+                  const label = LABEL_FORMA_PAGAMENTO[fp] || fp;
+                  return fp === 'cartao' && bid.parcelas_sem_juros > 1 ? `${label} até ${bid.parcelas_sem_juros}x` : label;
+                }).join(', ');
+                const prazoTexto = bid.prazo_entrega ? (LABEL_PRAZO_ENTREGA[bid.prazo_entrega] || bid.prazo_entrega).toLowerCase() : '';
+
                 return (
                   <div
                     key={bid.id}
-                    className={`p-4 rounded-xl border ${
+                    className={`p-4 rounded-2xl bg-white flex flex-col gap-3 ${
                       isAccepted
-                        ? 'border-emerald-200 bg-emerald-50/40'
-                        : bid.is_completo
-                          ? 'border-slate-200 bg-slate-50/70'
-                          : 'border-amber-200 bg-amber-50/40'
-                    } space-y-3`}
+                        ? 'border-2 border-emerald-300'
+                        : ehPatrocinada(bid)
+                          ? 'border-2 border-amber-300'
+                          : 'border border-slate-200'
+                    }`}
                   >
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          {semEstoqueTotal(bid) ? (
-                            <span className="text-xs font-bold text-slate-500">Sem estoque</span>
-                          ) : ehPatrocinada(bid) ? (
-                            <span className="text-xs font-bold text-amber-600">⭐ Loja Patrocinada</span>
-                          ) : (
-                            <span className="text-xs font-bold text-slate-600">{posicaoPorBid[bid.id]}º lugar</span>
-                          )}
-                          {bid.is_completo ? (
-                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                              Atendimento 100%
-                            </span>
-                          ) : (
-                            <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">                              Atendimento Parcial
-                            </span>
-                          )}
-                        </div>
-
-                        {(isAccepted || lojistaPremium) ? (
-                          <div className="flex items-center gap-2 mt-1.5">
-                            {lojistaPorBid[bid.lojista_id]?.logo_url && (
-                              <img
-                                src={lojistaPorBid[bid.lojista_id].logo_url}
-                                alt="Logo da loja"
-                                onClick={() => setActiveImage(lojistaPorBid[bid.lojista_id].logo_url)}
-                                className="w-8 h-8 rounded-lg object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition"
-                              />
-                            )}
-                            <div>
-                              <p className="text-sm font-bold text-slate-800">
-                                {lojistaPorBid[bid.lojista_id]?.nome || 'Loja'}
-                                {!isAccepted && lojistaPremium && (
-                                  <span className="ml-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full align-middle">🏆 Loja Patrocinada</span>
-                                )}
-                              </p>
-                              <p className="text-[11px] font-semibold text-amber-600">
-                                ⭐ {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
-                                <span className="text-slate-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações)</span>
-                              </p>
-                              {lojistaPorBid[bid.lojista_id]?.percentual_entrega_no_prazo != null && (
-                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full inline-block mt-0.5">
-                                  📦 Entrega {lojistaPorBid[bid.lojista_id].percentual_entrega_no_prazo}% no prazo combinado
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="mt-1">
-                            <p className="text-[11px] font-semibold text-amber-600">
-                              ⭐ {Number(lojistaPorBid[bid.lojista_id]?.reputacao_media ?? 5).toFixed(1)}
-                              <span className="text-slate-400 font-normal"> ({lojistaPorBid[bid.lojista_id]?.total_avaliacoes || 0} avaliações) · loja revelada após aprovar</span>
-                            </p>
-                            {lojistaPorBid[bid.lojista_id]?.percentual_entrega_no_prazo != null && (
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full inline-block mt-0.5">
-                                📦 Entrega {lojistaPorBid[bid.lojista_id].percentual_entrega_no_prazo}% no prazo combinado
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          Proposta recebida em {bid.created_at ? new Date(bid.created_at).toLocaleString('pt-BR') : 'data não informada'}
-                          {isAccepted && bid.accepted_at && ` · Aceita em ${new Date(bid.accepted_at).toLocaleString('pt-BR')}`}
-                        </p>
-
-                        <p className="text-[11px] text-slate-500 mt-1.5">Produto</p>
-                        <p className="text-xl font-bold text-slate-900 leading-tight">
-                          {semEstoqueTotal(bid)
-                            ? 'Sem estoque'
-                            : temFaixaDePreco
-                              ? `R$ ${precoProduto.toFixed(2)} até R$ ${precoProdutoMax.toFixed(2)}`
-                              : `R$ ${precoProduto.toFixed(2)}`}
-                        </p>
-                        {!semEstoqueTotal(bid) && (
-                          <div className="mt-1.5 space-y-1">
-                            {mostraEntrega && (
-                              <p className="text-xs text-slate-600">
-                                🚚 Entrega:{' '}
-                                <b className={valorFrete === 0 ? 'text-emerald-600' : 'text-slate-800'}>
-                                  {valorFrete === 0 ? 'grátis' : `+ R$ ${valorFrete.toFixed(2)}`}
-                                </b>
-                                {valorFrete > 0 && (
-                                  <span className="text-slate-400">
-                                    {' '}(total {temFaixaDePreco ? `R$ ${(precoProduto + valorFrete).toFixed(2)} a R$ ${(precoProdutoMax + valorFrete).toFixed(2)}` : `R$ ${(precoProduto + valorFrete).toFixed(2)}`})
-                                  </span>
-                                )}
-                              </p>
-                            )}
-                            {mostraRetirada && (
-                              <p className="text-xs text-slate-600">
-                                🏬 Retirada na loja: <b className="text-emerald-600">sem frete</b>
-                              </p>
-                            )}
-                            {tipoRecebimento === 'ambos' && !bid.retirada_disponivel && (
-                              <p className="text-[11px] text-slate-400">Essa loja não oferece retirada</p>
-                            )}
-                          </div>
-                        )}
-                        {isAccepted && bid.cashback_aplicado > 0 && (
-                          <p className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1 inline-block">
-                            💰 R$ {parseFloat(bid.cashback_aplicado).toFixed(2)} de cashback aplicado · Total a pagar: R$ {(total - parseFloat(bid.cashback_aplicado)).toFixed(2)}
-                          </p>
-                        )}
-                        {(bid.prazo_entrega || (bid.formas_pagamento && bid.formas_pagamento.length > 0) || (cashbackAtivo && (bid.oferece_cashback || bid.aceita_cashback))) && (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {bid.prazo_entrega && (
-                              <span className="text-[11px] font-semibold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
-                                🚚 {LABEL_PRAZO_ENTREGA[bid.prazo_entrega] || bid.prazo_entrega}
-                              </span>
-                            )}
-                            {(bid.formas_pagamento || []).map(fp => (
-                              <span key={fp} className="text-[11px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
-                                💰 {LABEL_FORMA_PAGAMENTO[fp] || fp}
-                                {fp === 'cartao' && bid.parcelas_sem_juros > 1 && ` (até ${bid.parcelas_sem_juros}x sem juros)`}
-                              </span>
-                            ))}
-                            {cashbackAtivo && bid.oferece_cashback && bid.valor_cashback_oferecido > 0 && (
-                              <span className="text-[11px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-                                💰 Cashback: R$ {parseFloat(bid.valor_cashback_oferecido).toFixed(2)}
-                              </span>
-                            )}
-                            {cashbackAtivo && bid.aceita_cashback && (
-                              <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                                🪙 Aceita cashback como pagamento
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        {bid.garantia && (
-                          <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 mt-2">
-                            <b>Garantia:</b> {bid.garantia}
-                          </p>
-                        )}
-                        {bid.observacao && (
-                          <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 mt-2">
-                            <b>Observações do lojista:</b> {bid.observacao}
-                          </p>
-                        )}
-                      </div>
-
-
-                      <div className="flex items-center gap-2.5">
-                        <button
-                          onClick={() => toggleDetails(bid.id)}
-                          className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
-                        >
-                          {showDetails[bid.id] ? 'Ocultar Itens' : 'Ver Detalhes / Fotos'}
-                        </button>
-
+                    {/* Posição + quando chegou */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {isAccepted ? (
-                          <>
-                            <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full flex items-center gap-1">
-                              ✓ Proposta Confirmada
-                            </span>
-                            {lojistaPorBid[bid.lojista_id]?.telefone && (
-                              <a
-                                href={`https://wa.me/55${lojistaPorBid[bid.lojista_id].telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                                  `Olá, ${lojistaPorBid[bid.lojista_id]?.nome || 'tudo bem'}! Sou ${nome || 'o cliente'} e confirmei sua proposta pelo Nuno. Segue o resumo:\n\n${montarResumoPedido(order, bid)}`
-                                )}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1"
-                              >
-                                💬 WhatsApp
-                              </a>
-                            )}
-                          </>
-                        ) : bidAplicandoCashback !== bid.id ? (
-                          <button
-                            onClick={() => {
-                              if (cashbackAtivo && bid.aceita_cashback && saldoCashback > 0) {
-                                setBidAplicandoCashback(bid.id);
-                                setValorCashbackParaAplicar('');
-                              } else {
-                                handleAcceptBid(bid.id, 0);
-                              }
-                            }}
-                            className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm"
-                          >
-                            Confirmar Proposta
-                          </button>
-                        ) : null}
+                          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">✓ Proposta confirmada</span>
+                        ) : ehPatrocinada(bid) ? (
+                          <span className="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⭐ Loja patrocinada</span>
+                        ) : (
+                          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${posicaoPorBid[bid.id] === 1 ? 'text-emerald-700 bg-emerald-100' : 'text-slate-600 bg-slate-100'}`}>
+                            {posicaoPorBid[bid.id]}º lugar
+                          </span>
+                        )}
+                        {!bid.is_completo && (
+                          <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Atende parte dos itens</span>
+                        )}
                       </div>
+                      <span className="text-[11px] text-slate-400 shrink-0">{tempoRelativo(bid.created_at)}</span>
+                    </div>
+
+                    {/* Loja */}
+                    <div className="flex items-center gap-2.5">
+                      {revelaLoja && lojista.logo_url ? (
+                        <img
+                          src={lojista.logo_url}
+                          alt="Logo da loja"
+                          onClick={() => setActiveImage(lojista.logo_url)}
+                          className="w-9 h-9 rounded-lg object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition shrink-0"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-sm shrink-0">
+                          {revelaLoja ? '🏬' : '🔒'}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-800 truncate">
+                          {revelaLoja ? (lojista.nome || 'Loja') : 'Loja revelada ao confirmar'}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          ⭐ {Number(lojista.reputacao_media ?? 5).toFixed(1)}
+                          {lojista.percentual_entrega_no_prazo != null && ` · ${lojista.percentual_entrega_no_prazo}% entregas no prazo`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Foto do produto (carrossel quando tem mais de uma) */}
+                    {renderCarrosselFotos(bid, items)}
+
+                    {/* Preço do produto em destaque */}
+                    <div>
+                      <p className="text-[11px] text-slate-400">Produto</p>
+                      <p className="text-2xl font-bold text-slate-900 leading-tight">
+                        R$ {precoProduto.toFixed(2)}
+                        {temFaixaDePreco && (
+                          <span className="text-sm font-medium text-slate-500"> a R$ {precoProdutoMax.toFixed(2)}</span>
+                        )}
+                      </p>
+                    </div>
+
+                    {/* Entrega, retirada e pagamento: uma linha cada */}
+                    <div className="space-y-1 text-xs text-slate-600">
+                      {mostraEntrega && (
+                        <p>
+                          🚚 Entrega {valorFrete === 0 ? <b className="text-emerald-600">grátis</b> : <b className="text-slate-800">+ R$ {valorFrete.toFixed(2)}</b>}
+                          {prazoTexto && ` · ${prazoTexto}`}
+                        </p>
+                      )}
+                      {mostraRetirada && (
+                        <p>🏬 Retirada na loja <b className="text-emerald-600">sem frete</b>{!mostraEntrega && prazoTexto && ` · ${prazoTexto}`}</p>
+                      )}
+                      {tipoRecebimento === 'ambos' && !bid.retirada_disponivel && (
+                        <p className="text-slate-400">Essa loja não oferece retirada</p>
+                      )}
+                      {formasTexto && <p>💳 {formasTexto}</p>}
+                      {isAccepted && bid.cashback_aplicado > 0 && (
+                        <p className="font-bold text-amber-700">
+                          💰 R$ {parseFloat(bid.cashback_aplicado).toFixed(2)} de cashback aplicado · você paga R$ {(total - parseFloat(bid.cashback_aplicado)).toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Botões sempre no mesmo lugar */}
+                    <div className="flex gap-2 mt-auto pt-1">
+                      <button
+                        onClick={() => toggleDetails(bid.id)}
+                        className="flex-1 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                      >
+                        {showDetails[bid.id] ? 'Ocultar detalhes' : 'Ver detalhes'}
+                      </button>
+                      {isAccepted ? (
+                        lojista.telefone ? (
+                          <a
+                            href={`https://wa.me/55${lojista.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                              `Olá, ${lojista.nome || 'tudo bem'}! Sou ${nome || 'o cliente'} e confirmei sua proposta pelo Nuno. Segue o resumo:\n\n${montarResumoPedido(order, bid)}`
+                            )}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition text-center"
+                          >
+                            💬 WhatsApp
+                          </a>
+                        ) : null
+                      ) : bidAplicandoCashback !== bid.id ? (
+                        <button
+                          onClick={() => {
+                            if (cashbackAtivo && bid.aceita_cashback && saldoCashback > 0) {
+                              setBidAplicandoCashback(bid.id);
+                              setValorCashbackParaAplicar('');
+                            } else {
+                              handleAcceptBid(bid.id, 0);
+                            }
+                          }}
+                          className="flex-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-bold transition"
+                        >
+                          Confirmar
+                        </button>
+                      ) : null}
                     </div>
 
                     {!isAccepted && bidAplicandoCashback === bid.id && (
@@ -1072,74 +1113,87 @@ export default function ClientDashboard() {
                     )}
 
 
-                    {/* Detalhes Expansíveis dos Itens */}
+                    {/* Detalhes sob demanda */}
                     {showDetails[bid.id] && (
-                      <div className="pt-3 border-t border-slate-200 space-y-2">
-                        {items.map((oItem) => {
-                          const bItensDoItem = bItems.filter(bi => bi.order_item_id === oItem.id);
-                          const temVariasOpcoes = bItensDoItem.length > 1;
-                          if (bItensDoItem.length === 0) {
+                      <div className="pt-3 border-t border-slate-100 space-y-3 text-xs text-slate-600">
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">Itens</p>
+                          {items.map((oItem) => {
+                            const ofertas = bItems.filter(bi => bi.order_item_id === oItem.id);
+                            if (ofertas.length === 0 || ofertas.every(o => o.atendido === false)) {
+                              return (
+                                <p key={oItem.id}>
+                                  {oItem.descricao} · Qtd {oItem.quantidade} · <span className="text-rose-600 font-semibold">sem estoque</span>
+                                </p>
+                              );
+                            }
                             return (
-                              <div key={oItem.id} className="text-xs text-slate-700 bg-white p-3 rounded-xl border border-slate-200/80">
-                                <p className="font-bold text-slate-800">{oItem.descricao} (Qtd: {oItem.quantidade})</p>
-                                <p className="font-semibold mt-0.5 text-rose-600">Item indisponível</p>
+                              <div key={oItem.id} className="space-y-0.5">
+                                {ofertas.map((op, opIdx) => (
+                                  <div key={op.id || opIdx}>
+                                    <p>
+                                      <b className="text-slate-800">
+                                        {ofertas.length > 1 ? `Opção ${opIdx + 1}` : oItem.descricao}
+                                        {op.nome_opcao && ` · ${op.nome_opcao}`}
+                                      </b>
+                                      {ofertas.length > 1 && <span className="text-slate-400"> ({oItem.descricao})</span>}
+                                      {' · '}Qtd {oItem.quantidade} · R$ {parseFloat(op.preco_unitario || 0).toFixed(2)}/unid
+                                    </p>
+                                    {op.garantia_opcao && <p className="text-slate-500">Garantia: {op.garantia_opcao}</p>}
+                                    {op.observacao_opcao && <p className="text-slate-500">Obs: {op.observacao_opcao}</p>}
+                                  </div>
+                                ))}
                               </div>
                             );
-                          }
-                          return (
-                            <div key={oItem.id} className="space-y-1.5">
-                              {!temVariasOpcoes && (
-                                <p className="font-bold text-slate-800 text-xs">{oItem.descricao} (Qtd: {oItem.quantidade})</p>
-                              )}
-                              {bItensDoItem.map((bItem, opIdx) => (
-                                <div
-                                  key={bItem.id}
-                                  className="text-xs text-slate-700 flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs"
-                                >
-                                  <div>
-                                    {temVariasOpcoes ? (
-                                      <p className="font-bold text-slate-800">
-                                        Opção {opIdx + 1}{bItem.nome_opcao ? ` — ${bItem.nome_opcao}` : ''} <span className="text-slate-400 font-normal">({oItem.descricao}, Qtd: {oItem.quantidade})</span>
-                                      </p>
-                                    ) : (
-                                      <p className="font-bold text-slate-800">&nbsp;</p>
-                                    )}
-                                    <p className={`font-semibold mt-0.5 ${bItem?.atendido ? 'text-emerald-600' : 'text-rose-600 font-bold'}`}>
-                                      {bItem?.atendido ? `R$ ${parseFloat(bItem.preco_unitario || 0).toFixed(2)} / unid` : 'Item indisponível'}
-                                    </p>
-                                    {bItem.garantia_opcao && <p className="text-slate-500 mt-0.5">Garantia: {bItem.garantia_opcao}</p>}
-                                    {bItem.observacao_opcao && <p className="text-slate-500 mt-0.5">Obs: {bItem.observacao_opcao}</p>}
-                                  </div>
+                          })}
+                        </div>
 
-                                  <div className="flex gap-2">
-                                    {!temVariasOpcoes && oItem.imagem_url && (
-                                      <div className="text-center">
-                                        <p className="text-[10px] text-slate-400 font-medium mb-1">Cliente</p>
-                                        <img
-                                          src={oItem.imagem_url}
-                                          alt="Cliente"
-                                          onClick={() => setActiveImage(oItem.imagem_url)}
-                                          className="w-9 h-9 object-cover rounded-lg border border-indigo-100 cursor-pointer hover:opacity-80 transition"
-                                        />
-                                      </div>
-                                    )}
-                                    {bItem?.imagem_url && (
-                                      <div className="text-center">
-                                        <p className="text-[10px] text-indigo-600 font-bold mb-1">Lojista</p>
-                                        <img
-                                          src={bItem.imagem_url}
-                                          alt="Lojista"
-                                          onClick={() => setActiveImage(bItem.imagem_url)}
-                                          className="w-9 h-9 object-cover rounded-lg border border-indigo-200 cursor-pointer hover:opacity-80 transition"
-                                        />
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
+                        {(bid.garantia || bid.observacao) && (
+                          <div className="space-y-1">
+                            {bid.garantia && <p><b className="text-slate-800">Garantia:</b> {bid.garantia}</p>}
+                            {bid.observacao && <p><b className="text-slate-800">Observações da loja:</b> {bid.observacao}</p>}
+                          </div>
+                        )}
+
+                        {mostraEntrega && valorFrete > 0 && (
+                          <p>
+                            <b className="text-slate-800">Total com entrega:</b>{' '}
+                            {temFaixaDePreco
+                              ? `R$ ${(precoProduto + valorFrete).toFixed(2)} a R$ ${(precoProdutoMax + valorFrete).toFixed(2)}`
+                              : `R$ ${(precoProduto + valorFrete).toFixed(2)}`}
+                          </p>
+                        )}
+
+                        {cashbackAtivo && (bid.oferece_cashback || bid.aceita_cashback) && (
+                          <div className="space-y-1">
+                            {bid.oferece_cashback && bid.valor_cashback_oferecido > 0 && (
+                              <p><b className="text-slate-800">Cashback:</b> você ganha R$ {parseFloat(bid.valor_cashback_oferecido).toFixed(2)}</p>
+                            )}
+                            {bid.aceita_cashback && <p>🪙 Aceita seu cashback como parte do pagamento</p>}
+                          </div>
+                        )}
+
+                        {items.some(i => i.imagem_url) && (
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Suas fotos de referência</p>
+                            <div className="flex gap-2 flex-wrap">
+                              {items.filter(i => i.imagem_url).map(i => (
+                                <img
+                                  key={i.id}
+                                  src={i.imagem_url}
+                                  alt={i.descricao}
+                                  onClick={() => setActiveImage(i.imagem_url)}
+                                  className="w-12 h-12 object-cover rounded-lg border border-slate-200 cursor-pointer hover:opacity-80"
+                                />
                               ))}
                             </div>
-                          );
-                        })}
+                          </div>
+                        )}
+
+                        <p className="text-[11px] text-slate-400">
+                          Recebida em {bid.created_at ? new Date(bid.created_at).toLocaleString('pt-BR') : '-'}
+                          {isAccepted && bid.accepted_at && ` · confirmada em ${new Date(bid.accepted_at).toLocaleString('pt-BR')}`}
+                        </p>
                       </div>
                     )}
 
@@ -1147,6 +1201,16 @@ export default function ClientDashboard() {
                 );
               })}
               </div>
+              {orderBids.some(b => semEstoqueTotal(b) && b.status !== 'Aceito') && (
+                <div className="flex justify-between items-center px-3.5 py-2.5 border border-dashed border-slate-300 rounded-xl text-xs text-slate-400">
+                  <span>
+                    {orderBids.filter(b => semEstoqueTotal(b) && b.status !== 'Aceito').length === 1
+                      ? '1 loja respondeu sem estoque'
+                      : `${orderBids.filter(b => semEstoqueTotal(b) && b.status !== 'Aceito').length} lojas responderam sem estoque`}
+                  </span>
+                  <span>fora do comparativo</span>
+                </div>
+              )}
               </>
             )}
           </div>
