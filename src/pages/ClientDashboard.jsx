@@ -596,6 +596,65 @@ export default function ClientDashboard() {
   const confirmadasOrders = ordenarPorData(orders.filter(o => classifyOrder(o) === 'confirmadas' && matchesSearch(o) && matchesDate(o)));
   const encerradasOrders = ordenarPorData(orders.filter(o => classifyOrder(o) === 'encerradas' && matchesSearch(o) && matchesDate(o)));
 
+  // Resumo completo do pedido + proposta, usado na mensagem do WhatsApp
+  const LABEL_TIPO_RECEBIMENTO = { entrega: 'Entrega', retirada: 'Retirada na loja', ambos: 'Entrega ou retirada' };
+  const montarResumoPedido = (order, bid) => {
+    const itens = orderItemsMap[order.id] || [];
+    const bItens = bidItemsMap[bid.id] || [];
+    const linhas = [];
+    linhas.push(`*Pedido #${order.codigo_pedido || order.id}*`);
+    linhas.push(`Feito em: ${order.created_at ? new Date(order.created_at).toLocaleString('pt-BR') : '-'}`);
+    if (order.tipo_recebimento) linhas.push(`Recebimento: ${LABEL_TIPO_RECEBIMENTO[order.tipo_recebimento] || order.tipo_recebimento}`);
+    if (order.bairro) linhas.push(`Bairro: ${order.bairro}`);
+    linhas.push('');
+    linhas.push('*Itens:*');
+    itens.forEach(item => {
+      const ofertas = bItens.filter(bi => bi.order_item_id === item.id);
+      if (ofertas.length === 0) {
+        linhas.push(`- ${item.descricao} (Qtd: ${item.quantidade})`);
+        return;
+      }
+      ofertas.forEach(bi => {
+        const partes = [`- ${item.descricao}${bi.nome_opcao ? ` (${bi.nome_opcao})` : ''} · Qtd: ${item.quantidade}`];
+        partes.push(bi.atendido ? `R$ ${parseFloat(bi.preco_unitario || 0).toFixed(2)}/unid` : 'sem estoque');
+        if (bi.garantia_opcao) partes.push(`garantia: ${bi.garantia_opcao}`);
+        if (bi.observacao_opcao) partes.push(`obs: ${bi.observacao_opcao}`);
+        linhas.push(partes.join(' · '));
+      });
+    });
+    linhas.push('');
+    linhas.push(`Produto: R$ ${parseFloat(bid.preco || 0).toFixed(2)}${bid.preco_faixa_maximo ? ` até R$ ${parseFloat(bid.preco_faixa_maximo).toFixed(2)}` : ''}`);
+    if ((order.tipo_recebimento || 'ambos') !== 'retirada') {
+      linhas.push(`Frete: ${parseFloat(bid.frete || 0) === 0 ? 'grátis' : `R$ ${parseFloat(bid.frete || 0).toFixed(2)}`}`);
+    }
+    if (bid.retirada_disponivel) linhas.push('Retirada na loja disponível');
+    if (bid.prazo_entrega) linhas.push(`Prazo de entrega: ${LABEL_PRAZO_ENTREGA[bid.prazo_entrega] || bid.prazo_entrega}`);
+    if (bid.formas_pagamento && bid.formas_pagamento.length > 0) {
+      linhas.push(`Pagamento: ${bid.formas_pagamento.map(fp => LABEL_FORMA_PAGAMENTO[fp] || fp).join(', ')}${bid.parcelas_sem_juros > 1 ? ` (até ${bid.parcelas_sem_juros}x sem juros no cartão)` : ''}`);
+    }
+    if (bid.garantia) linhas.push(`Garantia: ${bid.garantia}`);
+    if (bid.observacao) linhas.push(`Observações: ${bid.observacao}`);
+    if (bid.cashback_aplicado > 0) linhas.push(`Cashback usado: R$ ${parseFloat(bid.cashback_aplicado).toFixed(2)}`);
+    return linhas.join('\n');
+  };
+
+  // Loja patrocinada = lojista do plano Premium
+  const ehPatrocinada = (bid) => lojistaPorBid[bid.lojista_id]?.plano === 'premium';
+  // Proposta sem nenhum item em estoque (preço zerado) não é oferta de preço de verdade
+  const semEstoqueTotal = (bid) => parseFloat(bid.preco || 0) === 0;
+
+  // Valor usado pra comparar propostas, de acordo com como o cliente quer
+  // receber: só retirada = só o produto; só entrega = produto + frete;
+  // "ver ambas" = só o produto quando a loja deixa retirar, senão + frete.
+  const valorComparacao = (bid, order) => {
+    const preco = parseFloat(bid.preco || 0);
+    const frete = parseFloat(bid.frete || 0);
+    const tipo = order?.tipo_recebimento || 'ambos';
+    if (tipo === 'retirada') return preco;
+    if (tipo === 'entrega') return preco + frete;
+    return bid.retirada_disponivel ? preco : preco + frete;
+  };
+
   const renderOrderCard = (order) => {
     const todasPropostas = bidsByOrder[String(order.id)] || [];
     const hasAcceptedBid = todasPropostas.some(b => b.status === 'Aceito');
@@ -605,15 +664,15 @@ export default function ClientDashboard() {
     const items = orderItemsMap[order.id] || [];
     const tempo = getRemainingTime(order);
 
-    // Propostas sem nenhum item em estoque (preço zerado) não competem
-    // no ranking de "mais barato" — não é uma oferta de preço de verdade.
-    const rankingPorPreco = [...orderBids]
-      .filter(b => parseFloat(b.preco || 0) > 0)
-      .sort((a, b) => {
-        const totalA = parseFloat(a.preco || 0) + parseFloat(a.frete || 0);
-        const totalB = parseFloat(b.preco || 0) + parseFloat(b.frete || 0);
-        return totalA - totalB;
-      });
+    // Ranking: lojas patrocinadas sempre no topo (com ⭐, ordenadas pelo
+    // menor preço entre elas); depois as demais, numeradas a partir de 1.
+    // Propostas sem estoque ficam fora do ranking de preço.
+    const porValor = (a, b) => valorComparacao(a, order) - valorComparacao(b, order);
+    const comPreco = orderBids.filter(b => !semEstoqueTotal(b));
+    const rankingPatrocinadas = comPreco.filter(ehPatrocinada).sort(porValor);
+    const rankingDemais = comPreco.filter(b => !ehPatrocinada(b)).sort(porValor);
+    const posicaoPorBid = {};
+    rankingDemais.forEach((b, i) => { posicaoPorBid[b.id] = i + 1; });
 
     return (
       <div key={order.id} className="space-y-4">
@@ -632,6 +691,11 @@ export default function ClientDashboard() {
               </span>
             </div>
             <h2 className="text-lg font-bold text-slate-800 mt-2">{order.descricao}</h2>
+            {(lojistasElegiveisPorPedido[order.id] || []).length > 0 && !hasAcceptedBid && (
+              <p className="text-xs text-slate-500 mt-0.5">
+                {todasPropostas.length} de {(lojistasElegiveisPorPedido[order.id] || []).length} lojas que podem responder já enviaram proposta
+              </p>
+            )}
           </div>
           <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
             {order.status || 'Aberto para Propostas'}
@@ -643,11 +707,21 @@ export default function ClientDashboard() {
           <div className="bg-slate-50 rounded-xl px-3 py-2">
             <p className="text-[11px] text-slate-400 mb-1">Ranking por preço</p>
             <div className="flex flex-wrap gap-3 text-xs">
-              {rankingPorPreco.map((bid, i) => (
-                <span key={bid.id} className={i === 0 ? 'text-emerald-600 font-bold' : 'text-slate-500'}>
-                  {i === 0 && '🏆 '}{i + 1}º R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
+              {rankingPatrocinadas.map((bid) => (
+                <span key={bid.id} className="text-amber-600 font-bold">
+                  ⭐ {bid.preco_faixa_maximo ? 'a partir de ' : ''}R$ {valorComparacao(bid, order).toFixed(2)}
                 </span>
               ))}
+              {rankingDemais.map((bid, i) => (
+                <span key={bid.id} className={i === 0 ? 'text-emerald-600 font-bold' : 'text-slate-500'}>
+                  {i + 1}º {bid.preco_faixa_maximo ? 'a partir de ' : ''}R$ {valorComparacao(bid, order).toFixed(2)}
+                </span>
+              ))}
+              {orderBids.some(semEstoqueTotal) && (
+                <span className="text-slate-400 italic">
+                  {orderBids.filter(semEstoqueTotal).length} sem estoque (fora do comparativo)
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -684,19 +758,27 @@ export default function ClientDashboard() {
               )}
               <div className={`grid grid-cols-1 gap-3 ${orderBids.length > 1 ? 'md:grid-cols-2' : ''}`}>
               {[...orderBids].sort((a, b) => {
+                // Sem estoque sempre por último
+                if (semEstoqueTotal(a) !== semEstoqueTotal(b)) return semEstoqueTotal(a) ? 1 : -1;
+                // Patrocinadas sempre no topo
+                if (ehPatrocinada(a) !== ehPatrocinada(b)) return ehPatrocinada(a) ? -1 : 1;
                 if (a.is_completo !== b.is_completo) return a.is_completo ? -1 : 1;
                 if (ordenarPropostasPor === 'prazo') {
                   const pesoA = PESO_PRAZO_ENTREGA[a.prazo_entrega] ?? 999;
                   const pesoB = PESO_PRAZO_ENTREGA[b.prazo_entrega] ?? 999;
                   if (pesoA !== pesoB) return pesoA - pesoB;
                 }
-                const totalA = (parseFloat(a.preco || 0)) + (parseFloat(a.frete || 0));
-                const totalB = (parseFloat(b.preco || 0)) + (parseFloat(b.frete || 0));
-                return totalA - totalB;
+                return valorComparacao(a, order) - valorComparacao(b, order);
               }).map((bid, index) => {
-                const total = (parseFloat(bid.preco || 0)) + (parseFloat(bid.frete || 0));
-                const temFaixaDePreco = bid.preco_faixa_maximo != null && parseFloat(bid.preco_faixa_maximo) > parseFloat(bid.preco || 0);
-                const totalMax = temFaixaDePreco ? parseFloat(bid.preco_faixa_maximo) + parseFloat(bid.frete || 0) : null;
+                const tipoRecebimento = order.tipo_recebimento || 'ambos';
+                const precoProduto = parseFloat(bid.preco || 0);
+                const valorFrete = parseFloat(bid.frete || 0);
+                // Total que o cliente paga: só o produto quando ele só quer retirar
+                const total = tipoRecebimento === 'retirada' ? precoProduto : precoProduto + valorFrete;
+                const temFaixaDePreco = bid.preco_faixa_maximo != null && parseFloat(bid.preco_faixa_maximo) > precoProduto;
+                const precoProdutoMax = temFaixaDePreco ? parseFloat(bid.preco_faixa_maximo) : null;
+                const mostraEntrega = tipoRecebimento !== 'retirada';
+                const mostraRetirada = tipoRecebimento === 'retirada' || (tipoRecebimento === 'ambos' && bid.retirada_disponivel);
                 const bItems = bidItemsMap[bid.id] || [];
                 const isAccepted = bid.status === 'Aceito';
                 const lojistaPremium = lojistaPorBid[bid.lojista_id]?.plano === 'premium';
@@ -715,7 +797,13 @@ export default function ClientDashboard() {
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-600">Proposta #{index + 1}</span>
+                          {semEstoqueTotal(bid) ? (
+                            <span className="text-xs font-bold text-slate-500">Sem estoque</span>
+                          ) : ehPatrocinada(bid) ? (
+                            <span className="text-xs font-bold text-amber-600">⭐ Loja Patrocinada</span>
+                          ) : (
+                            <span className="text-xs font-bold text-slate-600">{posicaoPorBid[bid.id]}º lugar</span>
+                          )}
                           {bid.is_completo ? (
                             <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
                               Atendimento 100%
@@ -773,36 +861,36 @@ export default function ClientDashboard() {
                           {isAccepted && bid.accepted_at && ` · Aceita em ${new Date(bid.accepted_at).toLocaleString('pt-BR')}`}
                         </p>
 
-                        <p className="text-xs text-slate-500 mt-1.5 space-x-3">
-                          <span>
-                            Produto:{' '}
-                            <b className="text-slate-700">
-                              {temFaixaDePreco
-                                ? `de R$ ${parseFloat(bid.preco || 0).toFixed(2)} até R$ ${parseFloat(bid.preco_faixa_maximo).toFixed(2)}`
-                                : `R$ ${parseFloat(bid.preco || 0).toFixed(2)}`}
-                            </b>
-                          </span>
-                          <span>
-                            Frete:{' '}
-                            <b className={parseFloat(bid.frete || 0) === 0 ? 'text-emerald-600' : 'text-slate-700'}>
-                              {parseFloat(bid.frete || 0) === 0 ? 'Grátis' : `R$ ${parseFloat(bid.frete || 0).toFixed(2)}`}
-                            </b>
-                          </span>
+                        <p className="text-[11px] text-slate-500 mt-1.5">Produto</p>
+                        <p className="text-xl font-bold text-slate-900 leading-tight">
+                          {semEstoqueTotal(bid)
+                            ? 'Sem estoque'
+                            : temFaixaDePreco
+                              ? `R$ ${precoProduto.toFixed(2)} até R$ ${precoProdutoMax.toFixed(2)}`
+                              : `R$ ${precoProduto.toFixed(2)}`}
                         </p>
-                        <p className="text-xl font-bold text-slate-900 mt-1">
-                          {temFaixaDePreco ? `Total: de R$ ${total.toFixed(2)} até R$ ${totalMax.toFixed(2)}` : `Total: R$ ${total.toFixed(2)}`}
-                        </p>
-                        {(parseFloat(bid.frete || 0) === 0 || bid.retirada_disponivel) && (
-                          <div className="flex flex-wrap gap-1.5 mt-1">
-                            {parseFloat(bid.frete || 0) === 0 && (
-                              <span className="text-[11px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
-                                🚚 Entrega Grátis
-                              </span>
+                        {!semEstoqueTotal(bid) && (
+                          <div className="mt-1.5 space-y-1">
+                            {mostraEntrega && (
+                              <p className="text-xs text-slate-600">
+                                🚚 Entrega:{' '}
+                                <b className={valorFrete === 0 ? 'text-emerald-600' : 'text-slate-800'}>
+                                  {valorFrete === 0 ? 'grátis' : `+ R$ ${valorFrete.toFixed(2)}`}
+                                </b>
+                                {valorFrete > 0 && (
+                                  <span className="text-slate-400">
+                                    {' '}(total {temFaixaDePreco ? `R$ ${(precoProduto + valorFrete).toFixed(2)} a R$ ${(precoProdutoMax + valorFrete).toFixed(2)}` : `R$ ${(precoProduto + valorFrete).toFixed(2)}`})
+                                  </span>
+                                )}
+                              </p>
                             )}
-                            {bid.retirada_disponivel && (
-                              <span className="text-[11px] font-bold bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">
-                                🏬 Retirada na loja disponível
-                              </span>
+                            {mostraRetirada && (
+                              <p className="text-xs text-slate-600">
+                                🏬 Retirada na loja: <b className="text-emerald-600">sem frete</b>
+                              </p>
+                            )}
+                            {tipoRecebimento === 'ambos' && !bid.retirada_disponivel && (
+                              <p className="text-[11px] text-slate-400">Essa loja não oferece retirada</p>
                             )}
                           </div>
                         )}
@@ -865,7 +953,7 @@ export default function ClientDashboard() {
                             {lojistaPorBid[bid.lojista_id]?.telefone && (
                               <a
                                 href={`https://wa.me/55${lojistaPorBid[bid.lojista_id].telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                                  `Olá, ${lojistaPorBid[bid.lojista_id]?.nome || 'tudo bem'}! Sou ${nome || 'o cliente'} e vamos continuar com o pedido do ${order.descricao || 'produto'} - ${order.codigo_pedido || order.id}.${bid.cashback_aplicado > 0 ? ` Vou usar R$ ${parseFloat(bid.cashback_aplicado).toFixed(2)} de cashback nessa compra.` : ''}`
+                                  `Olá, ${lojistaPorBid[bid.lojista_id]?.nome || 'tudo bem'}! Sou ${nome || 'o cliente'} e confirmei sua proposta pelo Nuno. Segue o resumo:\n\n${montarResumoPedido(order, bid)}`
                                 )}`}
                                 target="_blank"
                                 rel="noreferrer"
@@ -1097,7 +1185,14 @@ export default function ClientDashboard() {
             <p className="text-sm font-bold text-slate-800 truncate">Pedido #{order.codigo_pedido || order.id}</p>
             <p className="text-xs text-slate-600 truncate">{order.descricao}</p>
             <p className="text-xs text-slate-500 mt-0.5">
-              {orderBids.length === 0 ? 'Aguardando propostas' : `${orderBids.length} proposta${orderBids.length > 1 ? 's' : ''} recebida${orderBids.length > 1 ? 's' : ''}`}
+              {(() => {
+                const qtdElegiveis = (lojistasElegiveisPorPedido[order.id] || []).length;
+                const qtdResponderam = orderBids.length;
+                if (qtdElegiveis > 0) {
+                  return `${qtdResponderam} de ${qtdElegiveis} loja${qtdElegiveis > 1 ? 's' : ''} já ${qtdResponderam === 1 ? 'respondeu' : 'responderam'}`;
+                }
+                return qtdResponderam === 0 ? 'Aguardando propostas' : `${qtdResponderam} proposta${qtdResponderam > 1 ? 's' : ''} recebida${qtdResponderam > 1 ? 's' : ''}`;
+              })()}
             </p>
           </div>
         </div>
