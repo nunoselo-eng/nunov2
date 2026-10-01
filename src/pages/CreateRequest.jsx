@@ -13,6 +13,8 @@ export default function CreateRequest() {
   const [categoryId, setCategoryId] = useState('');
   const [cityId, setCityId] = useState('');
   const [bairro, setBairro] = useState('');
+  // Como o cliente quer receber: entrega, retirada na loja ou ver as duas opções
+  const [tipoRecebimento, setTipoRecebimento] = useState('');
   const [eligibleStoresCount, setEligibleStoresCount] = useState(null);
   const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
@@ -132,6 +134,11 @@ export default function CreateRequest() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!tipoRecebimento) {
+      alert('Escolha se você quer entrega, retirada na loja ou ver as duas opções.');
+      return;
+    }
+
     if (uploading) {
       alert('Aguarde o upload das imagens terminar.');
       return;
@@ -157,7 +164,8 @@ export default function CreateRequest() {
         cliente_id: user.id,
         categoria_id: categoryId,
         cidade_id: cityId,
-        bairro: bairro,
+        bairro: tipoRecebimento === 'retirada' ? null : bairro,
+        tipo_recebimento: tipoRecebimento,
         descricao: descricaoResumo,
         status: 'Aberto para Propostas',
         tipo: tipo,
@@ -308,18 +316,48 @@ export default function CreateRequest() {
           </div>
         )}
 
-        {/* Bairro para Entrega */}
+        {/* Como quer receber */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Bairro para Entrega</label>
-          <input
-            type="text"
-            placeholder="Ex: Pelinca, Centro..."
-            value={bairro}
-            onChange={(e) => setBairro(e.target.value)}
-            className="w-full p-2.5 rounded-lg border border-slate-300 bg-slate-50 text-slate-900"
-            required
-          />
+          <label className="block text-sm font-bold text-slate-800 mb-2">Como você quer receber?</label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { key: 'entrega', icone: '🚚', titulo: 'Entrega', sub: 'Recebo em casa' },
+              { key: 'retirada', icone: '🏬', titulo: 'Retirada', sub: 'Busco na loja' },
+              { key: 'ambos', icone: '🔀', titulo: 'Ver as duas', sub: 'Decido depois' },
+            ].map((op) => (
+              <button
+                key={op.key}
+                type="button"
+                onClick={() => setTipoRecebimento(op.key)}
+                className={`p-3 rounded-xl border text-center transition ${
+                  tipoRecebimento === op.key
+                    ? 'border-[#00068F] bg-indigo-50 ring-2 ring-[#00068F]/20'
+                    : 'border-slate-300 bg-white hover:bg-slate-50'
+                }`}
+              >
+                <span className="block text-xl">{op.icone}</span>
+                <span className="block text-sm font-bold text-slate-800 mt-1">{op.titulo}</span>
+                <span className="block text-[11px] text-slate-500">{op.sub}</span>
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* Bairro: só quando tem entrega envolvida */}
+        {(tipoRecebimento === 'entrega' || tipoRecebimento === 'ambos') && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Bairro para entrega</label>
+            <input
+              type="text"
+              placeholder="Digite o seu bairro"
+              autoComplete="off"
+              value={bairro}
+              onChange={(e) => setBairro(e.target.value)}
+              className="w-full p-2.5 rounded-lg border border-slate-300 bg-slate-50 text-slate-900"
+              required
+            />
+          </div>
+        )}
 
         {/* Prazo de Resposta */}
         <div>
