@@ -5,6 +5,94 @@ import { uploadImageToStorage } from '../utils/uploadImage';
 import logo from '../assets/logo.svg';
 import { getStatusPrazo, aplicarPenalidadeSeNecessario } from '../utils/prazoUtils';
 
+/* ===================== Identidade visual do Nuno =====================
+   Cores da marca: azul-marinho #00068F, roxo #5E17EB, lilás #935DFF.
+   Texto #0E1033, texto secundário #5B5E7A, bordas #E4E2EF, fundo #F5F4FA.
+   Verde (#0E7A4E) só pra economia/confirmado; âmbar (#8A5A00) pra prazo correndo. */
+
+const FONTE_TITULO = { fontFamily: "'Bricolage Grotesque', 'Manrope', system-ui, sans-serif" };
+const FONTE_TEXTO = { fontFamily: "'Manrope', system-ui, sans-serif" };
+
+// Carrega as fontes da marca uma única vez (se preferir, mova esse <link> pro index.html)
+function carregarFontesNuno() {
+  if (typeof document === 'undefined' || document.getElementById('fontes-nuno')) return;
+  const link = document.createElement('link');
+  link.id = 'fontes-nuno';
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Manrope:wght@400;500;600;700;800&display=swap';
+  document.head.appendChild(link);
+}
+
+// Ícones de traço (mesmo estilo do caminhão / loja / cartão). Nada de emoji.
+const ICONES = {
+  caminhao: (<><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" /><path d="M15 18H9" /><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14" /><circle cx="17" cy="18" r="2" /><circle cx="7" cy="18" r="2" /></>),
+  loja: (<><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /></>),
+  cartao: (<><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></>),
+  relogio: (<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>),
+  pausa: (<><circle cx="12" cy="12" r="9" /><path d="M10 9v6" /><path d="M14 9v6" /></>),
+  check: (<><circle cx="12" cy="12" r="9" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>),
+  estrela: (<path d="m12 2.5 2.95 5.98 6.6.96-4.78 4.65 1.13 6.57L12 17.56 6.1 20.66l1.13-6.57-4.78-4.65 6.6-.96z" />),
+  cadeado: (<><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>),
+  camera: (<><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" /><circle cx="12" cy="13" r="3" /></>),
+  esquerda: (<path d="m15 18-6-6 6-6" />),
+  direita: (<path d="m9 18 6-6-6-6" />),
+  baixo: (<path d="m6 9 6 6 6-6" />),
+  fechar: (<><path d="M18 6 6 18" /><path d="m6 6 12 12" /></>),
+  busca: (<><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></>),
+  calendario: (<><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4" /><path d="M8 2v4" /><path d="M3 10h18" /></>),
+  ordenar: (<><path d="m21 16-4 4-4-4" /><path d="M17 20V4" /><path d="m3 8 4-4 4 4" /><path d="M7 4v16" /></>),
+  presente: (<><path d="M20 12v8H4v-8" /><path d="M2 7h20v5H2z" /><path d="M12 22V7" /><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" /><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" /></>),
+  carteira: (<><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" /><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" /></>),
+  mensagem: (<path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.5A8.4 8.4 0 1 1 21 11.5z" />),
+  sino: (<><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></>),
+  alerta: (<><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4" /><path d="M12 17h.01" /></>),
+  mais: (<><path d="M12 5v14" /><path d="M5 12h14" /></>),
+  sair: (<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>),
+  usuario: (<><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>),
+  caixa: (<><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" /><path d="M12 22V12" /><path d="m3.3 7 8.7 5 8.7-5" /></>),
+  info: (<><circle cx="12" cy="12" r="9" /><path d="M12 16v-4" /><path d="M12 8h.01" /></>),
+  trofeu: (<><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></>),
+  marcado: (<path d="m5 12 5 5 9-10" />),
+  menos: (<path d="M5 12h14" />),
+  enviar: (<><path d="m22 2-7 20-4-9-9-4z" /><path d="M22 2 11 13" /></>),
+  telefone: (<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" />),
+};
+
+function Icone({ nome, tamanho = 18, strokeWidth = 2, preenchido = false, className = '' }) {
+  return (
+    <svg
+      width={tamanho}
+      height={tamanho}
+      viewBox="0 0 24 24"
+      fill={preenchido ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={`shrink-0 ${className}`}
+    >
+      {ICONES[nome]}
+    </svg>
+  );
+}
+
+// As duas folhas do logo, usadas como decoração no bloco de boas-vindas
+function FolhasNuno({ className = '' }) {
+  return (
+    <svg viewBox="0 0 1000 1000" aria-hidden="true" className={className}>
+      <g transform="matrix(0.833259,0,0,0.833259,-1060.976303,-327.355748)">
+        <g transform="matrix(2.839638,0,0,2.707675,1036.059892,625.783551)">
+          <path d="M85.311,351.156C82.833,349.869 84.021,349.314 84.166,346.506C86.886,293.652 76.346,170.842 94.466,115.49C131.732,1.652 205.442,7.748 218.499,7.763C254.939,7.803 323.161,7.69 323.358,7.803C325.764,9.181 98.703,329.951 85.311,351.156Z" fill="#935DFF" />
+        </g>
+        <g transform="matrix(-3.481229,0.000274,-0.000267,-3.398808,2764.277892,1602.719262)">
+          <path d="M85.311,351.156C82.833,349.869 84.021,349.314 84.166,346.506C86.886,293.652 76.346,170.842 94.466,115.49C131.732,1.652 205.442,7.748 218.499,7.763C254.939,7.803 323.161,7.69 323.358,7.803C325.764,9.181 98.703,329.951 85.311,351.156Z" fill="#5E17EB" />
+        </g>
+      </g>
+    </svg>
+  );
+}
+
 export default function LojistaDashboard() {
   const [orders, setOrders] = useState([]);
   const [acceptedBids, setAcceptedBids] = useState([]);
@@ -881,33 +969,6 @@ export default function LojistaDashboard() {
   const paginatedEnviadas = enviadasOrdenadas.slice((paginaEnviadas - 1) * ITENS_POR_PAGINA, paginaEnviadas * ITENS_POR_PAGINA);
   const paginatedEncerradas = encerradasOrdenadas.slice((paginaEncerradas - 1) * ITENS_POR_PAGINA, paginaEncerradas * ITENS_POR_PAGINA);
 
-  // Controles de "Anterior / Próxima" reaproveitados nas 3 seções
-  const renderPaginacao = (paginaAtual, totalPaginas, setPagina) => {
-    if (totalPaginas <= 1) return null;
-    return (
-      <div className="flex items-center justify-center gap-3 pt-2">
-        <button
-          onClick={() => setPagina(p => Math.max(1, p - 1))}
-          disabled={paginaAtual === 1}
-          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition"
-        >
-          ← Anterior
-        </button>
-        <span className="text-xs font-semibold text-slate-500">
-          Página {paginaAtual} de {totalPaginas}
-        </span>
-        <button
-          onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
-          disabled={paginaAtual === totalPaginas}
-          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition"
-        >
-          Próxima →
-        </button>
-      </div>
-    );
-  };
-
-  // Painel de detalhes expandido (bairro, itens com fotos e status da concorrência)
   // Ranking anônimo das propostas concorrentes (recurso Premium) — só
   // disponível depois que o lojista já perdeu aquele pedido pra outro.
   const handleVerRankingConcorrentes = async (bid) => {
@@ -1011,669 +1072,1546 @@ export default function LojistaDashboard() {
     return linhas.join('\n');
   };
 
-  const renderDetalhesExpandido = (bid, cardKey, mostrarStatusConcorrencia) => {
-    const isExpanded = expandedDetails.has(cardKey);
+  /* ============================ NOVO LAYOUT ============================ */
+
+  const [menuContaAberto, setMenuContaAberto] = useState(false);
+  const [mostrarPeriodo, setMostrarPeriodo] = useState(false);
+  const [mostrarTodasAvaliacoes, setMostrarTodasAvaliacoes] = useState(false);
+
+  useEffect(() => {
+    carregarFontesNuno();
+  }, []);
+
+  const LINK_FALAR_COM_NUNO = 'https://www.comprecomnuno.com.br/contato';
+  const NOME_PLANO = { basico: 'Básico', pro: 'Pro', premium: 'Premium' };
+  const planoAtual = profile?.plano || null;
+  const ehProOuPremium = planoAtual === 'pro' || planoAtual === 'premium';
+
+  const brl = (valor) => `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const numeroBr = (valor, casas = 1) => Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+  const labelPrazoEntrega = (valor) => OPCOES_PRAZO_ENTREGA.find(o => o.value === valor)?.label || valor;
+  const labelPagamento = (valor) => {
+    const label = OPCOES_PAGAMENTO.find(o => o.value === valor)?.label || valor;
+    return valor === 'faturado' ? 'Faturado' : label;
+  };
+
+  // "há 12 min", "há 3 h", "há 2 dias"
+  const tempoRelativo = (dataStr) => {
+    if (!dataStr) return '';
+    const diffMin = Math.max(0, Math.floor((now - new Date(dataStr).getTime()) / 60000));
+    if (diffMin < 1) return 'agora';
+    if (diffMin < 60) return `há ${diffMin} min`;
+    const horas = Math.floor(diffMin / 60);
+    if (horas < 24) return `há ${horas} h`;
+    const dias = Math.floor(horas / 24);
+    return `há ${dias} dia${dias > 1 ? 's' : ''}`;
+  };
+
+  const iniciaisDe = (texto) => (texto || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(parte => parte[0].toUpperCase())
+    .join('') || '?';
+
+  const totalDaProposta = (bid) => parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0);
+
+  const irParaConfirmadas = () => {
+    setAbaSelecionadaLojista('confirmadas');
+    setNovaVendaConfirmadaCount(0);
+    setShowVendaConfirmadaBanner(false);
+  };
+
+  // Barra dividida em pedaços (usada no limite diário do plano Básico)
+  const renderBarra = (feitas, total, cor, vazio = '#E4E2EF') => {
+    if (!total) return null;
+    if (total > 12) {
+      return (
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: vazio }} aria-hidden="true">
+          <div className="h-full rounded-full" style={{ width: `${Math.min(100, (feitas / total) * 100)}%`, background: cor }} />
+        </div>
+      );
+    }
+    return (
+      <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }} aria-hidden="true">
+        {Array.from({ length: total }).map((_, i) => (
+          <span key={i} className="h-1.5 rounded-full" style={{ background: i < feitas ? cor : vazio }} />
+        ))}
+      </div>
+    );
+  };
+
+  const renderChip = (texto, cls, icone, preenchido = false) => (
+    <span className={`inline-flex items-center gap-1.5 min-h-[28px] px-2.5 py-0.5 rounded-full text-xs font-bold ${cls}`}>
+      {icone && <Icone nome={icone} tamanho={13} strokeWidth={2.2} preenchido={preenchido} />}
+      <span>{texto}</span>
+    </span>
+  );
+
+  const renderEstrelas = (nota, tamanho = 16) => (
+    <span className="inline-flex gap-0.5 text-[#5E17EB]" aria-label={`${nota} de 5 estrelas`}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <Icone key={i} nome="estrela" tamanho={tamanho} strokeWidth={1.8} preenchido={i <= Math.round(nota)} className={i <= Math.round(nota) ? '' : 'text-[#C9C6E0]'} />
+      ))}
+    </span>
+  );
+
+  // Interruptor (liga/desliga) acessível, por cima de um checkbox de verdade
+  const renderInterruptor = ({ checked, onChange, rotulo, icone, corLigado = '#5E17EB', classeTexto = 'text-[#0E1033]' }) => (
+    <label className="flex items-center justify-between gap-3 min-h-[48px] cursor-pointer">
+      <span className={`flex items-center gap-2.5 text-sm font-semibold ${classeTexto}`}>
+        {icone && <Icone nome={icone} tamanho={18} className="text-[#5B5E7A]" />}
+        {rotulo}
+      </span>
+      <input type="checkbox" className="sr-only peer" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span
+        aria-hidden="true"
+        className="relative shrink-0 w-12 h-7 rounded-full transition peer-focus-visible:ring-2 peer-focus-visible:ring-[#5E17EB]/40"
+        style={{ background: checked ? corLigado : '#D6D3E6' }}
+      >
+        <span className={`absolute top-[3px] w-[22px] h-[22px] rounded-full bg-white shadow-sm transition-all ${checked ? 'left-[23px]' : 'left-[3px]'}`} />
+      </span>
+    </label>
+  );
+
+  const CLASSE_ENTRADA = 'w-full h-12 px-3.5 rounded-xl border border-[#E4E2EF] bg-white text-[15px] text-[#0E1033] placeholder-[#8B88A6] focus:outline-none focus:border-[#5E17EB] focus:ring-2 focus:ring-[#5E17EB]/20 transition';
+  const CLASSE_ROTULO = 'block text-[13px] font-semibold text-[#0E1033] mb-1.5';
+
+  // Botão de enviar foto: um <label> grande por cima do input de arquivo escondido
+  const renderEnvioFoto = ({ url, enviando, onArquivo, rotulo = 'Adicionar foto' }) => (
+    <div className="flex items-center gap-3">
+      {url && (
+        <img
+          src={url}
+          alt="Foto enviada"
+          onClick={() => setActiveImage(url)}
+          className="w-16 h-16 rounded-xl object-cover border border-[#E4E2EF] cursor-zoom-in shrink-0"
+        />
+      )}
+      <label className={`flex-1 flex items-center justify-center gap-2 h-12 rounded-xl cursor-pointer text-sm font-bold transition ${
+        url ? 'border border-[#E4E2EF] bg-white text-[#0E1033] hover:bg-[#F5F4FA]' : 'border-[1.5px] border-dashed border-[#C9B6FB] bg-[#F7F3FF] text-[#3C0DA8] hover:bg-[#EFE9FF]'
+      }`}>
+        <Icone nome="camera" tamanho={18} />
+        {enviando ? 'Enviando...' : url ? 'Trocar foto' : rotulo}
+        <input type="file" accept="image/*" className="sr-only" onChange={(e) => onArquivo(e.target.files[0])} />
+      </label>
+    </div>
+  );
+
+  /* ------------------------------- Paginação ------------------------------- */
+  const renderPaginacao = (paginaAtual, totalPaginas, setPagina) => {
+    if (totalPaginas <= 1) return null;
+    return (
+      <div className="flex items-center justify-center gap-2 pt-2">
+        <button
+          type="button"
+          onClick={() => setPagina(p => Math.max(1, p - 1))}
+          disabled={paginaAtual === 1}
+          className="inline-flex items-center gap-1 h-11 px-3.5 rounded-xl border border-[#E4E2EF] bg-white text-sm font-semibold text-[#0E1033] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F5F4FA] transition"
+        >
+          <Icone nome="esquerda" tamanho={16} /> Anterior
+        </button>
+        <span className="text-sm font-semibold text-[#5B5E7A] px-2">
+          {paginaAtual} de {totalPaginas}
+        </span>
+        <button
+          type="button"
+          onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+          disabled={paginaAtual === totalPaginas}
+          className="inline-flex items-center gap-1 h-11 px-3.5 rounded-xl border border-[#E4E2EF] bg-white text-sm font-semibold text-[#0E1033] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F5F4FA] transition"
+        >
+          Próxima <Icone nome="direita" tamanho={16} />
+        </button>
+      </div>
+    );
+  };
+
+  /* ---------------- "O que você enviou" + itens do pedido (detalhe) ---------------- */
+  const renderDetalhesProposta = (bid) => {
     const orderIdNum = Number(bid.order_id || bid.pedido_id);
     const itensCliente = pedidoItemsMap[orderIdNum] || [];
     const itensEnviados = minhaPropostaItemsMap[bid.id] || [];
-    const fechadoComOutro = ordersFechadosComOutro.has(orderIdNum);
+    const pedido = bid.pedido || {};
+
+    const linhas = [
+      ['Produto', `${brl(bid.preco)}${bid.preco_faixa_maximo != null ? ` a ${brl(bid.preco_faixa_maximo)}` : ''}`],
+      pedido.tipo_recebimento !== 'retirada' ? ['Frete', parseFloat(bid.frete || 0) === 0 ? 'Grátis' : brl(bid.frete)] : null,
+      ['Retirada na loja', bid.retirada_disponivel ? 'Sim' : 'Não'],
+      ['Atendimento', bid.is_completo ? '100% dos itens' : 'Parcial'],
+      bid.prazo_entrega ? ['Prazo de entrega', labelPrazoEntrega(bid.prazo_entrega)] : null,
+      bid.formas_pagamento && bid.formas_pagamento.length > 0
+        ? ['Pagamento', `${bid.formas_pagamento.map(labelPagamento).join(', ')}${bid.parcelas_sem_juros > 1 ? ` · até ${bid.parcelas_sem_juros}x sem juros` : ''}`]
+        : null,
+      bid.garantia ? ['Garantia', bid.garantia] : null,
+      bid.observacao ? ['Observações', bid.observacao] : null,
+      bid.oferece_cashback ? ['Cashback oferecido', brl(bid.valor_cashback_oferecido)] : null,
+      bid.aceita_cashback ? ['Aceita cashback como pagamento', 'Sim'] : null,
+      bid.cashback_aplicado > 0 ? ['Cashback usado pelo cliente', brl(bid.cashback_aplicado)] : null,
+    ].filter(Boolean);
 
     return (
       <>
-        <button
-          onClick={() => toggleExpandedDetails(cardKey)}
-          className="text-[11px] font-bold text-indigo-600 hover:underline mt-1"
-        >
-          {isExpanded ? '▾ Ocultar detalhes do pedido' : '▸ Ver detalhes do pedido'}
-        </button>
-
-        {isExpanded && (
-          <div className="mt-2 pt-2 border-t border-slate-100 space-y-2 text-xs text-slate-600">
-            <p><b>Bairro:</b> {bid.pedido?.bairro || 'Não informado'}</p>
-            <p><b>Pedido feito em:</b> {bid.pedido?.created_at ? new Date(bid.pedido.created_at).toLocaleString('pt-BR') : 'Não informado'}</p>
-            <p><b>Sua proposta enviada em:</b> {bid.created_at ? new Date(bid.created_at).toLocaleString('pt-BR') : 'Não informado'}</p>
-            <p>
-              <b>Status da proposta:</b>{' '}
-              {bid.status === 'Aceito' ? (
-                <span className="text-emerald-600 font-bold">
-                  Aceita{bid.accepted_at ? ` em ${new Date(bid.accepted_at).toLocaleString('pt-BR')}` : ''}
-                </span>
-              ) : fechadoComOutro ? (
-                <span className="text-rose-600 font-bold">Seu concorrente venceu a cotação</span>
-              ) : (
-                <span className="text-amber-700 font-bold">Aguardando resposta do cliente</span>
-              )}
-            </p>
-            {bid.pedido?.tipo_recebimento && (
-              <p><b>Cliente quer:</b> {LABEL_TIPO_RECEBIMENTO[bid.pedido.tipo_recebimento] || bid.pedido.tipo_recebimento}</p>
-            )}
-
-            <div className="bg-indigo-50/60 border border-indigo-100 rounded-lg p-2.5 space-y-1">
-              <p className="font-bold text-indigo-700 uppercase text-[10px]">O que você enviou</p>
-              <p>
-                <b>Produto:</b> R$ {parseFloat(bid.preco || 0).toFixed(2)}
-                {bid.preco_faixa_maximo != null && ` até R$ ${parseFloat(bid.preco_faixa_maximo).toFixed(2)} (faixa de preço)`}
-              </p>
-              {bid.pedido?.tipo_recebimento !== 'retirada' && (
-                <p><b>Frete:</b> {parseFloat(bid.frete || 0) === 0 ? 'Grátis' : `R$ ${parseFloat(bid.frete || 0).toFixed(2)}`}</p>
-              )}
-              <p><b>Retirada na loja:</b> {bid.retirada_disponivel ? 'Sim' : 'Não'}</p>
-              <p><b>Atendimento:</b> {bid.is_completo ? '100% dos itens' : 'Parcial'}</p>
-              {bid.prazo_entrega && (
-                <p><b>Prazo de entrega:</b> {OPCOES_PRAZO_ENTREGA.find(o => o.value === bid.prazo_entrega)?.label || bid.prazo_entrega}</p>
-              )}
-              {bid.formas_pagamento && bid.formas_pagamento.length > 0 && (
-                <p>
-                  <b>Formas de pagamento:</b> {bid.formas_pagamento.map(fp => OPCOES_PAGAMENTO.find(o => o.value === fp)?.label || fp).join(', ')}
-                  {bid.parcelas_sem_juros > 1 && ` · até ${bid.parcelas_sem_juros}x sem juros no cartão`}
-                </p>
-              )}
-              {bid.garantia && <p><b>Garantia:</b> {bid.garantia}</p>}
-              {bid.observacao && <p><b>Observações:</b> {bid.observacao}</p>}
-              {bid.oferece_cashback && (
-                <p><b>Cashback oferecido:</b> R$ {parseFloat(bid.valor_cashback_oferecido || 0).toFixed(2)}</p>
-              )}
-              {bid.aceita_cashback && <p><b>Aceita cashback como pagamento:</b> Sim</p>}
-              {bid.cashback_aplicado > 0 && (
-                <p><b>Cashback usado pelo cliente:</b> R$ {parseFloat(bid.cashback_aplicado).toFixed(2)}</p>
-              )}
-            </div>
-
-            {itensCliente.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="font-bold text-slate-500 uppercase text-[10px]">Itens do Pedido</p>
-                {itensCliente.map((item) => {
-                  const enviados = itensEnviados.filter(ei => ei.order_item_id === item.id);
-                  const enviado = enviados[0];
-                  return (
-                    <div key={item.id} className="flex justify-between items-start bg-slate-50 p-2 rounded-lg border border-slate-200">
-                      <div className="space-y-1">
-                        <p className="font-semibold text-slate-700">{item.descricao} (Qtd: {item.quantidade})</p>
-                        {enviados.map((op, opIdx) => (
-                          <div key={op.id || opIdx}>
-                            <p className={op.atendido ? 'text-emerald-600 font-semibold' : 'text-rose-600 font-bold'}>
-                              {enviados.length > 1 && `Opção ${opIdx + 1}${op.nome_opcao ? ` (${op.nome_opcao})` : ''}: `}
-                              {enviados.length === 1 && op.nome_opcao && `${op.nome_opcao}: `}
-                              {op.atendido ? `R$ ${parseFloat(op.preco_unitario || 0).toFixed(2)} / unid` : 'Marcado como sem estoque'}
-                            </p>
-                            {op.garantia_opcao && <p className="text-slate-500">Garantia: {op.garantia_opcao}</p>}
-                            {op.observacao_opcao && <p className="text-slate-500">Obs: {op.observacao_opcao}</p>}
-                            {enviados.length > 1 && op.imagem_url && (
-                              <img
-                                src={op.imagem_url}
-                                alt="Foto da opção"
-                                onClick={() => setActiveImage(op.imagem_url)}
-                                className="w-9 h-9 object-cover rounded border cursor-pointer hover:opacity-80 mt-1"
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        {item.imagem_url && (
-                          <div className="text-center">
-                            <p className="text-[9px] text-slate-400 font-medium mb-0.5">Cliente</p>
-                            <img
-                              src={item.imagem_url}
-                              alt="Foto do cliente"
-                              onClick={() => setActiveImage(item.imagem_url)}
-                              className="w-9 h-9 object-cover rounded border cursor-pointer hover:opacity-80"
-                            />
-                          </div>
-                        )}
-                        {enviados.length <= 1 && enviado?.imagem_url && (
-                          <div className="text-center">
-                            <p className="text-[9px] text-indigo-500 font-bold mb-0.5">Sua foto</p>
-                            <img
-                              src={enviado.imagem_url}
-                              alt="Sua foto"
-                              onClick={() => setActiveImage(enviado.imagem_url)}
-                              className="w-9 h-9 object-cover rounded border cursor-pointer hover:opacity-80"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+        <section className="bg-white border border-[#E4E2EF] rounded-2xl p-4">
+          <h3 className="text-xs font-bold text-[#5B5E7A] uppercase tracking-wide mb-1">O que você enviou</h3>
+          <dl>
+            {linhas.map(([rotulo, valor], i) => (
+              <div key={rotulo} className={`flex justify-between gap-3 py-2.5 text-sm ${i < linhas.length - 1 ? 'border-b border-[#F0EFF5]' : ''}`}>
+                <dt className="text-[#5B5E7A]">{rotulo}</dt>
+                <dd className="font-semibold text-right text-[#0E1033]">{valor}</dd>
               </div>
-            )}
+            ))}
+          </dl>
+        </section>
 
-            {mostrarStatusConcorrencia && (
-              <p className="text-[11px] text-slate-400 italic pt-1">
-                Proposta enviada e travada — não pode ser editada.
-              </p>
-            )}
-          </div>
+        {itensCliente.length > 0 && (
+          <section className="bg-white border border-[#E4E2EF] rounded-2xl p-4 space-y-3">
+            <h3 className="text-xs font-bold text-[#5B5E7A] uppercase tracking-wide">Itens do pedido</h3>
+            {itensCliente.map((item) => {
+              const enviados = itensEnviados.filter(ei => ei.order_item_id === item.id);
+              const enviado = enviados[0];
+              return (
+                <div key={item.id} className="flex justify-between items-start gap-3 pb-3 border-b border-[#F0EFF5] last:border-b-0 last:pb-0">
+                  <div className="space-y-1 text-sm min-w-0">
+                    <p className="font-semibold text-[#0E1033]">{item.descricao} · Qtd {item.quantidade}</p>
+                    {enviados.map((op, opIdx) => (
+                      <div key={op.id || opIdx}>
+                        <p className={op.atendido ? 'text-[#0E7A4E] font-semibold' : 'text-[#C53036] font-bold'}>
+                          {enviados.length > 1 && `Opção ${opIdx + 1}${op.nome_opcao ? ` (${op.nome_opcao})` : ''}: `}
+                          {enviados.length === 1 && op.nome_opcao && `${op.nome_opcao}: `}
+                          {op.atendido ? `${brl(op.preco_unitario)} / unid.` : 'Marcado como sem estoque'}
+                        </p>
+                        {op.garantia_opcao && <p className="text-[#5B5E7A] text-[13px]">Garantia: {op.garantia_opcao}</p>}
+                        {op.observacao_opcao && <p className="text-[#5B5E7A] text-[13px]">Obs: {op.observacao_opcao}</p>}
+                        {enviados.length > 1 && op.imagem_url && (
+                          <img
+                            src={op.imagem_url}
+                            alt="Foto da opção"
+                            onClick={() => setActiveImage(op.imagem_url)}
+                            className="w-12 h-12 object-cover rounded-lg border border-[#E4E2EF] cursor-zoom-in mt-1"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    {item.imagem_url && (
+                      <div className="text-center">
+                        <p className="text-[10px] text-[#8B88A6] font-semibold mb-0.5">Cliente</p>
+                        <img
+                          src={item.imagem_url}
+                          alt="Foto do cliente"
+                          onClick={() => setActiveImage(item.imagem_url)}
+                          className="w-12 h-12 object-cover rounded-lg border border-[#E4E2EF] cursor-zoom-in"
+                        />
+                      </div>
+                    )}
+                    {enviados.length <= 1 && enviado?.imagem_url && (
+                      <div className="text-center">
+                        <p className="text-[10px] text-[#5E17EB] font-bold mb-0.5">Sua foto</p>
+                        <img
+                          src={enviado.imagem_url}
+                          alt="Sua foto"
+                          onClick={() => setActiveImage(enviado.imagem_url)}
+                          className="w-12 h-12 object-cover rounded-lg border border-[#E4E2EF] cursor-zoom-in"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </section>
         )}
+
+        <p className="text-xs text-[#8B88A6] text-center">
+          Pedido feito em {pedido.created_at ? new Date(pedido.created_at).toLocaleString('pt-BR') : '-'}
+          {' · '}proposta enviada em {bid.created_at ? new Date(bid.created_at).toLocaleString('pt-BR') : '-'}
+        </p>
       </>
     );
   };
 
+  /* --------------------------- Card de cotação aberta --------------------------- */
+  const renderCotacaoAberta = (order) => {
+    const tempo = getRemainingTime(order);
+    const urgente = order.prazo_opcao === 'urgente';
+    const repCliente = reputacaoClientesPorPedido[order.id];
+    const concorrentes = contagemPropostasPorPedido[order.id] || 0;
+    const local = [order.bairro, order.cidade_nome_exibicao].filter(Boolean).join(', ');
+    const abrir = () => { if (!tempo.expirado) openBidModal(order); };
+
+    return (
+      <article
+        key={order.id}
+        onClick={abrir}
+        className={`bg-white rounded-2xl border p-4 sm:p-5 transition flex flex-col sm:flex-row sm:items-center gap-4 ${
+          tempo.expirado
+            ? 'border-[#E4E2EF] opacity-60'
+            : `cursor-pointer hover:shadow-[0_6px_20px_rgba(14,16,51,0.08)] ${urgente ? 'border-[#F3B4B6]' : 'border-[#E4E2EF] hover:border-[#C9B6FB]'}`
+        }`}
+      >
+        <div className="flex gap-3 items-start flex-1 min-w-0">
+          <span className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+            tempo.expirado ? 'bg-[#F0EFF5] text-[#8B88A6]' : urgente ? 'bg-[#FDECEC] text-[#C53036]' : 'bg-[#EFE9FF] text-[#5E17EB]'
+          }`}>
+            <Icone nome={tempo.expirado ? 'relogio' : 'caixa'} tamanho={24} />
+          </span>
+          <div className="min-w-0 flex-1 space-y-2">
+            <div>
+              <p className="text-xs font-semibold text-[#5B5E7A]">
+                Pedido #{order.codigo_pedido || order.id}
+                {order.created_at && ` · ${tempoRelativo(order.created_at)}`}
+              </p>
+              <h3 className="text-base font-bold leading-snug text-[#0E1033] line-clamp-2">{order.descricao}</h3>
+              <p className="text-[13px] text-[#5B5E7A]">
+                {[order.categoria_nome_exibicao, local, order.tipo_recebimento && LABEL_TIPO_RECEBIMENTO[order.tipo_recebimento]?.replace(' (ver as duas)', '')].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+            {!tempo.expirado && (
+              <div className="flex gap-1.5 flex-wrap">
+                {urgente && renderChip('Urgente · 1h', 'bg-[#E5484D] text-white')}
+                {renderChip(tempo.texto, tempo.pausado ? 'bg-[#E7EEFF] text-[#1D4ED8]' : 'bg-[#FFF3D6] text-[#8A5A00]', tempo.pausado ? 'pausa' : 'relogio')}
+                {repCliente && (repCliente.total_avaliacoes ?? 1) > 0
+                  ? renderChip(
+                    `Cliente ${numeroBr(repCliente.reputacao_media)}`,
+                    Number(repCliente.reputacao_media) < 4 ? 'bg-[#FDECEC] text-[#C53036]' : 'bg-[#E3F5EC] text-[#0E7A4E]',
+                    'estrela',
+                    true
+                  )
+                  : renderChip('Cliente novo', 'bg-[#F0EFF5] text-[#5B5E7A]')}
+                {concorrentes > 0 && renderChip(
+                  `${concorrentes} ${concorrentes === 1 ? 'concorrente já respondeu' : 'concorrentes já responderam'}`,
+                  'bg-[#E7EEFF] text-[#1D4ED8]',
+                  'loja'
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {tempo.expirado ? (
+          <span className="w-full sm:w-auto inline-flex items-center justify-center min-h-[48px] px-5 rounded-xl bg-[#F0EFF5] text-[#8B88A6] text-sm font-bold">
+            Prazo encerrado
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); abrir(); }}
+            className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-1.5 min-h-[48px] px-5 rounded-xl bg-[#5E17EB] hover:bg-[#3C0DA8] text-white text-[15px] font-bold transition"
+          >
+            Enviar orçamento <Icone nome="direita" tamanho={16} strokeWidth={2.2} />
+          </button>
+        )}
+      </article>
+    );
+  };
+
+  /* ----------------- Card de proposta (enviadas / confirmadas / encerradas) ----------------- */
+  const renderPropostaRow = (bid, tipo) => {
+    const pedido = bid.pedido || {};
+    const destacar = tipo === 'confirmadas' && !bid.visualizado_pelo_lojista && !bid.entregue_em;
+    const abrir = () => {
+      setDetalheBidAberto(bid);
+      if (destacar) {
+        supabase.from('bids').update({ visualizado_pelo_lojista: true }).eq('id', bid.id).then(() => fetchLojistaData());
+      }
+    };
+
+    const CONFIG = {
+      enviadas: { icone: 'relogio', tile: 'bg-[#FFF3D6] text-[#8A5A00]', chip: ['Aguardando o cliente', 'bg-[#FFF3D6] text-[#8A5A00]'], botao: 'Ver proposta', rotuloValor: 'Total enviado' },
+      confirmadas: { icone: 'check', tile: 'bg-[#E3F5EC] text-[#0E7A4E]', chip: bid.entregue_em ? ['Entregue', 'bg-[#E3F5EC] text-[#0E7A4E]'] : ['Confirmada', 'bg-[#E3F5EC] text-[#0E7A4E]'], botao: 'Ver venda', rotuloValor: 'Total da venda' },
+      encerradas: { icone: 'cadeado', tile: 'bg-[#F0EFF5] text-[#5B5E7A]', chip: ['Outro lojista venceu', 'bg-[#FDECEC] text-[#C53036]'], botao: 'Ver detalhes', rotuloValor: 'Total enviado' },
+    }[tipo];
+
+    return (
+      <article
+        key={bid.id}
+        onClick={abrir}
+        className={`rounded-2xl border p-4 sm:p-5 cursor-pointer transition flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-[0_6px_20px_rgba(14,16,51,0.08)] ${
+          destacar ? 'bg-[#0E7A4E] border-[#0E7A4E] text-white' : tipo === 'confirmadas' ? 'bg-white border-[#A7DCC1]' : 'bg-white border-[#E4E2EF] hover:border-[#C9B6FB]'
+        }`}
+      >
+        <div className="flex gap-3 items-start flex-1 min-w-0">
+          <span className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${destacar ? 'bg-white/15 text-white' : CONFIG.tile}`}>
+            <Icone nome={CONFIG.icone} tamanho={24} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className={`text-xs font-semibold ${destacar ? 'text-[#CDEBDC]' : 'text-[#5B5E7A]'}`}>
+              Pedido #{pedido.codigo_pedido || pedido.id}
+              {tipo === 'confirmadas' && ` · ${pedido.cliente?.nome || 'Cliente'}`}
+              {bid.created_at && ` · ${tempoRelativo(tipo === 'confirmadas' && bid.accepted_at ? bid.accepted_at : bid.created_at)}`}
+            </p>
+            <h3 className={`text-base font-bold leading-snug line-clamp-2 ${destacar ? 'text-white' : 'text-[#0E1033]'}`}>{pedido.descricao}</h3>
+            <div className="mt-2">
+              {destacar
+                ? renderChip('Nova venda!', 'bg-white text-[#0E7A4E]', 'check')
+                : renderChip(CONFIG.chip[0], CONFIG.chip[1])}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between sm:flex-col sm:items-end gap-3 shrink-0">
+          <div className="sm:text-right">
+            <p className={`text-xs ${destacar ? 'text-[#CDEBDC]' : 'text-[#5B5E7A]'}`}>{CONFIG.rotuloValor}</p>
+            <p style={FONTE_TITULO} className={`text-[22px] font-bold tracking-tight leading-tight ${destacar ? 'text-white' : 'text-[#0E1033]'}`}>
+              {brl(totalDaProposta(bid))}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); abrir(); }}
+            className={`inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-xl text-sm font-bold transition ${
+              destacar ? 'bg-white text-[#0E7A4E]' : 'bg-[#EFE9FF] hover:bg-[#E3D8FF] text-[#3C0DA8]'
+            }`}
+          >
+            {CONFIG.botao} <Icone nome="direita" tamanho={16} strokeWidth={2.2} />
+          </button>
+        </div>
+      </article>
+    );
+  };
+
+  /* ------------------------------ Dados da página ------------------------------ */
+  const cotacoesValidas = orders.filter(o => !getRemainingTime(o).expirado).length;
+  const urgentesCount = orders.filter(o => o.prazo_opcao === 'urgente' && !getRemainingTime(o).expirado).length;
+  const hoje = new Date(now);
+  const vendasEsteMes = acceptedBids.filter(b => {
+    const d = new Date(b.accepted_at || b.created_at || 0);
+    return d.getMonth() === hoje.getMonth() && d.getFullYear() === hoje.getFullYear();
+  }).length;
+  const avaliacoesValidas = minhasAvaliacoes.filter(av => !av.desconsiderada);
+  const ultimasAvaliacoes = avaliacoesValidas.slice(0, 2);
+  const reputacaoMedia = profile?.reputacao_media != null ? Number(profile.reputacao_media) : 5;
+
+  const abas = [
+    { key: 'aberto', label: 'Em aberto', count: filteredOrders.length, aviso: novosPedidosCount },
+    { key: 'enviadas', label: 'Enviadas', count: enviadasOrdenadas.length, aviso: 0 },
+    { key: 'confirmadas', label: 'Confirmadas', count: acceptedBidsOrdenados.length, aviso: novaVendaConfirmadaCount },
+    { key: 'encerradas', label: 'Encerradas', count: encerradasOrdenadas.length, aviso: 0 },
+  ];
+  const filtrandoAlgo = Boolean(searchTerm || dateFrom || dateTo || (abaSelecionadaLojista === 'aberto' && statusFilter !== 'todas'));
+
+  const renderVazio = (texto, icone = 'caixa') => (
+    <div className="bg-white border border-dashed border-[#D6D3E6] rounded-2xl p-8 text-center flex flex-col items-center gap-3">
+      <span className="w-12 h-12 rounded-2xl bg-[#F5F4FA] text-[#8B88A6] flex items-center justify-center">
+        <Icone nome={filtrandoAlgo ? 'busca' : icone} tamanho={24} />
+      </span>
+      <p className="text-sm text-[#5B5E7A]">{filtrandoAlgo ? 'Nada encontrado com esses filtros.' : texto}</p>
+    </div>
+  );
+
+  // Prévia do total enquanto o lojista preenche o orçamento (mesma conta do envio)
+  const calcularPreviaOrcamento = () => {
+    if (!selectedOrder) return null;
+    const temFaixa = orderItems.length === 1 && opcoesExtras.length > 0;
+    let minimo = 0;
+    let maximo = null;
+    if (temFaixa) {
+      const qtd = orderItems[0]?.quantidade || 1;
+      const totais = [bidItemsData[0], ...opcoesExtras]
+        .map(op => parseFloat(op?.preco_unitario || 0) * qtd)
+        .filter(v => v > 0);
+      minimo = totais.length > 0 ? Math.min(...totais) : 0;
+      maximo = totais.length > 1 ? Math.max(...totais) : null;
+    } else {
+      bidItemsData.forEach((bItem, idx) => {
+        if (bItem.atendido) minimo += parseFloat(bItem.preco_unitario || 0) * (orderItems[idx]?.quantidade || 1);
+      });
+    }
+    const tipo = selectedOrder.tipo_recebimento || 'ambos';
+    const valorFrete = tipo === 'retirada' ? 0 : parseFloat(frete || 0);
+    return { minimo, maximo: maximo != null && maximo > minimo ? maximo : null, valorFrete, tipo };
+  };
+  const previa = calcularPreviaOrcamento();
+  const nParcelas = parseInt(parcelasSemJuros, 10) || 1;
+
+  /* ================================== TELA ================================== */
   return (
-    <div className="bg-[#f8f9fa] text-slate-700 min-h-screen flex flex-col justify-between font-sans">
-      
-      {/* Cabeçalho Principal */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          
-          {/* Logo */}
-          <Link to="/" className="flex items-center hover:opacity-90 transition">
-            <img src={logo} alt="Logo" className="h-10 w-auto object-contain" />
+    <div className="bg-[#F5F4FA] text-[#0E1033] min-h-screen flex flex-col" style={FONTE_TEXTO}>
+
+      {/* Cabeçalho */}
+      <header className="bg-white/95 backdrop-blur border-b border-[#E4E2EF] sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+          <Link to="/" className="flex items-center gap-2.5 hover:opacity-90 transition" aria-label="Nuno, início">
+            <img src={logo} alt="Nuno" className="h-9 w-auto object-contain" />
+            <span className="hidden sm:inline-flex h-6 px-2.5 rounded-full bg-[#EFE9FF] text-[#3C0DA8] text-xs font-bold items-center">para lojistas</span>
           </Link>
 
-          {/* Menu / Perfil */}
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              {profile?.nome || userEmail || 'Lojista'}
+          <div className="flex items-center gap-2">
+            {planoAtual && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-[#EFE9FF] text-[#3C0DA8] text-[13px] font-bold">
+                <Icone nome="estrela" tamanho={15} /> Plano {NOME_PLANO[planoAtual] || planoAtual}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => (showVendaConfirmadaBanner ? irParaConfirmadas() : setAbaSelecionadaLojista('aberto'))}
+              aria-label={newOrderAlert || showVendaConfirmadaBanner ? 'Novidades: ver agora' : 'Notificações'}
+              className="relative w-11 h-11 rounded-full border border-[#E4E2EF] bg-white text-[#0E1033] flex items-center justify-center hover:border-[#935DFF] transition"
+            >
+              <Icone nome="sino" tamanho={20} />
+              {(newOrderAlert || showVendaConfirmadaBanner) && (
+                <span className="absolute top-2 right-2.5 w-2.5 h-2.5 rounded-full bg-[#E5484D] border-2 border-white" />
+              )}
+            </button>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuContaAberto(v => !v)}
+                aria-expanded={menuContaAberto}
+                aria-haspopup="menu"
+                aria-label="Menu da conta"
+                className="inline-flex items-center gap-2 h-11 pl-1.5 pr-3 rounded-full border border-[#E4E2EF] bg-white text-sm font-semibold text-[#0E1033] hover:border-[#935DFF] transition"
+              >
+                {profile?.logo_url ? (
+                  <img src={profile.logo_url} alt="" className="w-8 h-8 rounded-[10px] object-cover" />
+                ) : (
+                  <span className="w-8 h-8 rounded-[10px] bg-[#00068F] text-white text-xs font-bold flex items-center justify-center">{iniciaisDe(profile?.nome || userEmail)}</span>
+                )}
+                <span className="hidden sm:inline max-w-[160px] truncate">{profile?.nome || 'Minha loja'}</span>
+                <Icone nome="baixo" tamanho={16} className="text-[#5B5E7A]" />
+              </button>
+
+              {menuContaAberto && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMenuContaAberto(false)} />
+                  <div role="menu" className="absolute right-0 mt-2 w-64 z-50 bg-white rounded-2xl border border-[#E4E2EF] shadow-[0_12px_32px_rgba(14,16,51,0.14)] p-2">
+                    {userEmail && <p className="px-3 py-2 text-xs text-[#5B5E7A] truncate">{userEmail}</p>}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => { setMenuContaAberto(false); setIsProfileModalOpen(true); }}
+                      className="w-full flex items-center gap-2.5 h-11 px-3 rounded-xl text-sm font-semibold text-[#0E1033] hover:bg-[#F5F4FA]"
+                    >
+                      <Icone nome="loja" tamanho={18} className="text-[#5B5E7A]" /> Dados da loja
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => { setMenuContaAberto(false); setMostrarTodasAvaliacoes(true); }}
+                      className="w-full flex items-center gap-2.5 h-11 px-3 rounded-xl text-sm font-semibold text-[#0E1033] hover:bg-[#F5F4FA]"
+                    >
+                      <Icone nome="estrela" tamanho={18} className="text-[#5B5E7A]" /> Minhas avaliações
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2.5 h-11 px-3 rounded-xl text-sm font-semibold text-[#C53036] hover:bg-[#FDECEC]"
+                    >
+                      <Icone nome="sair" tamanho={18} /> Sair
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
-
-            <button
-              onClick={() => setIsProfileModalOpen(true)}
-              className="bg-slate-800 hover:bg-slate-900 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-sm"
-            >
-              Meus Dados
-            </button>
-
-            <button
-              onClick={handleLogout}
-              className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg transition"
-            >
-              Sair
-            </button>
           </div>
         </div>
       </header>
 
-      {/* Conteúdo Principal */}
-      <main className="max-w-5xl mx-auto w-full px-4 sm:px-6 py-8 space-y-6 flex-1">
+      {/* Conteúdo principal */}
+      <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-5 sm:py-8 space-y-5 flex-1">
 
-        {/* Alerta Visual de Novo Pedido em Tempo Real — fica fixo até o lojista responder */}
+        {/* Aviso de cotação nova — fica até o lojista responder */}
         {newOrderAlert && (
-          <div className="bg-amber-500 text-white p-4 rounded-2xl shadow-lg font-bold text-center animate-bounce flex items-center justify-center gap-2 text-sm">
-            <span>🔔</span>
-            {novosPedidosCount > 1
-              ? `${novosPedidosCount} novas cotações recebidas! Responda para atualizar o aviso.`
-              : 'Nova cotação recebida agora! Responda para atualizar o aviso.'}
-          </div>
-        )}
-
-        {/* Alerta Visual de Venda Confirmada — fica fixo até ver "Vendas Confirmadas" ou fechar manualmente */}
-        {showVendaConfirmadaBanner && (
-          <div className="bg-emerald-600 text-white p-4 rounded-2xl shadow-lg font-bold text-center flex items-center justify-center gap-2 text-sm relative">
-            <span>🎉</span>
-            {novaVendaConfirmadaCount > 1
-              ? `O cliente confirmou ${novaVendaConfirmadaCount} vendas! Confira em Vendas Confirmadas.`
-              : 'O cliente confirmou uma venda! Confira em Vendas Confirmadas.'}
+          <div className="bg-white border border-[#C9B6FB] rounded-2xl p-2 pl-3 flex items-center gap-3" role="status">
+            <span className="w-10 h-10 rounded-xl bg-[#5E17EB] text-white flex items-center justify-center shrink-0 animate-pulse">
+              <Icone nome="sino" tamanho={20} />
+            </span>
+            <p className="flex-1 text-sm text-[#0E1033]">
+              <b>{novosPedidosCount > 1 ? `${novosPedidosCount} cotações novas chegaram!` : 'Chegou uma cotação nova!'}</b>
+              <span className="text-[#5B5E7A]"> Responda para tirar o aviso.</span>
+            </p>
             <button
-              onClick={() => { setShowVendaConfirmadaBanner(false); setNovaVendaConfirmadaCount(0); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-lg font-bold"
-              aria-label="Fechar aviso"
+              type="button"
+              onClick={() => { setAbaSelecionadaLojista('aberto'); setStatusFilter('todas'); }}
+              className="min-h-[44px] px-4 rounded-xl bg-[#EFE9FF] text-[#3C0DA8] text-sm font-bold shrink-0"
             >
-              ✕
+              Ver
             </button>
           </div>
         )}
 
-        {/* Card de Boas-Vindas */}
-        <div className="relative p-6 rounded-2xl shadow-sm overflow-hidden">
-          <div className="absolute inset-0" style={{ backgroundColor: '#5E17EB' }} />
-          <div
-            className="absolute inset-0"
-            style={{ backgroundColor: '#00068F', clipPath: 'polygon(4% 0, 62% 0, 54% 100%, -4% 100%)' }}
-          />
-          <div
-            className="absolute inset-0"
-            style={{ backgroundColor: '#935DFF', clipPath: 'polygon(0 0, 4% 0, -4% 100%, -8% 100%)' }}
-          />
-
-          <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">Painel do Lojista</h1>
-              <p className="text-sm text-indigo-100 mt-0.5">Acompanhe e envie orçamentos para cotações da sua região</p>
-              <p className="text-xs font-bold text-amber-300 mt-1.5">
-                ⭐ {profile?.reputacao_media != null ? Number(profile.reputacao_media).toFixed(1) : '5.0'}
-                <span className="text-indigo-100 font-normal"> ({profile?.total_avaliacoes || 0} avaliações)</span>
-              </p>
-              {profile?.plano === 'basico' && (
-                <p className={`text-xs font-bold mt-1 ${atingiuLimiteBasico ? 'text-rose-300' : 'text-indigo-100'}`}>
-                  📊 {propostasHojeCount} de {limiteDiarioBasico} propostas usadas hoje
-                  {atingiuLimiteBasico && ' · Limite atingido — vire Pro pra continuar'}
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold bg-white text-indigo-900 px-3 py-1.5 rounded-xl">
-                {orders.length} cotações ativas
-              </span>
-              <span className="text-xs font-bold bg-white text-emerald-700 px-3 py-1.5 rounded-xl">
-                {acceptedBids.length} vendas fechadas
-              </span>
-            </div>
+        {/* Aviso de venda confirmada */}
+        {showVendaConfirmadaBanner && (
+          <div className="bg-white border border-[#A7DCC1] rounded-2xl p-2 pl-3 flex items-center gap-3" role="status">
+            <span className="w-10 h-10 rounded-xl bg-[#0E7A4E] text-white flex items-center justify-center shrink-0">
+              <Icone nome="check" tamanho={20} />
+            </span>
+            <p className="flex-1 text-sm font-bold text-[#0E1033]">
+              {novaVendaConfirmadaCount > 1 ? `O cliente confirmou ${novaVendaConfirmadaCount} vendas!` : 'O cliente confirmou uma venda!'}
+            </p>
+            <button
+              type="button"
+              onClick={irParaConfirmadas}
+              className="min-h-[44px] px-4 rounded-xl bg-[#E3F5EC] text-[#0E7A4E] text-sm font-bold shrink-0"
+            >
+              Ver venda
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowVendaConfirmadaBanner(false); setNovaVendaConfirmadaCount(0); }}
+              aria-label="Fechar aviso"
+              className="w-11 h-11 rounded-xl text-[#5B5E7A] hover:bg-[#F5F4FA] flex items-center justify-center shrink-0"
+            >
+              <Icone nome="fechar" tamanho={18} />
+            </button>
           </div>
-        </div>
+        )}
 
-        {/* Filtro por Data, Ordenação e Busca */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 bg-white p-3 rounded-xl border border-slate-200">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-            <span>📅 Período:</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 bg-slate-50"
-            />
-            <span className="text-slate-400">até</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 bg-slate-50"
-            />
-            {(dateFrom || dateTo) && (
-              <button
-                onClick={() => { setDateFrom(''); setDateTo(''); }}
-                className="text-rose-600 font-bold hover:underline"
-              >
-                Limpar
-              </button>
+        {/* Boas-vindas + números da loja */}
+        <section className="relative overflow-hidden bg-[#00068F] rounded-3xl px-5 py-6 sm:px-10 sm:py-8 flex flex-col lg:flex-row lg:items-center justify-between gap-5 text-white">
+          <FolhasNuno className="absolute -right-20 -top-10 w-56 h-56 sm:w-80 sm:h-80 opacity-30 pointer-events-none" />
+          <div className="relative space-y-1.5 max-w-xl">
+            <p className="text-sm font-semibold text-[#C9C6FF]">
+              {[profile?.nome, profile?.cidade].filter(Boolean).join(' · ') || 'Painel do lojista'}
+            </p>
+            <h1 style={FONTE_TITULO} className="text-[28px] sm:text-[38px] leading-[1.1] font-bold tracking-tight">
+              {cotacoesValidas === 0
+                ? 'Nenhuma cotação aberta agora'
+                : cotacoesValidas === 1
+                  ? '1 cliente esperando seu preço'
+                  : `${cotacoesValidas} clientes esperando seu preço`}
+            </h1>
+            <p className="text-sm sm:text-[15px] text-[#C9C6FF]">Cotações da sua cidade nas categorias que você atende.</p>
+          </div>
+
+          <div className="relative flex flex-col gap-3 lg:w-[460px]">
+            <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+              <div className="bg-white/10 rounded-2xl p-3 sm:p-3.5">
+                <p className="text-[11px] sm:text-xs font-semibold text-[#C9C6FF]">Vendas<span className="hidden sm:inline"> fechadas</span></p>
+                <p style={FONTE_TITULO} className="text-xl sm:text-[28px] font-bold leading-tight">{acceptedBids.length}</p>
+                <p className="text-[11px] sm:text-xs text-[#C9C6FF]">{vendasEsteMes} este mês</p>
+              </div>
+              <div className="bg-white/10 rounded-2xl p-3 sm:p-3.5">
+                <p className="text-[11px] sm:text-xs font-semibold text-[#C9C6FF]">Reputação</p>
+                <p style={FONTE_TITULO} className="text-xl sm:text-[28px] font-bold leading-tight flex items-center gap-1.5">
+                  {numeroBr(reputacaoMedia)} <Icone nome="estrela" tamanho={16} preenchido className="text-[#935DFF]" />
+                </p>
+                <p className="text-[11px] sm:text-xs text-[#C9C6FF]">{profile?.total_avaliacoes || 0} avaliações</p>
+              </div>
+              <div className="bg-white/10 rounded-2xl p-3 sm:p-3.5">
+                <p className="text-[11px] sm:text-xs font-semibold text-[#C9C6FF]">No prazo</p>
+                <p style={FONTE_TITULO} className="text-xl sm:text-[28px] font-bold leading-tight">
+                  {profile?.percentual_entrega_no_prazo != null ? `${profile.percentual_entrega_no_prazo}%` : '—'}
+                </p>
+                <p className="text-[11px] sm:text-xs text-[#C9C6FF]">das entregas</p>
+              </div>
+            </div>
+
+            {planoAtual === 'basico' && (
+              <div className="bg-white text-[#0E1033] rounded-2xl p-3.5 space-y-2">
+                <div className="flex justify-between items-baseline gap-2 text-[13px]">
+                  <span className="font-bold">Plano Básico · propostas de hoje</span>
+                  <span className={`font-bold ${atingiuLimiteBasico ? 'text-[#C53036]' : 'text-[#3C0DA8]'}`}>
+                    {Math.min(propostasHojeCount, limiteDiarioBasico)} de {limiteDiarioBasico}
+                  </span>
+                </div>
+                {renderBarra(propostasHojeCount, limiteDiarioBasico, atingiuLimiteBasico ? '#E5484D' : '#5E17EB')}
+                <a
+                  href={LINK_FALAR_COM_NUNO}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 min-h-[32px] text-[13px] font-bold text-[#5E17EB]"
+                >
+                  {atingiuLimiteBasico ? 'Limite de hoje atingido · responder sem limite com o Pro' : 'Responder sem limite com o Pro'}
+                  <Icone nome="direita" tamanho={14} strokeWidth={2.2} />
+                </a>
+              </div>
             )}
           </div>
+        </section>
 
-          <div className="flex-1" />
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
 
-          <div className="relative w-full lg:w-64">
-            <input
-              type="text"
-              placeholder="Buscar por pedido, item ou bairro..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-            />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
-          </div>
-
-          <button
-            onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition whitespace-nowrap"
-          >
-            {sortOrder === 'desc' ? '⬇ Mais recentes primeiro' : '⬆ Mais antigos primeiro'}
-          </button>
-        </div>
-
-        {/* Abas: Em Aberto / Enviadas / Confirmadas / Encerradas */}
-        <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-          {[
-            { key: 'aberto', label: 'Em Aberto', count: filteredOrders.length, aviso: novosPedidosCount },
-            { key: 'enviadas', label: 'Enviadas', count: enviadasOrdenadas.length, aviso: 0 },
-            { key: 'confirmadas', label: 'Confirmadas', count: acceptedBidsOrdenados.length, aviso: novaVendaConfirmadaCount },
-            { key: 'encerradas', label: 'Encerradas', count: encerradasOrdenadas.length, aviso: 0 },
-          ].map((aba) => (
-            <button
-              key={aba.key}
-              onClick={() => {
-                setAbaSelecionadaLojista(aba.key);
-                if (aba.key === 'confirmadas') {
-                  setNovaVendaConfirmadaCount(0);
-                  setShowVendaConfirmadaBanner(false);
-                }
-              }}
-              className={`relative flex-1 min-w-[110px] py-3 text-xs sm:text-sm font-bold rounded-xl transition ${abaSelecionadaLojista === aba.key ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-            >
-              {aba.label} ({aba.count})
-              {aba.aviso > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
-                  {aba.aviso}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Filtro extra (aplica à aba "Em Aberto") */}
-        {abaSelecionadaLojista === 'aberto' && (
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 overflow-x-auto w-fit">
-            <button
-              onClick={() => setStatusFilter('todas')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'todas' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
-            >
-              Todas ({orders.length})
-            </button>
-            <button
-              onClick={() => setStatusFilter('urgentes')}
-              className={`px-3 py-1.5 rounded-lg transition ${statusFilter === 'urgentes' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50'}`}
-            >
-              🔴 Urgentes (1h)
-            </button>
-          </div>
-        )}
-
-        {/* Lista da aba selecionada */}
-        {loading ? (
-          <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
-            Carregando...
-          </div>
-        ) : (
-          <div className="space-y-3">
-
-            {/* ---- EM ABERTO ---- */}
-            {abaSelecionadaLojista === 'aberto' && (
-              filteredOrders.length === 0 ? (
-                <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
-                  Nenhuma cotação disponível no momento para suas categorias e filtros.
-                </div>
-              ) : (
-                <>
-                {paginatedAbertas.map((order) => {
-                  const tempo = getRemainingTime(order);
+          {/* Coluna das cotações */}
+          <div className="space-y-4 min-w-0">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
+              <h2 style={FONTE_TITULO} className="text-2xl font-bold tracking-tight">Cotações</h2>
+              <div role="tablist" aria-label="Situação das cotações" className="flex gap-1 p-1 bg-white border border-[#E4E2EF] rounded-2xl overflow-x-auto">
+                {abas.map((aba) => {
+                  const ativa = abaSelecionadaLojista === aba.key;
                   return (
                     <button
-                      key={order.id}
-                      onClick={() => { if (!tempo.expirado) openBidModal(order); }}
-                      disabled={tempo.expirado}
-                      className={`w-full flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white rounded-2xl p-4 shadow-sm border text-left transition ${
-                        tempo.expirado ? 'border-slate-200 opacity-60 cursor-not-allowed' : 'border-slate-200 hover:border-indigo-300 hover:shadow-md'
+                      key={aba.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={ativa}
+                      onClick={() => (aba.key === 'confirmadas' ? irParaConfirmadas() : setAbaSelecionadaLojista(aba.key))}
+                      className={`relative shrink-0 inline-flex items-center justify-center gap-1.5 h-10 px-3 sm:px-3.5 rounded-xl text-[13px] sm:text-sm transition ${
+                        ativa ? 'bg-[#5E17EB] text-white font-bold' : 'text-[#5B5E7A] font-semibold hover:text-[#0E1033]'
                       }`}
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
-                            Pedido #{order.codigo_pedido || order.id}
-                          </span>
-                          {order.prazo_opcao === 'urgente' && (
-                            <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md animate-pulse">
-                              🔴 URGENTE (1h)
-                            </span>
-                          )}
-                          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                            tempo.expirado ? 'bg-slate-100 text-slate-600' : tempo.pausado ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {tempo.pausado ? '⏸️' : '⏱️'} {tempo.texto}
-                          </span>
-                          {reputacaoClientesPorPedido[order.id] && (
-                            <span
-                              className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                                Number(reputacaoClientesPorPedido[order.id].reputacao_media) < 4
-                                  ? 'bg-rose-100 text-rose-700'
-                                  : 'bg-emerald-100 text-emerald-700'
-                              }`}
-                            >
-                              ⭐ {Number(reputacaoClientesPorPedido[order.id].reputacao_media).toFixed(1)}
-                            </span>
-                          )}
-                          {contagemPropostasPorPedido[order.id] > 0 && (
-                            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 bg-orange-100 text-orange-700 animate-pulse">
-                              🔥 {contagemPropostasPorPedido[order.id]} {contagemPropostasPorPedido[order.id] === 1 ? 'concorrente já respondeu' : 'concorrentes já responderam'}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm font-bold text-slate-800 mt-1.5 truncate">{order.descricao}</p>
-                        <p className="text-xs text-slate-500">
-                          {order.categoria_nome_exibicao} · {order.cidade_nome_exibicao}{order.bairro && ` (${order.bairro})`}
-                          {order.tipo_recebimento && ` · ${LABEL_TIPO_RECEBIMENTO[order.tipo_recebimento] || order.tipo_recebimento}`}
-                        </p>
-                      </div>
-                      <div className="shrink-0">
-                        {tempo.expirado ? (
-                          <span className="text-xs font-bold text-slate-400 bg-slate-100 px-4 py-2.5 rounded-xl inline-block">
-                            Prazo Encerrado
-                          </span>
-                        ) : (
-                          <span className="text-xs font-bold text-indigo-600">Preencher Orçamento ›</span>
-                        )}
-                      </div>
+                      {aba.label}
+                      <span className={`min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold inline-flex items-center justify-center ${
+                        ativa ? 'bg-white text-[#3C0DA8]' : 'bg-[#F0EFF5] text-[#5B5E7A]'
+                      }`}>
+                        {aba.count}
+                      </span>
+                      {aba.aviso > 0 && (
+                        <span
+                          className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#E5484D] text-white text-[10px] font-bold flex items-center justify-center"
+                          aria-label={`${aba.aviso} novidade(s)`}
+                        >
+                          {aba.aviso}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
-                {renderPaginacao(paginaAbertas, totalPaginasAbertas, setPaginaAbertas)}
-                </>
-              )
-            )}
+              </div>
+            </div>
 
-            {/* ---- ENVIADAS ---- */}
-            {abaSelecionadaLojista === 'enviadas' && (
-              enviadasOrdenadas.length === 0 ? (
-                <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
-                  Nenhuma proposta aguardando resposta do cliente.
-                </div>
-              ) : (
-                <>
-                {paginatedEnviadas.map((bid) => (
+            {/* Busca, período e ordenação */}
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <label className="w-full sm:flex-1 flex items-center gap-2.5 h-12 px-3.5 bg-white border border-[#E4E2EF] rounded-xl focus-within:border-[#5E17EB] focus-within:ring-2 focus-within:ring-[#5E17EB]/20 transition">
+                  <Icone nome="busca" tamanho={18} className="text-[#5B5E7A]" />
+                  <span className="sr-only">Buscar cotação</span>
+                  <input
+                    type="search"
+                    placeholder="Buscar pedido, item ou bairro"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm text-[#0E1033] placeholder-[#8B88A6]"
+                  />
+                </label>
+                <div className="grid grid-cols-2 sm:flex gap-2">
                   <button
-                    key={bid.id}
-                    onClick={() => setDetalheBidAberto(bid)}
-                    className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:border-indigo-300 hover:shadow-md transition text-left"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-800 truncate">Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id} · {bid.pedido?.descricao}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Total: R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
-                      </p>
-                    </div>
-                    <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full shrink-0">
-                      Aguardando Resposta
-                    </span>
-                  </button>
-                ))}
-                {renderPaginacao(paginaEnviadas, totalPaginasEnviadas, setPaginaEnviadas)}
-                </>
-              )
-            )}
-
-            {/* ---- CONFIRMADAS ---- */}
-            {abaSelecionadaLojista === 'confirmadas' && (
-              acceptedBidsOrdenados.length === 0 ? (
-                <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
-                  Nenhuma venda confirmada ainda.
-                </div>
-              ) : (
-                <>
-                {paginatedFechadas.map((bid) => {
-                  const destacar = !bid.visualizado_pelo_lojista && !bid.entregue_em;
-                  return (
-                  <button
-                    key={bid.id}
-                    onClick={() => {
-                      setDetalheBidAberto(bid);
-                      if (destacar) {
-                        supabase.from('bids').update({ visualizado_pelo_lojista: true }).eq('id', bid.id).then(() => fetchLojistaData());
-                      }
-                    }}
-                    className={`w-full flex items-center justify-between gap-3 rounded-2xl p-4 shadow-sm border transition text-left ${
-                      destacar
-                        ? 'bg-emerald-600 border-emerald-600 hover:bg-emerald-700'
-                        : 'bg-white border-emerald-200 hover:border-emerald-400 hover:shadow-md'
+                    type="button"
+                    onClick={() => setMostrarPeriodo(v => !v)}
+                    aria-expanded={mostrarPeriodo}
+                    className={`inline-flex items-center justify-center gap-2 h-12 px-4 rounded-xl border text-sm font-semibold transition ${
+                      dateFrom || dateTo ? 'border-[#5E17EB] bg-[#EFE9FF] text-[#3C0DA8]' : 'border-[#E4E2EF] bg-white text-[#0E1033] hover:border-[#935DFF]'
                     }`}
                   >
-                    <div className="min-w-0">
-                      <p className={`text-sm font-bold truncate ${destacar ? 'text-white' : 'text-slate-800'}`}>Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id} · {bid.pedido?.descricao}</p>
-                      <p className={`text-xs mt-0.5 ${destacar ? 'text-emerald-50' : 'text-slate-500'}`}>
-                        {bid.pedido?.cliente?.nome || 'Cliente'} · Total: R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
-                      </p>
-                    </div>
-                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full shrink-0 ${destacar ? 'bg-white text-emerald-700' : 'text-emerald-700 bg-emerald-100'}`}>
-                      {bid.entregue_em ? 'Entregue' : destacar ? 'Novo!' : 'Confirmado'}
-                    </span>
+                    <Icone nome="calendario" tamanho={18} /> Período
                   </button>
-                  );
-                })}
-                {renderPaginacao(paginaFechadas, totalPaginasFechadas, setPaginaFechadas)}
-                </>
-              )
-            )}
-
-            {/* ---- ENCERRADAS ---- */}
-            {abaSelecionadaLojista === 'encerradas' && (
-              encerradasOrdenadas.length === 0 ? (
-                <div className="bg-white rounded-2xl p-8 text-center text-slate-500 text-sm border border-slate-200">
-                  Nenhuma cotação perdida por aqui.
-                </div>
-              ) : (
-                <>
-                {paginatedEncerradas.map((bid) => (
                   <button
-                    key={bid.id}
-                    onClick={() => setDetalheBidAberto(bid)}
-                    className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:border-rose-300 hover:shadow-md transition text-left"
+                    type="button"
+                    onClick={() => setSortOrder(prev => (prev === 'desc' ? 'asc' : 'desc'))}
+                    className="inline-flex items-center justify-center gap-2 h-12 px-4 rounded-xl border border-[#E4E2EF] bg-white text-sm font-semibold text-[#0E1033] hover:border-[#935DFF] transition whitespace-nowrap"
                   >
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-800 truncate">Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id} · {bid.pedido?.descricao}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Total enviado: R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
-                      </p>
-                    </div>
-                    <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-full shrink-0">
-                      Seu concorrente venceu
-                    </span>
+                    <Icone nome="ordenar" tamanho={18} />
+                    {sortOrder === 'desc' ? 'Mais recentes' : 'Mais antigos'}
                   </button>
-                ))}
-                {renderPaginacao(paginaEncerradas, totalPaginasEncerradas, setPaginaEncerradas)}
-                </>
-              )
-            )}
+                </div>
+              </div>
 
-          </div>
-        )}
-
-        {/* Modal de detalhe (Enviadas / Confirmadas / Encerradas) */}
-        {detalheBidAberto && (() => {
-          const bid = detalheBidAberto;
-          const cardKey = `modal-${bid.id}`;
-          const orderIdNum = Number(bid.order_id || bid.pedido_id);
-          const fechadoComOutro = ordersFechadosComOutro.has(orderIdNum);
-
-          return (
-            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDetalheBidAberto(null)}>
-              <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto relative space-y-3" onClick={(e) => e.stopPropagation()}>
-                <button onClick={() => setDetalheBidAberto(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 font-bold" aria-label="Fechar">✕</button>
-
-                <div className="flex justify-between items-start gap-2 pb-2 border-b border-slate-100">
-                  <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                    Pedido #{bid.pedido?.codigo_pedido || bid.pedido?.id}
-                  </span>
-                  {abaSelecionadaLojista === 'confirmadas' ? (
-                    <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Confirmado</span>
-                  ) : fechadoComOutro ? (
-                    <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">Seu concorrente venceu a cotação</span>
-                  ) : (
-                    <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Aguardando Resposta</span>
+              {mostrarPeriodo && (
+                <div className="flex flex-wrap items-end gap-3 bg-white border border-[#E4E2EF] rounded-xl p-3">
+                  <label className="flex flex-col gap-1 text-xs font-semibold text-[#5B5E7A]">
+                    De
+                    <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-11 px-3 rounded-xl border border-[#E4E2EF] text-sm text-[#0E1033] bg-white" />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold text-[#5B5E7A]">
+                    Até
+                    <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-11 px-3 rounded-xl border border-[#E4E2EF] text-sm text-[#0E1033] bg-white" />
+                  </label>
+                  {(dateFrom || dateTo) && (
+                    <button
+                      type="button"
+                      onClick={() => { setDateFrom(''); setDateTo(''); }}
+                      className="h-11 px-3 rounded-xl text-sm font-bold text-[#C53036] hover:bg-[#FDECEC]"
+                    >
+                      Limpar
+                    </button>
                   )}
                 </div>
+              )}
 
-                <h3 className="font-bold text-slate-800 text-base">{bid.pedido?.descricao}</h3>
-                <p className="text-sm font-extrabold text-emerald-700">
-                  Total: R$ {(parseFloat(bid.preco || 0) + parseFloat(bid.frete || 0)).toFixed(2)}
-                  <span className="text-xs text-slate-400 font-normal"> (Frete R$ {parseFloat(bid.frete || 0).toFixed(2)})</span>
-                </p>
-                <p className="text-xs text-slate-500">{bid.is_completo ? 'Atendimento: 100%' : 'Atendimento: Parcial'}</p>
+              {abaSelecionadaLojista === 'aberto' && (
+                <div role="group" aria-label="Filtrar cotações" className="flex gap-2">
+                  <button
+                    type="button"
+                    aria-pressed={statusFilter === 'todas'}
+                    onClick={() => setStatusFilter('todas')}
+                    className={`h-10 px-4 rounded-full text-[13px] transition ${
+                      statusFilter === 'todas' ? 'bg-[#0E1033] text-white font-bold' : 'bg-white border border-[#E4E2EF] text-[#0E1033] font-semibold hover:border-[#935DFF]'
+                    }`}
+                  >
+                    Todas · {orders.length}
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={statusFilter === 'urgentes'}
+                    onClick={() => setStatusFilter('urgentes')}
+                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-full text-[13px] transition ${
+                      statusFilter === 'urgentes' ? 'bg-[#0E1033] text-white font-bold' : 'bg-white border border-[#E4E2EF] text-[#0E1033] font-semibold hover:border-[#935DFF]'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-[#E5484D]" />
+                    Urgentes (1h) · {urgentesCount}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Lista da aba selecionada */}
+            {loading ? (
+              <div className="bg-white rounded-2xl p-8 text-center text-[#5B5E7A] text-sm border border-[#E4E2EF]">
+                Carregando...
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {abaSelecionadaLojista === 'aberto' && (
+                  filteredOrders.length === 0
+                    ? renderVazio('Nenhuma cotação disponível agora para as suas categorias. Avisamos com som quando chegar uma nova.')
+                    : <>
+                      {paginatedAbertas.map((order) => renderCotacaoAberta(order))}
+                      {renderPaginacao(paginaAbertas, totalPaginasAbertas, setPaginaAbertas)}
+                    </>
+                )}
+
+                {abaSelecionadaLojista === 'enviadas' && (
+                  enviadasOrdenadas.length === 0
+                    ? renderVazio('Nenhuma proposta aguardando resposta do cliente.', 'enviar')
+                    : <>
+                      {paginatedEnviadas.map((bid) => renderPropostaRow(bid, 'enviadas'))}
+                      {renderPaginacao(paginaEnviadas, totalPaginasEnviadas, setPaginaEnviadas)}
+                    </>
+                )}
 
                 {abaSelecionadaLojista === 'confirmadas' && (
-                  <>
-                    <p className="text-xs text-slate-600"><b>Cliente:</b> {bid.pedido?.cliente?.nome || 'Cliente'}</p>
-                    <p className="text-xs text-slate-600"><b>WhatsApp:</b> {bid.pedido?.cliente?.telefone || 'Não informado'}</p>
+                  acceptedBidsOrdenados.length === 0
+                    ? renderVazio('Nenhuma venda confirmada ainda.', 'check')
+                    : <>
+                      {paginatedFechadas.map((bid) => renderPropostaRow(bid, 'confirmadas'))}
+                      {renderPaginacao(paginaFechadas, totalPaginasFechadas, setPaginaFechadas)}
+                    </>
+                )}
 
-                    {bid.pedido?.cliente?.telefone && (
-                      <a
-                        href={`https://wa.me/55${bid.pedido?.cliente?.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                          `Olá, ${bid.pedido?.cliente?.nome || 'tudo bem'}! Sou da ${profile?.nome || 'loja'} e recebi a confirmação do seu pedido pelo Nuno. Segue o resumo:\n\n${montarResumoPedido(bid)}`
-                        )}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
-                      >
-                        <span>💬</span> Chamar no WhatsApp
-                      </a>
-                    )}
+                {abaSelecionadaLojista === 'encerradas' && (
+                  encerradasOrdenadas.length === 0
+                    ? renderVazio('Nenhuma cotação perdida por aqui.', 'trofeu')
+                    : <>
+                      {paginatedEncerradas.map((bid) => renderPropostaRow(bid, 'encerradas'))}
+                      {renderPaginacao(paginaEncerradas, totalPaginasEncerradas, setPaginaEncerradas)}
+                    </>
+                )}
+              </div>
+            )}
+          </div>
 
-                    {bid.entregue_em ? (
-                      <span className="w-full text-center text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 py-2 px-3 rounded-xl block">
-                        ✅ Entregue em {new Date(bid.entregue_em).toLocaleDateString('pt-BR')}
+          {/* Coluna lateral: plano e avaliações */}
+          <aside className="space-y-4">
+            {planoAtual && (
+              <section aria-label="Seu plano" className="bg-white border border-[#E4E2EF] rounded-2xl p-4 sm:p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-bold">Seu plano</h2>
+                  <span className="h-7 px-3 rounded-full bg-[#EFE9FF] text-[#3C0DA8] text-xs font-bold inline-flex items-center">
+                    {NOME_PLANO[planoAtual] || planoAtual}
+                  </span>
+                </div>
+                <ul className="space-y-2 text-sm">
+                  {(planoAtual === 'basico'
+                    ? [`Até ${limiteDiarioBasico} propostas por dia`, 'Foto do produto na proposta', 'Contato do cliente pelo WhatsApp']
+                    : planoAtual === 'pro'
+                      ? ['Propostas sem limite por dia', 'Faixa de preço com várias opções', 'Oferecer cashback']
+                      : ['Loja patrocinada no topo', 'Nome e logo à mostra para o cliente', 'Ver o preço de quem venceu', 'Aceitar cashback como pagamento']
+                  ).map(texto => (
+                    <li key={texto} className="flex gap-2.5 items-center">
+                      <Icone nome="check" tamanho={18} className="text-[#0E7A4E]" /> {texto}
+                    </li>
+                  ))}
+                </ul>
+                {planoAtual !== 'premium' && (
+                  <div className="bg-[#F7F3FF] border border-[#D9C8FF] rounded-2xl p-3.5 space-y-2.5">
+                    <p className="text-sm font-bold flex items-center gap-2">
+                      <Icone nome="estrela" tamanho={16} preenchido className="text-[#5E17EB]" />
+                      {planoAtual === 'basico' ? 'Pro' : 'Premium'}
+                    </p>
+                    <p className="text-[13px] text-[#5B5E7A]">
+                      {planoAtual === 'basico'
+                        ? 'Responda sem limite, mande faixa de preço com várias opções e ofereça cashback.'
+                        : 'Sua loja aparece no topo como patrocinada, com nome e logo à mostra, e você vê o preço de quem venceu.'}
+                    </p>
+                    <a
+                      href={LINK_FALAR_COM_NUNO}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-center min-h-[44px] rounded-xl bg-[#5E17EB] hover:bg-[#3C0DA8] text-white text-sm font-bold transition"
+                    >
+                      Quero o {planoAtual === 'basico' ? 'Pro' : 'Premium'}
+                    </a>
+                  </div>
+                )}
+              </section>
+            )}
+
+            <section aria-label="Minhas avaliações" className="bg-white border border-[#E4E2EF] rounded-2xl p-4 sm:p-5 space-y-3">
+              <h2 className="text-base font-bold">Minhas avaliações</h2>
+              <div className="flex items-center gap-3">
+                <p style={FONTE_TITULO} className="text-[34px] font-bold tracking-tight leading-none">{numeroBr(reputacaoMedia)}</p>
+                <div>
+                  {renderEstrelas(reputacaoMedia)}
+                  <p className="text-[13px] text-[#5B5E7A] mt-0.5">
+                    {profile?.total_avaliacoes || 0} avaliações
+                    {profile?.percentual_entrega_no_prazo != null && ` · ${profile.percentual_entrega_no_prazo}% no prazo`}
+                  </p>
+                </div>
+              </div>
+              {ultimasAvaliacoes.length > 0 ? (
+                <div className="border-t border-[#E4E2EF] pt-3 space-y-3">
+                  {ultimasAvaliacoes.map(av => (
+                    <div key={av.id}>
+                      <p className="text-[13px] font-bold text-[#5E17EB]">
+                        {av.nota} {av.nota === 1 ? 'estrela' : 'estrelas'}
+                        <span className="text-[#5B5E7A] font-semibold"> · {new Date(av.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+                      </p>
+                      {av.comentario && <p className="text-[13px] text-[#0E1033] line-clamp-2">{av.comentario}</p>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[13px] text-[#5B5E7A]">Você ainda não recebeu avaliações. Elas aparecem aqui depois das entregas.</p>
+              )}
+              {minhasAvaliacoes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setMostrarTodasAvaliacoes(true)}
+                  className="w-full h-11 rounded-xl border border-[#E4E2EF] text-sm font-bold text-[#0E1033] hover:bg-[#F5F4FA] transition"
+                >
+                  Ver todas ({minhasAvaliacoes.length})
+                </button>
+              )}
+            </section>
+          </aside>
+        </div>
+      </main>
+
+      {/* Rodapé institucional */}
+      <footer className="mt-12 bg-white border-t border-[#E4E2EF]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row justify-between gap-3 text-[13px] text-[#5B5E7A]">
+          <span>nunoselo.com · 2026 · Todos os direitos reservados</span>
+          <nav aria-label="Links institucionais" className="flex flex-wrap gap-x-5 gap-y-2">
+            <a href="https://www.comprecomnuno.com.br/contato" target="_blank" rel="noreferrer" className="text-[#5E17EB] hover:underline">Central de ajuda</a>
+            <a href="https://www.comprecomnuno.com.br/termos" target="_blank" rel="noreferrer" className="text-[#5E17EB] hover:underline">Termos de uso</a>
+            <a href="https://www.comprecomnuno.com.br/privacidade" target="_blank" rel="noreferrer" className="text-[#5E17EB] hover:underline">Privacidade</a>
+          </nav>
+        </div>
+      </footer>
+
+      {/* ============ Detalhe da proposta (Enviadas / Confirmadas / Encerradas) ============ */}
+      {detalheBidAberto && (() => {
+        const bid = detalheBidAberto;
+        const pedido = bid.pedido || {};
+        const orderIdNum = Number(bid.order_id || bid.pedido_id);
+        const fechadoComOutro = ordersFechadosComOutro.has(orderIdNum);
+        const ehVenda = bid.status === 'Aceito';
+        const fechar = () => setDetalheBidAberto(null);
+        const cliente = pedido.cliente || {};
+
+        return (
+          <div className="fixed inset-0 z-[60] bg-[#0E1033]/60 backdrop-blur-sm flex sm:items-center justify-center sm:p-4" onClick={fechar}>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${ehVenda ? 'Venda' : 'Proposta'} do pedido ${pedido.codigo_pedido || pedido.id}`}
+              className="bg-[#F5F4FA] w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-lg sm:rounded-3xl overflow-y-auto shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 z-10 bg-white border-b border-[#E4E2EF] flex items-center gap-1 px-2 sm:px-4 h-14">
+                <button type="button" onClick={fechar} aria-label="Voltar" className="sm:hidden w-11 h-11 rounded-xl flex items-center justify-center">
+                  <Icone nome="esquerda" tamanho={22} strokeWidth={2.2} />
+                </button>
+                <span className="flex-1 font-bold text-base sm:pl-1">{ehVenda ? 'Venda' : 'Pedido'} #{pedido.codigo_pedido || pedido.id}</span>
+                <button type="button" onClick={fechar} aria-label="Fechar" className="hidden sm:flex w-11 h-11 rounded-xl text-[#5B5E7A] hover:bg-[#F5F4FA] items-center justify-center">
+                  <Icone nome="fechar" tamanho={20} />
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-5 space-y-3.5">
+                {/* Topo colorido com a situação */}
+                <section className={`rounded-2xl p-4 sm:p-5 space-y-3 ${
+                  ehVenda ? 'bg-[#0E7A4E] text-white' : fechadoComOutro ? 'bg-white border border-[#E4E2EF]' : 'bg-[#FFF3D6] text-[#0E1033]'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      ehVenda ? 'bg-white/15' : fechadoComOutro ? 'bg-[#FDECEC] text-[#C53036]' : 'bg-white text-[#8A5A00]'
+                    }`}>
+                      <Icone nome={ehVenda ? 'check' : fechadoComOutro ? 'cadeado' : 'relogio'} tamanho={22} />
+                    </span>
+                    <div>
+                      <p className="font-bold text-base">
+                        {ehVenda ? 'Venda confirmada' : fechadoComOutro ? 'Outro lojista venceu' : 'Aguardando o cliente'}
+                      </p>
+                      <p className={`text-[13px] ${ehVenda ? 'text-[#CDEBDC]' : 'text-[#5B5E7A]'}`}>
+                        {ehVenda
+                          ? `O cliente escolheu sua proposta ${tempoRelativo(bid.accepted_at || bid.created_at)}`
+                          : fechadoComOutro
+                            ? 'O cliente fechou com outra loja.'
+                            : 'Sua proposta foi enviada e não pode mais ser editada.'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-end justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className={`text-xs ${ehVenda ? 'text-[#CDEBDC]' : 'text-[#5B5E7A]'}`}>{pedido.descricao}</p>
+                      <p style={FONTE_TITULO} className="text-[30px] font-bold tracking-tight leading-tight">{brl(totalDaProposta(bid))}</p>
+                    </div>
+                    {bid.prazo_entrega && (
+                      <span className={`shrink-0 h-7 px-2.5 rounded-full text-xs font-bold inline-flex items-center ${ehVenda ? 'bg-white text-[#0E7A4E]' : 'bg-white text-[#5B5E7A] border border-[#E4E2EF]'}`}>
+                        {labelPrazoEntrega(bid.prazo_entrega)}
                       </span>
-                    ) : (
+                    )}
+                  </div>
+                </section>
+
+                {/* Venda: cliente, WhatsApp e entrega */}
+                {ehVenda && (
+                  <section className="bg-white border border-[#E4E2EF] rounded-2xl p-4 space-y-3.5">
+                    <h3 className="text-xs font-bold text-[#5B5E7A] uppercase tracking-wide">Cliente</h3>
+                    <div className="flex items-center gap-3">
+                      <span className="w-12 h-12 rounded-full bg-[#EFE9FF] text-[#3C0DA8] font-bold flex items-center justify-center shrink-0">{iniciaisDe(cliente.nome || 'Cliente')}</span>
+                      <div className="min-w-0">
+                        <p className="font-bold text-base truncate">{cliente.nome || 'Cliente'}</p>
+                        <p className="text-[13px] text-[#5B5E7A] flex items-center gap-1.5">
+                          <Icone nome="telefone" tamanho={13} /> {cliente.telefone || 'Telefone não informado'}
+                        </p>
+                      </div>
+                    </div>
+                    {(pedido.tipo_recebimento || pedido.bairro) && (
+                      <p className="flex gap-2.5 items-center text-sm bg-[#F5F4FA] rounded-xl px-3 py-2.5">
+                        <Icone nome={pedido.tipo_recebimento === 'retirada' ? 'loja' : 'caminhao'} tamanho={18} className="text-[#5B5E7A]" />
+                        <span>
+                          {pedido.tipo_recebimento && (LABEL_TIPO_RECEBIMENTO[pedido.tipo_recebimento] || pedido.tipo_recebimento).replace(' (ver as duas)', '')}
+                          {pedido.bairro && <> · bairro <b>{pedido.bairro}</b></>}
+                        </span>
+                      </p>
+                    )}
+                    {cliente.telefone && (
+                      <>
+                        <a
+                          href={`https://wa.me/55${cliente.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                            `Olá, ${cliente.nome || 'tudo bem'}! Sou da ${profile?.nome || 'loja'} e recebi a confirmação do seu pedido pelo Nuno. Segue o resumo:\n\n${montarResumoPedido(bid)}`
+                          )}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-[#0E7A4E] hover:bg-[#0B6340] text-white text-base font-bold transition"
+                        >
+                          <Icone nome="mensagem" tamanho={20} /> Chamar no WhatsApp
+                        </a>
+                        <p className="text-xs text-[#5B5E7A] text-center -mt-1.5">A mensagem já vai com o resumo do pedido</p>
+                      </>
+                    )}
+                  </section>
+                )}
+
+                {renderDetalhesProposta(bid)}
+
+                {ehVenda && (
+                  bid.entregue_em ? (
+                    <p className="flex items-center justify-center gap-2 min-h-[52px] rounded-2xl bg-[#E3F5EC] text-[#0E7A4E] text-sm font-bold">
+                      <Icone nome="check" tamanho={18} /> Entregue em {new Date(bid.entregue_em).toLocaleDateString('pt-BR')}
+                    </p>
+                  ) : (
+                    <>
                       <button
+                        type="button"
                         onClick={() => handleMarcarEntregue(bid)}
-                        className="w-full bg-slate-800 hover:bg-slate-900 text-white py-2 px-3 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1.5 shadow-sm"
+                        className="w-full flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-[#0E1033] hover:bg-black text-white text-base font-bold transition"
                       >
-                        ✅ Cliente comprou e recebeu
+                        <Icone nome="caixa" tamanho={20} /> Cliente comprou e recebeu
                       </button>
+                      <p className="text-xs text-[#5B5E7A] text-center -mt-1.5">Toque depois de entregar. O cliente recebe o pedido de avaliação.</p>
+                    </>
+                  )
+                )}
+
+                {/* Encerradas: ranking dos concorrentes (Premium) ou convite */}
+                {!ehVenda && fechadoComOutro && (
+                  planoAtual === 'premium' ? (
+                    <section className="bg-white border border-[#E4E2EF] rounded-2xl p-4 space-y-3">
+                      <button
+                        type="button"
+                        onClick={() => handleVerRankingConcorrentes(bid)}
+                        className="w-full flex items-center justify-center gap-2 min-h-[48px] rounded-xl bg-[#EFE9FF] text-[#3C0DA8] text-sm font-bold"
+                      >
+                        <Icone nome="trofeu" tamanho={18} />
+                        {rankingAbertoBidId === bid.id ? 'Ocultar ranking' : 'Ver preço de quem venceu'}
+                      </button>
+                      {rankingAbertoBidId === bid.id && (
+                        carregandoRanking ? (
+                          <p className="text-sm text-[#8B88A6] text-center">Carregando ranking...</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {rankingConcorrentes.map((item) => (
+                              <div
+                                key={item.bidId}
+                                className={`rounded-xl border p-3 text-sm ${item.souEu ? 'border-[#935DFF] bg-[#F7F3FF]' : 'border-[#E4E2EF] bg-white'}`}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-bold">
+                                    {item.semEstoque
+                                      ? `Sem estoque · ${item.souEu ? 'você' : 'concorrente'}`
+                                      : `${item.posicao}º · ${item.souEu ? 'você' : 'concorrente'}`}
+                                  </span>
+                                  {!item.semEstoque && <span className="font-bold">{brl(item.total)}</span>}
+                                </div>
+                                <p className="text-xs text-[#5B5E7A] mt-0.5">
+                                  {[
+                                    !item.semEstoque && item.frete === 0 ? 'Frete grátis' : null,
+                                    !item.semEstoque && item.retirada ? 'Retirada disponível' : null,
+                                    item.tempoResposta && item.tempoResposta !== 'Não disponível' ? `Respondeu em ${item.tempoResposta}` : null,
+                                    item.formasPagamento.length > 0 ? item.formasPagamento.join(', ') : 'Pagamento não informado',
+                                  ].filter(Boolean).join(' · ')}
+                                </p>
+                              </div>
+                            ))}
+                            <p className="text-xs text-[#8B88A6] text-center">Nomes e telefones das lojas concorrentes não são revelados.</p>
+                          </div>
+                        )
+                      )}
+                    </section>
+                  ) : (
+                    <section className="bg-[#F7F3FF] border border-[#D9C8FF] rounded-2xl p-4 space-y-2">
+                      <p className="text-sm font-bold flex items-center gap-2"><Icone nome="trofeu" tamanho={18} className="text-[#5E17EB]" /> Quer saber o preço de quem venceu?</p>
+                      <p className="text-[13px] text-[#5B5E7A]">No plano Premium você vê o ranking das propostas (sem os nomes das lojas).</p>
+                      <a href={LINK_FALAR_COM_NUNO} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm font-bold text-[#5E17EB]">
+                        Quero o Premium <Icone nome="direita" tamanho={16} strokeWidth={2.2} />
+                      </a>
+                    </section>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ================================ Enviar orçamento ================================ */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-[60] bg-[#0E1033]/60 backdrop-blur-sm flex sm:items-center justify-center sm:p-4">
+          <form
+            onSubmit={handleSendBid}
+            className="relative bg-[#F5F4FA] w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-2xl sm:rounded-3xl overflow-y-auto overflow-x-hidden shadow-2xl"
+          >
+            <div className="sticky top-0 z-10 bg-white border-b border-[#E4E2EF] flex items-center gap-1 px-2 sm:px-4 h-16">
+              <button
+                type="button"
+                onClick={() => setSelectedOrder(null)}
+                aria-label="Fechar sem enviar"
+                className="w-11 h-11 rounded-xl text-[#0E1033] hover:bg-[#F5F4FA] flex items-center justify-center shrink-0"
+              >
+                <Icone nome="fechar" tamanho={22} strokeWidth={2.2} />
+              </button>
+              <div className="min-w-0">
+                <p className="font-bold text-base leading-tight">Enviar orçamento</p>
+                <p className="text-xs text-[#5B5E7A]">Pedido #{selectedOrder.codigo_pedido || selectedOrder.id}</p>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-6 space-y-5">
+              {/* Resumo do pedido */}
+              <section className="bg-white border border-[#E4E2EF] rounded-2xl p-4 space-y-3">
+                <h2 style={FONTE_TITULO} className="text-[22px] font-bold leading-tight tracking-tight break-words">{selectedOrder.descricao}</h2>
+                <p className="text-[13px] text-[#5B5E7A]">
+                  {[orderItems.length === 1 ? `${orderItems[0]?.quantidade || 1} unidade(s)` : `${orderItems.length} itens`, selectedOrder.bairro, selectedOrder.cidade_nome_exibicao].filter(Boolean).join(' · ')}
+                </p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {(() => {
+                    const t = getRemainingTime(selectedOrder);
+                    return renderChip(t.texto, t.pausado ? 'bg-[#E7EEFF] text-[#1D4ED8]' : 'bg-[#FFF3D6] text-[#8A5A00]', t.pausado ? 'pausa' : 'relogio');
+                  })()}
+                  {reputacaoClientesPorPedido[selectedOrder.id] && renderChip(
+                    `Cliente ${numeroBr(reputacaoClientesPorPedido[selectedOrder.id].reputacao_media)}`,
+                    Number(reputacaoClientesPorPedido[selectedOrder.id].reputacao_media) < 4 ? 'bg-[#FDECEC] text-[#C53036]' : 'bg-[#E3F5EC] text-[#0E7A4E]',
+                    'estrela',
+                    true
+                  )}
+                  {(contagemPropostasPorPedido[selectedOrder.id] || 0) > 0 && renderChip(
+                    `${contagemPropostasPorPedido[selectedOrder.id]} ${contagemPropostasPorPedido[selectedOrder.id] === 1 ? 'concorrente respondeu' : 'concorrentes responderam'}`,
+                    'bg-[#E7EEFF] text-[#1D4ED8]'
+                  )}
+                </div>
+                <p className="flex gap-2.5 items-center text-sm bg-[#F5F4FA] rounded-xl px-3 py-2.5">
+                  <Icone nome={(selectedOrder.tipo_recebimento || 'ambos') === 'retirada' ? 'loja' : 'caminhao'} tamanho={18} className="text-[#5B5E7A]" />
+                  <span>O cliente quer: <b>{(LABEL_TIPO_RECEBIMENTO[selectedOrder.tipo_recebimento || 'ambos'] || '').replace(' (ver as duas)', '').toLowerCase()}</b></span>
+                </p>
+              </section>
+
+              {/* 1 · Produto */}
+              <section className="space-y-2.5">
+                <h3 className="text-xs font-bold text-[#5B5E7A] uppercase tracking-wide">1 · Produto</h3>
+                {orderItems.map((oItem, idx) => {
+                  const itemUnicoComOpcoes = idx === 0 && orderItems.length === 1 && ehProOuPremium;
+                  const precoUnit = parseFloat(bidItemsData[idx]?.preco_unitario || 0);
+                  return (
+                    <div key={oItem.id} className="bg-white border border-[#E4E2EF] rounded-2xl p-4 space-y-3.5">
+                      <div className="flex items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-[15px] break-words">{orderItems.length === 1 && itemUnicoComOpcoes && opcoesExtras.length > 0 ? 'Opção 1' : oItem.descricao}</p>
+                          <p className="text-[13px] text-[#5B5E7A]">Quantidade: {oItem.quantidade}</p>
+                        </div>
+                        {oItem.imagem_url && (
+                          <button type="button" onClick={() => setActiveImage(oItem.imagem_url)} className="shrink-0 text-center" aria-label="Ver foto do cliente">
+                            <img src={oItem.imagem_url} alt="Foto do cliente" className="w-14 h-14 object-cover rounded-xl border border-[#E4E2EF]" />
+                            <span className="block text-[10px] text-[#8B88A6] font-semibold mt-0.5">do cliente</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {renderInterruptor({
+                        checked: Boolean(bidItemsData[idx]?.atendido),
+                        onChange: (v) => handleBidItemChange(idx, 'atendido', v),
+                        rotulo: bidItemsData[idx]?.atendido ? 'Tenho em estoque' : 'Sem estoque deste item',
+                      })}
+
+                      {bidItemsData[idx]?.atendido && (
+                        <div className="space-y-3.5 pt-1">
+                          {itemUnicoComOpcoes && (
+                            <label className="block">
+                              <span className={CLASSE_ROTULO}>Nome do produto (opcional)</span>
+                              <input
+                                type="text"
+                                placeholder="Ex: capa dura"
+                                value={bidItemsData[idx]?.nome_opcao}
+                                onChange={(e) => handleBidItemChange(idx, 'nome_opcao', e.target.value)}
+                                className={CLASSE_ENTRADA}
+                              />
+                            </label>
+                          )}
+                          <label className="block">
+                            <span className={CLASSE_ROTULO}>Preço por unidade</span>
+                            <span className="flex items-center gap-2 h-12 px-3.5 rounded-xl border-2 border-[#E4E2EF] bg-white focus-within:border-[#5E17EB] transition">
+                              <span className="text-[#5B5E7A] font-semibold">R$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                inputMode="decimal"
+                                required
+                                value={bidItemsData[idx]?.preco_unitario}
+                                onChange={(e) => handleBidItemChange(idx, 'preco_unitario', e.target.value)}
+                                placeholder="0,00"
+                                className="flex-1 min-w-0 bg-transparent border-none outline-none text-[17px] font-bold text-[#0E1033]"
+                              />
+                            </span>
+                            {precoUnit > 0 && (
+                              <span className="block text-[13px] text-[#5B5E7A] mt-1.5">
+                                {oItem.quantidade} × {brl(precoUnit)} = <b className="text-[#0E1033]">{brl(precoUnit * (oItem.quantidade || 1))}</b>
+                              </span>
+                            )}
+                          </label>
+                          <div>
+                            <span className={CLASSE_ROTULO}>Foto do produto (opcional)</span>
+                            {renderEnvioFoto({
+                              url: bidItemsData[idx]?.imagem_url,
+                              enviando: uploadingImageIndex === idx,
+                              onArquivo: (arquivo) => handleLojistaImage(idx, arquivo),
+                            })}
+                          </div>
+                          {itemUnicoComOpcoes && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <label className="block">
+                                <span className={CLASSE_ROTULO}>Garantia (opcional)</span>
+                                <input type="text" placeholder="Ex: 3 meses" value={bidItemsData[idx]?.garantia_opcao} onChange={(e) => handleBidItemChange(idx, 'garantia_opcao', e.target.value)} className={CLASSE_ENTRADA} />
+                              </label>
+                              <label className="block">
+                                <span className={CLASSE_ROTULO}>Observação (opcional)</span>
+                                <input type="text" placeholder="Ex: cor azul" value={bidItemsData[idx]?.observacao_opcao} onChange={(e) => handleBidItemChange(idx, 'observacao_opcao', e.target.value)} className={CLASSE_ENTRADA} />
+                              </label>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Faixa de preço: opções extras pro item único (Pro/Premium) */}
+                {orderItems.length === 1 && bidItemsData[0]?.atendido && ehProOuPremium && (
+                  <>
+                    {opcoesExtras.map((op, opIdx) => (
+                      <div key={opIdx} className="bg-white border border-[#D9C8FF] rounded-2xl p-4 space-y-3.5">
+                        <div className="flex justify-between items-center">
+                          <p className="font-bold text-[15px]">Opção {opIdx + 2}</p>
+                          <button type="button" onClick={() => handleRemoverOpcaoExtra(opIdx)} className="min-h-[40px] px-3 rounded-xl text-sm font-bold text-[#C53036] hover:bg-[#FDECEC]">
+                            Remover
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-[1.3fr_1fr] gap-3">
+                          <label className="block">
+                            <span className={CLASSE_ROTULO}>Nome</span>
+                            <input type="text" placeholder="Ex: capa dura" value={op.nome_opcao} onChange={(e) => handleOpcaoExtraChange(opIdx, 'nome_opcao', e.target.value)} className={CLASSE_ENTRADA} />
+                          </label>
+                          <label className="block">
+                            <span className={CLASSE_ROTULO}>Preço/un. (R$)</span>
+                            <input type="number" step="0.01" min="0" inputMode="decimal" required placeholder="0,00" value={op.preco_unitario} onChange={(e) => handleOpcaoExtraChange(opIdx, 'preco_unitario', e.target.value)} className={CLASSE_ENTRADA} />
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <label className="block">
+                            <span className={CLASSE_ROTULO}>Garantia (opcional)</span>
+                            <input type="text" value={op.garantia_opcao} onChange={(e) => handleOpcaoExtraChange(opIdx, 'garantia_opcao', e.target.value)} className={CLASSE_ENTRADA} />
+                          </label>
+                          <label className="block">
+                            <span className={CLASSE_ROTULO}>Observação (opcional)</span>
+                            <input type="text" value={op.observacao_opcao} onChange={(e) => handleOpcaoExtraChange(opIdx, 'observacao_opcao', e.target.value)} className={CLASSE_ENTRADA} />
+                          </label>
+                        </div>
+                        {renderEnvioFoto({
+                          url: op.imagem_url,
+                          enviando: uploadingOpcaoIndex === opIdx,
+                          onArquivo: (arquivo) => handleOpcaoExtraImagem(opIdx, arquivo),
+                        })}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleAdicionarOpcaoExtra}
+                      className="w-full flex items-center justify-center gap-2 h-[50px] rounded-2xl border-[1.5px] border-dashed border-[#C9C6E0] text-sm font-bold text-[#0E1033] hover:border-[#935DFF] hover:bg-white transition"
+                    >
+                      <Icone nome="mais" tamanho={18} strokeWidth={2.4} /> Adicionar outra opção de preço
+                    </button>
+                    {previa?.maximo != null && (
+                      <p className="text-xs text-[#5B5E7A] text-center">O cliente vê a faixa: {brl(previa.minimo)} a {brl(previa.maximo)}</p>
                     )}
                   </>
                 )}
+              </section>
 
-                {abaSelecionadaLojista === 'encerradas' && fechadoComOutro && profile?.plano === 'premium' && (
-                  <div className="pt-1">
-                    <button
-                      onClick={() => handleVerRankingConcorrentes(bid)}
-                      className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg hover:bg-amber-100 transition"
-                    >
-                      🏆 {rankingAbertoBidId === bid.id ? 'Ocultar Ranking de Concorrentes' : 'Revelar Proposta do Concorrente'}
-                    </button>
+              {/* 2 · Entrega */}
+              <section className="space-y-2.5">
+                <h3 className="text-xs font-bold text-[#5B5E7A] uppercase tracking-wide">2 · Entrega</h3>
+                <div className="bg-white border border-[#E4E2EF] rounded-2xl p-4 space-y-3.5">
+                  {(selectedOrder.tipo_recebimento || 'ambos') === 'retirada' ? (
+                    <p className="flex items-center gap-2.5 text-sm bg-[#E7EEFF] text-[#1D4ED8] rounded-xl px-3 py-2.5 font-semibold">
+                      <Icone nome="loja" tamanho={18} /> Pedido para retirada na loja, sem frete.
+                    </p>
+                  ) : (
+                    <>
+                      <label className="block">
+                        <span className={CLASSE_ROTULO}>Valor do frete</span>
+                        <span className="flex items-center gap-2 h-12 px-3.5 rounded-xl border border-[#E4E2EF] bg-white focus-within:border-[#5E17EB] focus-within:ring-2 focus-within:ring-[#5E17EB]/20 transition">
+                          <span className="text-[#5B5E7A] font-semibold">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            inputMode="decimal"
+                            value={frete}
+                            onChange={(e) => setFrete(e.target.value)}
+                            placeholder="0,00"
+                            className="flex-1 min-w-0 bg-transparent border-none outline-none text-[15px] text-[#0E1033]"
+                          />
+                          {parseFloat(frete || 0) === 0 && (
+                            <span className="h-6 px-2.5 rounded-full bg-[#E3F5EC] text-[#0E7A4E] text-xs font-bold inline-flex items-center">Grátis</span>
+                          )}
+                        </span>
+                        <span className="block text-xs text-[#5B5E7A] mt-1">Deixe em branco ou 0 se a entrega for grátis.</span>
+                      </label>
+                      {(selectedOrder.tipo_recebimento || 'ambos') === 'ambos' && renderInterruptor({
+                        checked: retiradaDisponivel,
+                        onChange: setRetiradaDisponivel,
+                        rotulo: 'Cliente também pode retirar na loja',
+                        icone: 'loja',
+                      })}
+                    </>
+                  )}
 
-                    {rankingAbertoBidId === bid.id && (
-                      <div className="mt-2 space-y-1.5">
-                        {carregandoRanking ? (
-                          <p className="text-xs text-slate-400">Carregando ranking...</p>
-                        ) : (
-                          rankingConcorrentes.map((item) => (
-                            <div
-                              key={item.bidId}
-                              className={`flex items-center justify-between text-xs p-2 rounded-lg border ${
-                                item.souEu ? 'border-indigo-300 bg-indigo-50 font-bold' : 'border-slate-200 bg-slate-50'
-                              }`}
-                            >
-                              <span>
-                                {item.semEstoque
-                                  ? `Sem estoque (${item.souEu ? 'Você' : 'Concorrente'}) — fora do comparativo de preço`
-                                  : `${item.posicao}º ${item.souEu ? '(Você)' : 'Concorrente'} — R$ ${item.total.toFixed(2)}`}
-                                {!item.semEstoque && item.retirada && ' · Retirada disponível'}
-                                {!item.semEstoque && item.frete === 0 && ' · Frete grátis'}
-                                {' · Respondeu em '}{item.tempoResposta}
-                              </span>
-                              <span className="text-slate-500">
-                                {item.formasPagamento.length > 0 ? item.formasPagamento.join(', ') : 'Pagamento não informado'}
-                              </span>
-                            </div>
-                          ))
-                        )}
-                        <p className="text-[10px] text-slate-400 italic">Nomes e telefones das lojas concorrentes não são revelados.</p>
-                      </div>
-                    )}
+                  <div>
+                    <span className={CLASSE_ROTULO}>Prazo de entrega</span>
+                    <div role="radiogroup" aria-label="Prazo de entrega" className="grid grid-cols-2 gap-2">
+                      {OPCOES_PRAZO_ENTREGA.map(op => {
+                        const ativo = prazoEntrega === op.value;
+                        return (
+                          <button
+                            key={op.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={ativo}
+                            onClick={() => setPrazoEntrega(ativo ? '' : op.value)}
+                            className={`h-12 rounded-xl text-sm transition ${
+                              ativo ? 'border-2 border-[#5E17EB] bg-[#EFE9FF] text-[#3C0DA8] font-bold' : 'border border-[#E4E2EF] bg-white text-[#0E1033] font-semibold hover:border-[#935DFF]'
+                            }`}
+                          >
+                            {op.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                )}
+                </div>
+              </section>
 
-                {renderDetalhesExpandido(bid, cardKey, abaSelecionadaLojista !== 'confirmadas')}
-              </div>
+              {/* 3 · Pagamento */}
+              <section className="space-y-2.5">
+                <h3 className="text-xs font-bold text-[#5B5E7A] uppercase tracking-wide">3 · Pagamento</h3>
+                <div className="bg-white border border-[#E4E2EF] rounded-2xl p-4 space-y-3.5">
+                  <div role="group" aria-label="Formas de pagamento aceitas" className="flex flex-wrap gap-2">
+                    {OPCOES_PAGAMENTO.map(op => {
+                      const ativo = formasPagamento.includes(op.value);
+                      return (
+                        <button
+                          key={op.value}
+                          type="button"
+                          aria-pressed={ativo}
+                          onClick={() => toggleFormaPagamento(op.value)}
+                          className={`inline-flex items-center gap-1.5 h-11 px-4 rounded-xl text-sm transition ${
+                            ativo ? 'border-2 border-[#5E17EB] bg-[#EFE9FF] text-[#3C0DA8] font-bold' : 'border border-[#E4E2EF] bg-white text-[#0E1033] font-semibold hover:border-[#935DFF]'
+                          }`}
+                        >
+                          {ativo && <Icone nome="marcado" tamanho={16} strokeWidth={2.4} />}
+                          {labelPagamento(op.value)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {formasPagamento.includes('faturado') && (
+                    <p className="text-xs text-[#5B5E7A]">Faturado: você aprova o cadastro do cliente antes de vender a prazo.</p>
+                  )}
+                  {formasPagamento.includes('cartao') && (
+                    <div className="flex items-center justify-between gap-3 bg-[#F5F4FA] rounded-xl py-2 pl-3.5 pr-2">
+                      <span className="text-sm font-semibold">Cartão sem juros em até</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          aria-label="Menos parcelas"
+                          onClick={() => setParcelasSemJuros(nParcelas <= 2 ? '' : String(nParcelas - 1))}
+                          className="w-11 h-11 rounded-xl border border-[#E4E2EF] bg-white flex items-center justify-center text-[#0E1033] disabled:opacity-40"
+                          disabled={nParcelas <= 1}
+                        >
+                          <Icone nome="menos" tamanho={18} strokeWidth={2.4} />
+                        </button>
+                        <span className="min-w-[40px] text-center font-bold text-base" aria-live="polite">{nParcelas}x</span>
+                        <button
+                          type="button"
+                          aria-label="Mais parcelas"
+                          onClick={() => setParcelasSemJuros(String(Math.min(24, nParcelas + 1)))}
+                          className="w-11 h-11 rounded-xl border border-[#E4E2EF] bg-white flex items-center justify-center text-[#0E1033]"
+                        >
+                          <Icone nome="mais" tamanho={18} strokeWidth={2.4} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* 4 · Detalhes */}
+              <section className="space-y-2.5">
+                <h3 className="text-xs font-bold text-[#5B5E7A] uppercase tracking-wide">4 · Detalhes (opcional)</h3>
+                <div className="bg-white border border-[#E4E2EF] rounded-2xl p-4 space-y-3.5">
+                  <label className="block">
+                    <span className={CLASSE_ROTULO}>Garantia</span>
+                    <input type="text" placeholder="Ex: 3 meses, 1 ano..." value={garantia} onChange={(e) => setGarantia(e.target.value)} className={CLASSE_ENTRADA} />
+                  </label>
+                  <label className="block">
+                    <span className={CLASSE_ROTULO}>Observações para o cliente</span>
+                    <textarea
+                      rows={3}
+                      placeholder="Ex: marcas e cores disponíveis"
+                      value={observacao}
+                      onChange={(e) => setObservacao(e.target.value)}
+                      className="w-full px-3.5 py-3 rounded-xl border border-[#E4E2EF] bg-white text-[15px] text-[#0E1033] placeholder-[#8B88A6] resize-none focus:outline-none focus:border-[#5E17EB] focus:ring-2 focus:ring-[#5E17EB]/20 transition"
+                    />
+                  </label>
+
+                  {cashbackAtivo && ehProOuPremium && (
+                    <div className="border border-[#F3DFA8] bg-[#FFFBF0] rounded-2xl px-3.5 py-2 space-y-1">
+                      {renderInterruptor({
+                        checked: ofereceCashback,
+                        onChange: setOfereceCashback,
+                        rotulo: 'Oferecer cashback nesta venda',
+                        icone: 'presente',
+                        corLigado: '#8A5A00',
+                        classeTexto: 'text-[#8A5A00]',
+                      })}
+                      {ofereceCashback && (
+                        <label className="block pb-2">
+                          <span className="sr-only">Valor do cashback</span>
+                          <span className="flex items-center gap-2 h-12 px-3.5 rounded-xl border border-[#F3DFA8] bg-white">
+                            <span className="text-[#5B5E7A] font-semibold">R$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              inputMode="decimal"
+                              placeholder="Valor do cashback"
+                              value={valorCashbackOferecido}
+                              onChange={(e) => setValorCashbackOferecido(e.target.value)}
+                              className="flex-1 min-w-0 bg-transparent border-none outline-none text-[15px] text-[#0E1033]"
+                            />
+                          </span>
+                        </label>
+                      )}
+                      {planoAtual === 'premium' && renderInterruptor({
+                        checked: aceitaCashback,
+                        onChange: setAceitaCashback,
+                        rotulo: 'Aceito cashback como parte do pagamento',
+                        icone: 'carteira',
+                        corLigado: '#8A5A00',
+                        classeTexto: 'text-[#8A5A00]',
+                      })}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {atingiuLimiteBasico && (
+                <p className="flex items-start gap-2 p-3 rounded-xl bg-[#FDECEC] text-[#C53036] text-sm font-semibold">
+                  <Icone nome="alerta" tamanho={18} className="mt-0.5" />
+                  Você usou suas {limiteDiarioBasico} propostas de hoje (plano Básico). Vire Pro para responder sem limite.
+                </p>
+              )}
             </div>
-          );
-        })()}
 
+            {/* Rodapé fixo com o total e o botão de enviar */}
+            <div className="sticky bottom-0 bg-white border-t border-[#E4E2EF] px-4 sm:px-6 pt-3 pb-4 flex items-center gap-3 shadow-[0_-8px_24px_rgba(14,16,51,0.06)]">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-[#5B5E7A]">Total da proposta</p>
+                <p style={FONTE_TITULO} className="text-xl font-bold tracking-tight leading-tight">
+                  {brl((previa?.minimo || 0) + (previa?.valorFrete || 0))}
+                  {previa?.maximo != null && (
+                    <span style={FONTE_TEXTO} className="text-[13px] font-semibold text-[#5B5E7A] tracking-normal"> a {brl(previa.maximo + previa.valorFrete)}</span>
+                  )}
+                </p>
+                <p className={`text-xs font-bold ${previa?.tipo === 'retirada' || (previa?.valorFrete || 0) === 0 ? 'text-[#0E7A4E]' : 'text-[#5B5E7A]'}`}>
+                  {previa?.tipo === 'retirada' ? 'Retirada na loja' : (previa?.valorFrete || 0) === 0 ? 'Entrega grátis' : `Inclui frete de ${brl(previa.valorFrete)}`}
+                </p>
+              </div>
+              <button
+                type="submit"
+                disabled={atingiuLimiteBasico || uploadingImageIndex !== null || uploadingOpcaoIndex !== null}
+                className="shrink-0 inline-flex items-center gap-2 h-[52px] px-5 sm:px-6 rounded-2xl bg-[#5E17EB] hover:bg-[#3C0DA8] disabled:opacity-50 disabled:cursor-not-allowed text-white text-base font-bold transition"
+              >
+                <Icone nome="enviar" tamanho={18} /> Enviar orçamento
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
-        {/* ================= SEÇÃO: MINHAS AVALIAÇÕES ================= */}
-        {minhasAvaliacoes.length > 0 && (
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm">
-            <button
-              onClick={() => setCollapsedAvaliacoes(prev => !prev)}
-              className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
-            >
-              <span className="flex items-center gap-2">
-                <span className="text-lg">⭐</span>
-                <h2 className="text-lg font-bold text-slate-800">Minhas Avaliações ({minhasAvaliacoes.length})</h2>
-              </span>
-              <span className="text-slate-400 text-xs font-semibold">
-                {collapsedAvaliacoes ? '▸ Expandir' : '▾ Encolher'}
-              </span>
-            </button>
-
-            {!collapsedAvaliacoes && (
-              <div className="px-6 pb-6 space-y-2">
+      {/* Todas as avaliações */}
+      {mostrarTodasAvaliacoes && (
+        <div className="fixed inset-0 z-[60] bg-[#0E1033]/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setMostrarTodasAvaliacoes(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Minhas avaliações"
+            className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center">
+              <h3 style={FONTE_TITULO} className="text-xl font-bold">Minhas avaliações ({minhasAvaliacoes.length})</h3>
+              <button type="button" onClick={() => setMostrarTodasAvaliacoes(false)} aria-label="Fechar" className="w-11 h-11 rounded-xl text-[#5B5E7A] hover:bg-[#F5F4FA] flex items-center justify-center">
+                <Icone nome="fechar" tamanho={20} />
+              </button>
+            </div>
+            {minhasAvaliacoes.length === 0 ? (
+              <p className="text-sm text-[#5B5E7A] text-center py-4">Você ainda não recebeu avaliações.</p>
+            ) : (
+              <div className="divide-y divide-[#E4E2EF] border border-[#E4E2EF] rounded-2xl">
                 {minhasAvaliacoes.map((av) => (
-                  <div key={av.id} className={`p-3 rounded-xl border flex items-start justify-between gap-3 ${av.desconsiderada ? 'border-slate-200 bg-slate-50 opacity-60' : 'border-slate-200 bg-white'}`}>
-                    <div>
-                      <p className="text-sm font-bold text-amber-600">{'⭐'.repeat(av.nota)}{'☆'.repeat(5 - av.nota)}</p>
-                      {av.comentario && <p className="text-xs text-slate-600 mt-1">{av.comentario}</p>}
-                      <p className="text-[11px] text-slate-400 mt-1">
+                  <div key={av.id} className={`p-3.5 flex items-start justify-between gap-3 ${av.desconsiderada ? 'opacity-60' : ''}`}>
+                    <div className="min-w-0">
+                      {renderEstrelas(av.nota, 15)}
+                      {av.comentario && <p className="text-sm text-[#0E1033] mt-1">{av.comentario}</p>}
+                      <p className="text-xs text-[#8B88A6] mt-1">
                         {new Date(av.criado_em).toLocaleDateString('pt-BR')}
                         {av.desconsiderada && ' · Desconsiderada pelo administrador'}
                         {av.contestada && !av.desconsiderada && ' · Contestação em análise'}
@@ -1681,8 +2619,9 @@ export default function LojistaDashboard() {
                     </div>
                     {!av.contestada && !av.desconsiderada && (
                       <button
+                        type="button"
                         onClick={() => handleContestarAvaliacao(av.id)}
-                        className="text-xs font-bold text-rose-600 hover:underline whitespace-nowrap"
+                        className="shrink-0 min-h-[40px] px-3 rounded-xl text-sm font-bold text-[#C53036] hover:bg-[#FDECEC]"
                       >
                         Contestar
                       </button>
@@ -1692,451 +2631,59 @@ export default function LojistaDashboard() {
               </div>
             )}
           </div>
-        )}
-
-      </main>
-
-      {/* Rodapé Institucional */}
-      <footer className="mt-12 bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
-        <div className="flex flex-wrap justify-center items-center gap-2 mb-1.5 text-slate-600 font-medium">
-          <a href="https://www.comprecomnuno.com.br/contato" target="_blank" rel="noreferrer" className="hover:underline">Central de Ajuda</a>
-          <span>•</span>
-          <a href="https://www.comprecomnuno.com.br/termos" target="_blank" rel="noreferrer" className="hover:underline">Termos de Uso</a>
-          <span>•</span>
-          <a href="https://www.comprecomnuno.com.br/privacidade" target="_blank" rel="noreferrer" className="hover:underline">Privacidade</a>
-        </div>
-        <div>nunoselo.com — 2026 © Todos os direitos reservados</div>
-      </footer>
-
-      {/* Modal de Preenchimento de Proposta */}
-      {selectedOrder && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <form onSubmit={handleSendBid} className="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-2xl shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto overflow-x-hidden space-y-5">
-            <div className="flex justify-between items-start gap-2 pb-3 border-b border-slate-100">
-              <div className="min-w-0 flex-1">
-                <h3 className="text-lg font-bold text-slate-800 break-words">
-                  Preencher Orçamento — Pedido #{selectedOrder.codigo_pedido || selectedOrder.id}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5 break-words">{selectedOrder.descricao}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedOrder(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-lg shrink-0"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Itens do Pedido */}
-            <div className="space-y-3">
-              {orderItems.map((oItem, idx) => (
-                <div key={oItem.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3">
-                  <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-bold text-slate-800 text-sm break-words">{oItem.descricao} (Qtd: {oItem.quantidade})</p>
-                      {oItem.imagem_url && (
-                        <div className="mt-2 flex items-center gap-2">
-                          <span className="text-[11px] text-slate-500 font-semibold">Foto do Cliente:</span>
-                          <img
-                            src={oItem.imagem_url}
-                            alt="Cliente"
-                            onClick={() => setActiveImage(oItem.imagem_url)}
-                            className="w-10 h-10 object-cover rounded-lg border border-indigo-100 cursor-pointer hover:opacity-80 transition"
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={bidItemsData[idx]?.atendido}
-                        onChange={(e) => handleBidItemChange(idx, 'atendido', e.target.checked)}
-                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                      />
-                      Tenho em estoque
-                    </label>
-                  </div>
-
-                  {bidItemsData[idx]?.atendido && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
-                      {idx === 0 && orderItems.length === 1 && (profile?.plano === 'pro' || profile?.plano === 'premium') && (
-                        <div className="sm:col-span-2">
-                          <label className="block text-xs font-semibold text-slate-600 mb-1">Nome do produto (opcional, ajuda se você for oferecer mais de uma opção)</label>
-                          <input
-                            type="text"
-                            placeholder="Ex: capa dura"
-                            value={bidItemsData[idx]?.nome_opcao}
-                            onChange={(e) => handleBidItemChange(idx, 'nome_opcao', e.target.value)}
-                            className="w-full p-2 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-                          />
-                        </div>
-                      )}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Preço Unitário (R$)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          required
-                          value={bidItemsData[idx]?.preco_unitario}
-                          onChange={(e) => handleBidItemChange(idx, 'preco_unitario', e.target.value)}
-                          placeholder="0,00"
-                          className="w-full p-2 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Sua Foto do Produto (Opcional)</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleLojistaImage(idx, e.target.files[0])}
-                            className="text-xs text-slate-500 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:bg-slate-200 file:text-slate-700 hover:file:bg-slate-300"
-                          />
-                          {uploadingImageIndex === idx && <span className="text-xs text-indigo-600">Enviando...</span>}
-                          {bidItemsData[idx]?.imagem_url && (
-                            <img
-                              src={bidItemsData[idx].imagem_url}
-                              alt="Sua foto"
-                              onClick={() => setActiveImage(bidItemsData[idx].imagem_url)}
-                              className="w-8 h-8 object-cover rounded-lg border border-indigo-200 cursor-pointer hover:opacity-80 transition"
-                            />
-                          )}
-                        </div>
-                      </div>
-                      {idx === 0 && orderItems.length === 1 && (profile?.plano === 'pro' || profile?.plano === 'premium') && (
-                        <>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Garantia dessa opção (opcional)</label>
-                            <input
-                              type="text"
-                              placeholder="Ex: 3 meses"
-                              value={bidItemsData[idx]?.garantia_opcao}
-                              onChange={(e) => handleBidItemChange(idx, 'garantia_opcao', e.target.value)}
-                              className="w-full p-2 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Observação dessa opção (opcional)</label>
-                            <input
-                              type="text"
-                              placeholder="Ex: cor azul"
-                              value={bidItemsData[idx]?.observacao_opcao}
-                              onChange={(e) => handleBidItemChange(idx, 'observacao_opcao', e.target.value)}
-                              className="w-full p-2 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-                            />
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Faixa de preço: só pra item único, Pro/Premium */}
-                  {idx === 0 && orderItems.length === 1 && bidItemsData[0]?.atendido && (profile?.plano === 'pro' || profile?.plano === 'premium') && (
-                    <div className="pt-3 border-t border-slate-200/60 space-y-3">
-                      {opcoesExtras.map((op, opIdx) => (
-                        <div key={opIdx} className="p-3 rounded-xl border border-indigo-200 bg-indigo-50/40 space-y-2">
-                          <div className="flex justify-between items-center">
-                            <p className="text-xs font-bold text-indigo-700">Opção extra #{opIdx + 2}</p>
-                            <button type="button" onClick={() => handleRemoverOpcaoExtra(opIdx)} className="text-xs font-bold text-rose-600">Remover</button>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <input
-                              type="text"
-                              placeholder="Nome dessa opção (ex: capa dura)"
-                              value={op.nome_opcao}
-                              onChange={(e) => handleOpcaoExtraChange(opIdx, 'nome_opcao', e.target.value)}
-                              className="w-full p-2 rounded-lg border border-slate-300 text-sm"
-                            />
-                            <input
-                              type="number"
-                              step="0.01"
-                              required
-                              placeholder="Preço unitário (R$)"
-                              value={op.preco_unitario}
-                              onChange={(e) => handleOpcaoExtraChange(opIdx, 'preco_unitario', e.target.value)}
-                              className="w-full p-2 rounded-lg border border-slate-300 text-sm"
-                            />
-                            <input
-                              type="text"
-                              placeholder="Garantia (opcional)"
-                              value={op.garantia_opcao}
-                              onChange={(e) => handleOpcaoExtraChange(opIdx, 'garantia_opcao', e.target.value)}
-                              className="w-full p-2 rounded-lg border border-slate-300 text-sm"
-                            />
-                            <input
-                              type="text"
-                              placeholder="Observação (opcional)"
-                              value={op.observacao_opcao}
-                              onChange={(e) => handleOpcaoExtraChange(opIdx, 'observacao_opcao', e.target.value)}
-                              className="w-full p-2 rounded-lg border border-slate-300 text-sm"
-                            />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => handleOpcaoExtraImagem(opIdx, e.target.files[0])}
-                              className="text-xs text-slate-500 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:bg-slate-200 file:text-slate-700 hover:file:bg-slate-300"
-                            />
-                            {uploadingOpcaoIndex === opIdx && <span className="text-xs text-indigo-600">Enviando...</span>}
-                            {op.imagem_url && (
-                              <img src={op.imagem_url} alt="Opção" className="w-8 h-8 object-cover rounded-lg border border-indigo-200" />
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={handleAdicionarOpcaoExtra}
-                        className="text-xs font-bold text-indigo-600 hover:underline"
-                      >
-                        + Adicionar outra opção de preço (faixa de preço)
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Frete e Observações */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-              <div>
-                <p className="text-[11px] font-bold text-slate-500 mb-1.5">
-                  O cliente quer: {LABEL_TIPO_RECEBIMENTO[selectedOrder.tipo_recebimento || 'ambos']}
-                </p>
-                {(selectedOrder.tipo_recebimento || 'ambos') === 'retirada' ? (
-                  <p className="text-xs text-slate-600 bg-sky-50 border border-sky-200 rounded-xl p-2.5">
-                    🏬 Pedido para retirada na loja — sem frete.
-                  </p>
-                ) : (
-                  <>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Valor do Frete (R$)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={frete}
-                      onChange={(e) => setFrete(e.target.value)}
-                      placeholder="0,00 (deixe 0 se for grátis)"
-                      className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-                    />
-                    {(selectedOrder.tipo_recebimento || 'ambos') === 'ambos' && (
-                      <label className="flex items-center gap-2 text-xs text-slate-600 mt-1.5">
-                        <input
-                          type="checkbox"
-                          checked={retiradaDisponivel}
-                          onChange={(e) => setRetiradaDisponivel(e.target.checked)}
-                          className="w-4 h-4 text-indigo-600 rounded"
-                        />
-                        Cliente também pode retirar na loja (sem frete)
-                      </label>
-                    )}
-                  </>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Observações</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Marcas, cores disponíveis..."
-                  value={observacao}
-                  onChange={(e) => setObservacao(e.target.value)}
-                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-                />
-              </div>
-            </div>
-
-            {/* Prazo de Entrega e Garantia */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Prazo de Entrega</label>
-                <select
-                  value={prazoEntrega}
-                  onChange={(e) => setPrazoEntrega(e.target.value)}
-                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-                >
-                  <option value="">Selecione...</option>
-                  {OPCOES_PRAZO_ENTREGA.map(op => (
-                    <option key={op.value} value={op.value}>{op.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Garantia (opcional)</label>
-                <input
-                  type="text"
-                  placeholder="Ex: 3 meses, 1 ano..."
-                  value={garantia}
-                  onChange={(e) => setGarantia(e.target.value)}
-                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
-                />
-              </div>
-            </div>
-
-            {/* Formas de Pagamento */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Formas de Pagamento Aceitas</label>
-              <div className="flex flex-wrap gap-2">
-                {OPCOES_PAGAMENTO.map(op => (
-                  <button
-                    key={op.value}
-                    type="button"
-                    onClick={() => toggleFormaPagamento(op.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                      formasPagamento.includes(op.value)
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-white text-slate-600 border-slate-300'
-                    }`}
-                  >
-                    {op.label}
-                  </button>
-                ))}
-              </div>
-              {formasPagamento.includes('cartao') && (
-                <div className="mt-2">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Parcela em até quantas vezes sem juros?</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="24"
-                    placeholder="Ex: 3 (deixe em branco se for só à vista no cartão)"
-                    value={parcelasSemJuros}
-                    onChange={(e) => setParcelasSemJuros(e.target.value)}
-                    className="w-full p-2 rounded-lg border border-slate-300 text-sm"
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Cashback (só aparece se a função estiver ativada no Admin e o plano permitir) */}
-            {cashbackAtivo && (profile?.plano === 'pro' || profile?.plano === 'premium') && (
-              <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-3">
-                <p className="text-xs font-bold text-amber-800">💰 Cashback</p>
-
-                <label className="flex items-center gap-2 text-xs text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={ofereceCashback}
-                    onChange={(e) => setOfereceCashback(e.target.checked)}
-                    className="w-4 h-4 text-amber-600 rounded"
-                  />
-                  Você oferece cashback nesta venda?
-                </label>
-
-                {ofereceCashback && (
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Valor do cashback (R$)"
-                    value={valorCashbackOferecido}
-                    onChange={(e) => setValorCashbackOferecido(e.target.value)}
-                    className="w-full p-2 rounded-lg border border-slate-300 text-sm"
-                  />
-                )}
-
-                {profile?.plano === 'premium' && (
-                  <label className="flex items-center gap-2 text-xs text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={aceitaCashback}
-                      onChange={(e) => setAceitaCashback(e.target.checked)}
-                      className="w-4 h-4 text-amber-600 rounded"
-                    />
-                    Você aceita receber cashback como parte do pagamento?
-                  </label>
-                )}
-              </div>
-            )}
-
-            {/* Aviso de limite do plano Básico */}
-            {atingiuLimiteBasico && (
-              <div className="p-3 rounded-xl border border-rose-200 bg-rose-50 text-xs font-semibold text-rose-700">
-                🚫 Você usou suas {limiteDiarioBasico} propostas de hoje (plano Básico). Vire Pro pra responder sem limite.
-              </div>
-            )}
-
-            {/* Botões de Ação */}
-            <div className="flex gap-2.5 pt-3">
-              <button
-                type="button"
-                onClick={() => setSelectedOrder(null)}
-                className="w-1/2 py-2.5 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-300 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={atingiuLimiteBasico}
-                className="w-1/2 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition shadow-sm shadow-indigo-200"
-              >
-                Confirmar e Enviar Orçamento
-              </button>
-            </div>
-          </form>
         </div>
       )}
 
-      {/* Modal de Ampliação de Foto */}
+      {/* Foto ampliada */}
       {activeImage && (
-        <div
-          className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setActiveImage(null)}
-        >
-          <div
-            className="relative max-w-3xl max-h-[90vh] bg-white rounded-2xl overflow-hidden shadow-2xl p-2 flex flex-col items-center justify-center"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-[100] bg-[#0E1033]/85 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setActiveImage(null)}>
+          <div className="relative max-w-3xl max-h-[90vh] bg-white rounded-3xl overflow-hidden shadow-2xl p-2 flex flex-col items-center justify-center" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={() => setActiveImage(null)}
-              className="absolute top-3 right-3 bg-slate-800 text-white w-9 h-9 rounded-full flex items-center justify-center font-bold hover:bg-slate-900 transition shadow-md z-10"
+              aria-label="Fechar foto"
+              className="absolute top-3 right-3 bg-[#0E1033] text-white w-11 h-11 rounded-full flex items-center justify-center hover:bg-black transition shadow-md z-10"
             >
-              ✕
+              <Icone nome="fechar" tamanho={20} />
             </button>
-            <img
-              src={activeImage}
-              alt="Visualização ampliada"
-              className="max-w-full max-h-[80vh] object-contain rounded-xl"
-            />
+            <img src={activeImage} alt="Visualização ampliada" className="max-w-full max-h-[80vh] object-contain rounded-2xl" />
           </div>
         </div>
       )}
 
-      {/* Modal de Dados do Lojista */}
+      {/* Dados da loja */}
       {isProfileModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-200 space-y-5">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <h3 className="text-xl font-bold text-slate-800">Meus Dados</h3>
-              <button onClick={() => setIsProfileModalOpen(false)} className="text-slate-400 font-bold text-lg">✕</button>
-            </div>
-
-            <div className="space-y-4 text-sm text-slate-700">
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nome da Loja</p>
-                <p className="font-bold text-slate-800 text-base">{profile?.nome || 'Não informado'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">E-mail de Acesso</p>
-                <p className="font-medium text-slate-800">{userEmail || 'Não informado'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Cidade</p>
-                <p className="font-medium text-slate-800">{profile?.cidade || 'Não informada'}</p>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsProfileModalOpen(false)}
-                className="w-full bg-slate-800 hover:bg-slate-900 text-white p-2.5 rounded-xl font-semibold transition"
-              >
-                Fechar
+        <div className="fixed inset-0 z-[60] bg-[#0E1033]/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsProfileModalOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="Dados da loja" className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-md shadow-2xl space-y-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <h3 style={FONTE_TITULO} className="text-xl font-bold">Dados da loja</h3>
+              <button type="button" onClick={() => setIsProfileModalOpen(false)} aria-label="Fechar" className="w-11 h-11 rounded-xl text-[#5B5E7A] hover:bg-[#F5F4FA] flex items-center justify-center">
+                <Icone nome="fechar" tamanho={20} />
               </button>
             </div>
+            <dl className="space-y-4 text-sm">
+              <div>
+                <dt className="text-xs font-semibold text-[#5B5E7A]">Nome da loja</dt>
+                <dd className="font-bold text-base">{profile?.nome || 'Não informado'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold text-[#5B5E7A]">E-mail de acesso</dt>
+                <dd className="font-medium">{userEmail || 'Não informado'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold text-[#5B5E7A]">Cidade</dt>
+                <dd className="font-medium">{profile?.cidade || 'Não informada'}</dd>
+              </div>
+              {planoAtual && (
+                <div>
+                  <dt className="text-xs font-semibold text-[#5B5E7A]">Plano</dt>
+                  <dd className="font-medium">{NOME_PLANO[planoAtual] || planoAtual}</dd>
+                </div>
+              )}
+            </dl>
+            <button type="button" onClick={() => setIsProfileModalOpen(false)} className="w-full h-12 rounded-xl bg-[#0E1033] hover:bg-black text-white font-bold transition">
+              Fechar
+            </button>
           </div>
         </div>
       )}
