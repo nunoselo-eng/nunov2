@@ -177,7 +177,8 @@ export default function CreateRequest() {
     const { data } = await supabase.from('categoria_perguntas').select('*').in('categoria_id', idsMesmoNome(cat)).eq('ativo', true).order('ordem');
     // Se houver categorias repetidas com perguntas iguais, fica só uma de cada
     const unicas = (data || []).filter((p, i, arr) => arr.findIndex(o => normalizar(o.rotulo) === normalizar(p.rotulo) && o.nivel === p.nivel) === i);
-    setPerguntas(unicas);
+    // Perguntas que o lojista responde não aparecem para o cliente
+    setPerguntas(unicas.filter(p => !p.responde_lojista));
     if (cat.permite_lista_escolar) irPara('modo');
     else { setModo('produtos'); irPara('formulario'); }
   }
