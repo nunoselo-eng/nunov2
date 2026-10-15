@@ -3,89 +3,8 @@ import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo.svg';
 import { getStatusPrazo, aplicarPenalidadeSeNecessario } from '../utils/prazoUtils';
+import { Icone, FolhasNuno, FONTE_TITULO, FONTE_TEXTO, carregarFontesNuno, iconePorNome, normalizar } from '../utils/nunoUI';
 
-/* ===================== Identidade visual da página do cliente =====================
-   Cores da marca: azul-marinho #00068F, roxo #5E17EB, lilás #935DFF.
-   Texto #0E1033, texto secundário #5B5E7A, bordas #E4E2EF, fundo #F5F4FA.
-   Verde (#0E7A4E) só pra economia/confirmado; âmbar (#8A5A00) pra prazo correndo. */
-
-const FONTE_TITULO = { fontFamily: "'Bricolage Grotesque', 'Manrope', system-ui, sans-serif" };
-const FONTE_TEXTO = { fontFamily: "'Manrope', system-ui, sans-serif" };
-
-// Carrega as fontes da marca uma única vez (se preferir, mova esse <link> pro index.html)
-function carregarFontesNuno() {
-  if (typeof document === 'undefined' || document.getElementById('fontes-nuno')) return;
-  const link = document.createElement('link');
-  link.id = 'fontes-nuno';
-  link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Manrope:wght@400;500;600;700;800&display=swap';
-  document.head.appendChild(link);
-}
-
-// Ícones de traço (mesmo estilo do caminhão / loja / cartão). Nada de emoji.
-const ICONES = {
-  caminhao: (<><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" /><path d="M15 18H9" /><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14" /><circle cx="17" cy="18" r="2" /><circle cx="7" cy="18" r="2" /></>),
-  loja: (<><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /></>),
-  cartao: (<><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></>),
-  relogio: (<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>),
-  pausa: (<><circle cx="12" cy="12" r="9" /><path d="M10 9v6" /><path d="M14 9v6" /></>),
-  check: (<><circle cx="12" cy="12" r="9" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>),
-  estrela: (<path d="m12 2.5 2.95 5.98 6.6.96-4.78 4.65 1.13 6.57L12 17.56 6.1 20.66l1.13-6.57-4.78-4.65 6.6-.96z" />),
-  cadeado: (<><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>),
-  camera: (<><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" /><circle cx="12" cy="13" r="3" /></>),
-  esquerda: (<path d="m15 18-6-6 6-6" />),
-  direita: (<path d="m9 18 6-6-6-6" />),
-  baixo: (<path d="m6 9 6 6 6-6" />),
-  fechar: (<><path d="M18 6 6 18" /><path d="m6 6 12 12" /></>),
-  busca: (<><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></>),
-  calendario: (<><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4" /><path d="M8 2v4" /><path d="M3 10h18" /></>),
-  ordenar: (<><path d="m21 16-4 4-4-4" /><path d="M17 20V4" /><path d="m3 8 4-4 4 4" /><path d="M7 4v16" /></>),
-  presente: (<><path d="M20 12v8H4v-8" /><path d="M2 7h20v5H2z" /><path d="M12 22V7" /><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" /><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" /></>),
-  carteira: (<><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" /><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" /></>),
-  mensagem: (<path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.5A8.4 8.4 0 1 1 21 11.5z" />),
-  sino: (<><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></>),
-  alerta: (<><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4" /><path d="M12 17h.01" /></>),
-  mais: (<><path d="M12 5v14" /><path d="M5 12h14" /></>),
-  sair: (<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>),
-  usuario: (<><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>),
-  caixa: (<><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" /><path d="M12 22V12" /><path d="m3.3 7 8.7 5 8.7-5" /></>),
-  info: (<><circle cx="12" cy="12" r="9" /><path d="M12 16v-4" /><path d="M12 8h.01" /></>),
-};
-
-function Icone({ nome, tamanho = 18, strokeWidth = 2, preenchido = false, className = '' }) {
-  return (
-    <svg
-      width={tamanho}
-      height={tamanho}
-      viewBox="0 0 24 24"
-      fill={preenchido ? 'currentColor' : 'none'}
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={`shrink-0 ${className}`}
-    >
-      {ICONES[nome]}
-    </svg>
-  );
-}
-
-// As duas folhas do logo, usadas como decoração no bloco de boas-vindas
-function FolhasNuno({ className = '' }) {
-  return (
-    <svg viewBox="0 0 1000 1000" aria-hidden="true" className={className}>
-      <g transform="matrix(0.833259,0,0,0.833259,-1060.976303,-327.355748)">
-        <g transform="matrix(2.839638,0,0,2.707675,1036.059892,625.783551)">
-          <path d="M85.311,351.156C82.833,349.869 84.021,349.314 84.166,346.506C86.886,293.652 76.346,170.842 94.466,115.49C131.732,1.652 205.442,7.748 218.499,7.763C254.939,7.803 323.161,7.69 323.358,7.803C325.764,9.181 98.703,329.951 85.311,351.156Z" fill="#935DFF" />
-        </g>
-        <g transform="matrix(-3.481229,0.000274,-0.000267,-3.398808,2764.277892,1602.719262)">
-          <path d="M85.311,351.156C82.833,349.869 84.021,349.314 84.166,346.506C86.886,293.652 76.346,170.842 94.466,115.49C131.732,1.652 205.442,7.748 218.499,7.763C254.939,7.803 323.161,7.69 323.358,7.803C325.764,9.181 98.703,329.951 85.311,351.156Z" fill="#5E17EB" />
-        </g>
-      </g>
-    </svg>
-  );
-}
 
 export default function ClientDashboard() {
   const [orders, setOrders] = useState([]);
@@ -184,6 +103,7 @@ export default function ClientDashboard() {
   const [expirandoEm7Dias, setExpirandoEm7Dias] = useState(0);
   const [carregandoExtrato, setCarregandoExtrato] = useState(false);
   const [nome, setNome] = useState('');
+  const [nomeCategoriaPorId, setNomeCategoriaPorId] = useState({});
   const [telefone, setTelefone] = useState('');
   const [cidade, setCidade] = useState('');
   const [cities, setCities] = useState([]);
@@ -303,6 +223,8 @@ export default function ClientDashboard() {
         }
 
         const { data: citiesData } = await supabase.from('cities').select('*');
+        const { data: categoriasData } = await supabase.from('categories').select('id, nome');
+        setNomeCategoriaPorId(Object.fromEntries((categoriasData || []).map(c => [String(c.id), c.nome])));
         if (citiesData) {
           const uniqueCitiesMap = new Map();
           citiesData.forEach(c => {
@@ -704,11 +626,13 @@ export default function ClientDashboard() {
         partes.push(bi.atendido ? `R$ ${parseFloat(bi.preco_unitario || 0).toFixed(2)}/unid` : 'sem estoque');
         if (bi.garantia_opcao) partes.push(`garantia: ${bi.garantia_opcao}`);
         if (bi.observacao_opcao) partes.push(`obs: ${bi.observacao_opcao}`);
+        if (bi.atendido) respostasDaLoja(bi.respostas).forEach(r => partes.push(r.valor === true ? r.rotulo : `${r.rotulo}: ${Array.isArray(r.valor) ? r.valor.join(', ') : r.valor}`));
         linhas.push(partes.join(' · '));
       });
     });
     linhas.push('');
     linhas.push(`Produto: R$ ${parseFloat(bid.preco || 0).toFixed(2)}${bid.preco_faixa_maximo ? ` até R$ ${parseFloat(bid.preco_faixa_maximo).toFixed(2)}` : ''}`);
+    if (bid.preco_kit != null) linhas.push(`Kit fechado: R$ ${parseFloat(bid.preco_kit).toFixed(2)}`);
     if ((order.tipo_recebimento || 'ambos') !== 'retirada') {
       linhas.push(`Frete: ${parseFloat(bid.frete || 0) === 0 ? 'grátis' : `R$ ${parseFloat(bid.frete || 0).toFixed(2)}`}`);
     }
@@ -719,6 +643,7 @@ export default function ClientDashboard() {
     }
     if (bid.garantia) linhas.push(`Garantia: ${bid.garantia}`);
     if (bid.observacao) linhas.push(`Observações: ${bid.observacao}`);
+    respostasDaLoja(bid.respostas_lojista).forEach(r => linhas.push(r.valor === true ? r.rotulo : `${r.rotulo}: ${Array.isArray(r.valor) ? r.valor.join(', ') : r.valor}`));
     if (bid.cashback_aplicado > 0) linhas.push(`Cashback usado: R$ ${parseFloat(bid.cashback_aplicado).toFixed(2)}`);
     return linhas.join('\n');
   };
@@ -765,8 +690,25 @@ export default function ClientDashboard() {
   // Valor usado pra comparar propostas, de acordo com como o cliente quer
   // receber: só retirada = só o produto; só entrega = produto + frete;
   // "ver ambas" = só o produto quando a loja deixa retirar, senão + frete.
+  // Lista escolar: quantos itens a loja atende e quais estão em falta
+  const ehListaEscolar = (order) => order?.tipo === 'lista_escolar' || !!order?.lista_escolar_id;
+  const coberturaDaProposta = (bid, items) => {
+    const bItens = bidItemsMap[bid.id] || [];
+    const daLista = items.filter(i => !i.fora_da_lista);
+    const tem = (item) => bItens.some(bi => bi.order_item_id === item.id && bi.atendido !== false);
+    const emFalta = items.filter(i => !tem(i));
+    return {
+      atendeLista: daLista.filter(tem).length,
+      totalLista: daLista.length,
+      foraAtende: items.filter(i => i.fora_da_lista && tem(i)).length,
+      foraTotal: items.filter(i => i.fora_da_lista).length,
+      emFalta,
+      similares: bItens.filter(bi => bi.atendido !== false && bi.marca_similar).length,
+    };
+  };
+
   const valorComparacao = (bid, order) => {
-    const preco = parseFloat(bid.preco || 0);
+    const preco = parseFloat(bid.preco_kit != null ? bid.preco_kit : (bid.preco || 0));
     const frete = parseFloat(bid.frete || 0);
     const tipo = order?.tipo_recebimento || 'ambos';
     if (tipo === 'retirada') return preco;
@@ -982,6 +924,27 @@ export default function ClientDashboard() {
   );
 
   /* ---------------------------- Card de proposta ---------------------------- */
+  // Respostas que a loja deu às perguntas da categoria (ex.: marca da peça, "serve nesse veículo")
+  const respostasDaLoja = (lista) => (Array.isArray(lista) ? lista : []).filter(r => r && r.valor !== false && r.valor != null && r.valor !== '' && !(Array.isArray(r.valor) && r.valor.length === 0));
+  const renderRespostasLoja = (lista, chave) => {
+    const respostas = respostasDaLoja(lista);
+    if (respostas.length === 0) return null;
+    return (
+      <ul key={chave} className="flex flex-wrap gap-1.5">
+        {respostas.map((r, i) => (
+          <li
+            key={i}
+            className={`inline-flex items-center gap-1.5 min-h-[28px] px-2.5 py-1 rounded-lg text-[13px] ${r.valor === true ? 'bg-[#E3F5EC] text-[#0E7A4E] font-bold' : 'bg-[#F5F4FA] text-[#0E1033]'}`}
+          >
+            {r.valor === true
+              ? <><Icone nome="check" tamanho={14} strokeWidth={2.4} /> {r.rotulo}</>
+              : <><span className="text-[#5B5E7A]">{r.rotulo}:</span> <b>{Array.isArray(r.valor) ? r.valor.join(', ') : String(r.valor)}</b></>}
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
   const renderPropostaCard = (bid, order, items, posicaoPorBid) => {
     const tipoRecebimento = order.tipo_recebimento || 'ambos';
     const precoProduto = parseFloat(bid.preco || 0);
@@ -1075,7 +1038,47 @@ export default function ClientDashboard() {
             </span>
           )}
 
+          {ehListaEscolar(order) && (() => {
+            const cob = coberturaDaProposta(bid, items);
+            const completa = cob.emFalta.length === 0;
+            return (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span>{completa ? <b>Completa: </b> : null}{cob.atendeLista} de {cob.totalLista} itens da lista</span>
+                  {completa
+                    ? <span className="inline-flex h-[26px] px-2.5 rounded-full bg-[#E3F5EC] text-[#0E7A4E] text-xs font-bold items-center">Tudo</span>
+                    : <span className="inline-flex h-[26px] px-2.5 rounded-full bg-[#FDECEC] text-[#C53036] text-xs font-bold items-center">{cob.emFalta.length} em falta</span>}
+                </div>
+                <div className="h-1.5 rounded-full bg-[#E4E2EF] overflow-hidden"><div className="h-full rounded-full" style={{ width: `${cob.totalLista ? (cob.atendeLista / cob.totalLista) * 100 : 0}%`, background: completa ? '#0E7A4E' : '#5E17EB' }} /></div>
+                {(cob.foraTotal > 0 || cob.similares > 0) && (
+                  <p className="text-xs text-[#5B5E7A]">
+                    {[cob.foraTotal > 0 ? `${cob.foraAtende} de ${cob.foraTotal} fora da lista` : null, cob.similares > 0 ? `${cob.similares} com marca similar` : null].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Preço do produto em destaque */}
+          {ehListaEscolar(order) ? (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-[#F5F4FA] px-3 py-2.5">
+                <p className="text-xs text-[#5B5E7A]">Soma dos itens</p>
+                <p style={FONTE_TITULO} className="text-xl font-bold tracking-tight leading-tight">{brl(precoProduto)}</p>
+              </div>
+              {bid.preco_kit != null ? (
+                <div className="rounded-xl bg-[#E3F5EC] px-3 py-2.5">
+                  <p className="text-xs font-bold text-[#0E7A4E]">Kit fechado</p>
+                  <p style={FONTE_TITULO} className="text-xl font-bold tracking-tight leading-tight">{brl(bid.preco_kit)}</p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-[#D6D3E6] px-3 py-2.5">
+                  <p className="text-xs text-[#5B5E7A]">Kit fechado</p>
+                  <p className="text-[13px] font-semibold text-[#8B88A6] pt-1">não ofereceu</p>
+                </div>
+              )}
+            </div>
+          ) : (
           <div>
             <p className="text-xs text-[#5B5E7A]">Produto</p>
             <p style={FONTE_TITULO} className="text-[26px] font-bold tracking-tight text-[#0E1033] leading-tight">
@@ -1085,6 +1088,15 @@ export default function ClientDashboard() {
               )}
             </p>
           </div>
+          )}
+
+          {/* O que a loja respondeu (no card só quando o pedido tem um produto) */}
+          {!ehListaEscolar(order) && (() => {
+            const doItem = items.length === 1 ? respostasDaLoja(bItems.find(bi => bi.order_item_id === items[0].id && bi.atendido !== false)?.respostas) : [];
+            const doPedido = respostasDaLoja(bid.respostas_lojista);
+            if (doItem.length === 0 && doPedido.length === 0) return null;
+            return renderRespostasLoja([...doItem, ...doPedido], 'resp-card');
+          })()}
 
           {/* Entrega, retirada e pagamento: uma linha cada */}
           <ul className="space-y-2 text-sm text-[#0E1033]">
@@ -1159,7 +1171,7 @@ export default function ClientDashboard() {
                 }}
                 className="h-12 rounded-xl bg-[#5E17EB] hover:bg-[#3C0DA8] text-white text-[15px] font-bold transition"
               >
-                Confirmar
+                {ehListaEscolar(order) && bid.preco_kit != null ? 'Confirmar kit' : 'Confirmar'}
               </button>
             )}
           </div>
@@ -1224,8 +1236,8 @@ export default function ClientDashboard() {
                   const ofertas = bItems.filter(bi => bi.order_item_id === oItem.id);
                   if (ofertas.length === 0 || ofertas.every(o => o.atendido === false)) {
                     return (
-                      <p key={oItem.id}>
-                        {oItem.descricao} · Qtd {oItem.quantidade} · <span className="text-[#C53036] font-semibold">sem estoque</span>
+                      <p key={oItem.id} className="text-[#C53036] font-semibold">
+                        {oItem.descricao} · Qtd {oItem.quantidade} · em falta
                       </p>
                     );
                   }
@@ -1241,8 +1253,16 @@ export default function ClientDashboard() {
                             {ofertas.length > 1 && <span className="text-[#8B88A6]"> ({oItem.descricao})</span>}
                             {' · '}Qtd {oItem.quantidade} · {brl(op.preco_unitario)}/unid
                           </p>
+                          {op.marca_enviada && (
+                            <p className={op.marca_similar ? 'font-bold text-[#8A5A00]' : (oItem.marca_sugerida && oItem.preferencia_marca === 'marca' ? 'font-bold text-[#0E7A4E]' : '')}>
+                              {op.marca_similar ? `Similar: ${op.marca_enviada}` : oItem.marca_sugerida && oItem.preferencia_marca === 'marca' ? `${op.marca_enviada}, como você pediu` : `Marca: ${op.marca_enviada}`}
+                            </p>
+                          )}
                           {op.garantia_opcao && <p>Garantia: {op.garantia_opcao}</p>}
                           {op.observacao_opcao && <p>Obs: {op.observacao_opcao}</p>}
+                          {op.atendido !== false && (ofertas.length === 1 || opIdx === 0) && respostasDaLoja(op.respostas).length > 0 && (
+                            <div className="pt-1">{renderRespostasLoja(op.respostas, `resp-${op.id || opIdx}`)}</div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1250,10 +1270,16 @@ export default function ClientDashboard() {
                 })}
               </div>
 
-              {(bid.garantia || bid.observacao) && (
+              {(bid.garantia || bid.observacao || respostasDaLoja(bid.respostas_lojista).length > 0) && (
                 <div className="space-y-1">
                   {bid.garantia && <p><b className="text-[#0E1033]">Garantia:</b> {bid.garantia}</p>}
                   {bid.observacao && <p><b className="text-[#0E1033]">Observações da loja:</b> {bid.observacao}</p>}
+                  {respostasDaLoja(bid.respostas_lojista).map((r, i) => (
+                    <p key={`rl-${i}`}>
+                      <b className="text-[#0E1033]">{r.rotulo}{r.valor === true ? '' : ':'}</b>
+                      {r.valor === true ? ' Sim' : ` ${Array.isArray(r.valor) ? r.valor.join(', ') : r.valor}`}
+                    </p>
+                  ))}
                 </div>
               )}
 
@@ -1368,6 +1394,12 @@ export default function ClientDashboard() {
           <h2 style={FONTE_TITULO} className="text-[26px] sm:text-[30px] font-bold leading-[1.15] tracking-tight text-[#0E1033]">
             {order.descricao}
           </h2>
+          {order.destaque && (
+            <p className="flex items-center gap-2 bg-white border border-[#E4E2EF] rounded-xl px-3 py-2 text-sm">
+              <Icone nome={ehListaEscolar(order) ? 'escola' : iconePorNome(nomeCategoriaPorId[String(order.categoria_id)] || '')} tamanho={16} className="text-[#5E17EB]" />
+              <b>{order.destaque}</b>
+            </p>
+          )}
           <div className="flex flex-wrap gap-1.5">
             {renderChip(chipDoPedido(order))}
             {order.tipo_recebimento && (
@@ -1534,7 +1566,7 @@ export default function ClientDashboard() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex gap-3 items-start flex-1 min-w-0 pr-5 sm:pr-0">
             <span className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${TONS_ICONE[tom]}`}>
-              <Icone nome="caixa" tamanho={24} />
+              <Icone nome={ehListaEscolar(order) ? 'escola' : iconePorNome(nomeCategoriaPorId[String(order.categoria_id)] || '')} tamanho={24} />
             </span>
             <div className="min-w-0 flex-1 space-y-2.5">
               <div>
@@ -1543,6 +1575,12 @@ export default function ClientDashboard() {
                   {order.created_at && ` · ${tempoRelativo(order.created_at)}`}
                 </p>
                 <h3 className="text-base font-bold leading-snug text-[#0E1033] line-clamp-2">{order.descricao}</h3>
+                {order.destaque && (
+                  <p className="flex items-center gap-2 mt-1.5 bg-[#F5F4FA] rounded-xl px-2.5 py-1.5 text-[13px] text-[#0E1033]">
+                    <Icone nome={ehListaEscolar(order) ? 'escola' : iconePorNome(nomeCategoriaPorId[String(order.categoria_id)] || '')} tamanho={15} className="text-[#5E17EB]" />
+                    <span className="font-semibold line-clamp-2">{order.destaque}</span>
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <div className="flex justify-between gap-2 text-[13px]">
@@ -1574,7 +1612,16 @@ export default function ClientDashboard() {
           </div>
         </div>
 
-        <div className="mt-4 flex sm:justify-end">
+        <div className="mt-4 flex flex-col sm:flex-row sm:justify-end gap-2">
+          {bidAceito && bidAceito.entregue_em && !ehListaEscolar(order) && (
+            <Link
+              to={`/create-request?repetir=${order.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full sm:w-auto min-h-[46px] px-5 rounded-xl text-[15px] font-bold inline-flex items-center justify-center gap-1.5 bg-[#5E17EB] hover:bg-[#3C0DA8] text-white transition"
+            >
+              <Icone nome="repetir" tamanho={18} /> Repetir pedido
+            </Link>
+          )}
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); abrirPedido(order.id); }}
