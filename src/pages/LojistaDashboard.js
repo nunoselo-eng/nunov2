@@ -571,9 +571,11 @@ export default function LojistaDashboard() {
       nome_opcao: '',
       garantia_opcao: '',
       observacao_opcao: '',
-      marca_enviada: item.marca_sugerida && item.preferencia_marca !== 'similar' ? item.marca_sugerida : ''
+      marca_enviada: item.marca_sugerida && item.preferencia_marca !== 'similar' ? item.marca_sugerida : '',
+      respostas_lojista: {}
     })));
     setOpcoesExtras([]);
+    carregarPerguntasLojista(order);
   };
 
   const handleBidItemChange = (index, field, value) => {
@@ -707,6 +709,23 @@ export default function LojistaDashboard() {
       }
     }
 
+    // Perguntas obrigatórias do lojista (só nos itens que ele tem)
+    if (!ehListaEscolar(selectedOrder) && perguntasLojista.length > 0) {
+      for (let idx = 0; idx < bidItemsData.length; idx++) {
+        if (!bidItemsData[idx]?.atendido) continue;
+        const falta = faltandoObrigatoria(perguntasLojistaItem, bidItemsData[idx].respostas_lojista || {});
+        if (falta) {
+          alert(`Responda "${falta.rotulo}"${orderItems.length > 1 ? ` em ${orderItems[idx]?.descricao || `item ${idx + 1}`}` : ''}.`);
+          return;
+        }
+      }
+      const faltaPedido = faltandoObrigatoria(perguntasLojistaPedido, respostasLojistaPedido);
+      if (faltaPedido) {
+        alert(`Responda "${faltaPedido.rotulo}".`);
+        return;
+      }
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -775,12 +794,17 @@ export default function LojistaDashboard() {
           oferece_cashback: cashbackAtivo && (profile?.plano === 'pro' || profile?.plano === 'premium') ? ofereceCashback : false,
           valor_cashback_oferecido: cashbackAtivo && (profile?.plano === 'pro' || profile?.plano === 'premium') && ofereceCashback ? parseFloat(valorCashbackOferecido || 0) : null,
           aceita_cashback: cashbackAtivo && profile?.plano === 'premium' ? aceitaCashback : false,
-          preco_kit: ehListaEscolar(selectedOrder) && parseFloat(precoKit) > 0 ? parseFloat(precoKit) : null
+          preco_kit: ehListaEscolar(selectedOrder) && parseFloat(precoKit) > 0 ? parseFloat(precoKit) : null,
+          ...(perguntasLojistaPedido.length > 0 ? { respostas_lojista: snapshotLojista(perguntasLojistaPedido, respostasLojistaPedido) } : {})
         }])
         .select()
         .single();
 
       if (bidErr) throw bidErr;
+
+      // Respostas do lojista por produto (as opções extras da faixa repetem as do item)
+      const temPerguntasItem = perguntasLojistaItem.length > 0;
+      const respostasDoItem = (bItem) => (bItem?.atendido ? snapshotLojista(perguntasLojistaItem, bItem.respostas_lojista || {}) : []);
 
       const itemsToInsert = temFaixaDePreco
         ? [bidItemsData[0], ...opcoesExtras].map((op, i) => ({
@@ -794,6 +818,7 @@ export default function LojistaDashboard() {
             nome_opcao: op.nome_opcao || null,
             garantia_opcao: op.garantia_opcao || null,
             observacao_opcao: op.observacao_opcao || null,
+            ...(temPerguntasItem ? { respostas: respostasDoItem(bidItemsData[0]) } : {}),
           }))
         : bidItemsData.map((bItem, idx) => ({
             bid_id: newBid.id,
@@ -804,7 +829,8 @@ export default function LojistaDashboard() {
             available: bItem.atendido,
             imagem_url: bItem.imagem_url,
             marca_enviada: bItem.atendido ? (bItem.marca_enviada?.trim() || null) : null,
-            marca_similar: bItem.atendido ? ehSimilar(bItem, orderItems[idx]) : false
+            marca_similar: bItem.atendido ? ehSimilar(bItem, orderItems[idx]) : false,
+            ...(temPerguntasItem ? { respostas: respostasDoItem(bItem) } : {}),
           }));
 
       const { error: itemsErr } = await supabase.from('bid_items').insert(itemsToInsert);
@@ -824,6 +850,8 @@ export default function LojistaDashboard() {
       setAceitaCashback(false);
       setOpcoesExtras([]);
       setPrecoKit('');
+      setPerguntasLojista([]);
+      setRespostasLojistaPedido({});
       setNovosPedidosCount(prev => {
         const novo = Math.max(0, prev - 1);
         if (novo === 0) setNewOrderAlert(false);
@@ -987,6 +1015,7 @@ export default function LojistaDashboard() {
         partes.push(bi.atendido ? `R$ ${parseFloat(bi.preco_unitario || 0).toFixed(2)}/unid` : 'sem estoque');
         if (bi.garantia_opcao) partes.push(`garantia: ${bi.garantia_opcao}`);
         if (bi.observacao_opcao) partes.push(`obs: ${bi.observacao_opcao}`);
+        if (bi.atendido) respostasVisiveis(bi.respostas).forEach(r => partes.push(r.valor === true ? r.rotulo : `${r.rotulo}: ${Array.isArray(r.valor) ? r.valor.join(', ') : r.valor}`));
         linhas.push(partes.join(' · '));
       });
     });
@@ -1003,6 +1032,7 @@ export default function LojistaDashboard() {
     }
     if (bid.garantia) linhas.push(`Garantia: ${bid.garantia}`);
     if (bid.observacao) linhas.push(`Observações: ${bid.observacao}`);
+    respostasVisiveis(bid.respostas_lojista).forEach(r => linhas.push(r.valor === true ? r.rotulo : `${r.rotulo}: ${Array.isArray(r.valor) ? r.valor.join(', ') : r.valor}`));
     if (bid.cashback_aplicado > 0) linhas.push(`Cashback usado pelo cliente: R$ ${parseFloat(bid.cashback_aplicado).toFixed(2)}`);
     return linhas.join('\n');
   };
@@ -1038,6 +1068,147 @@ export default function LojistaDashboard() {
       </div>
     );
   };
+  /* ---------- Perguntas que o LOJISTA responde na proposta (ex.: marca da peça) ---------- */
+  const [perguntasLojista, setPerguntasLojista] = useState([]);
+  const [respostasLojistaPedido, setRespostasLojistaPedido] = useState({});
+  const pedidoDasPerguntasRef = useRef(null);
+
+  const carregarPerguntasLojista = async (order) => {
+    pedidoDasPerguntasRef.current = order.id;
+    setPerguntasLojista([]);
+    setRespostasLojistaPedido({});
+    if (ehListaEscolar(order)) return;
+    try {
+      // Categorias com o mesmo nome contam como uma só
+      const ids = order.categoria_id != null ? [order.categoria_id] : [];
+      if (order.categoria_nome_exibicao && order.categoria_nome_exibicao !== 'Geral') {
+        const { data: mesmas } = await supabase.from('categories').select('id').ilike('nome', order.categoria_nome_exibicao);
+        (mesmas || []).forEach(c => { if (!ids.some(i => String(i) === String(c.id))) ids.push(c.id); });
+      }
+      if (ids.length === 0) return;
+      const { data, error } = await supabase
+        .from('categoria_perguntas')
+        .select('*')
+        .in('categoria_id', ids)
+        .eq('responde_lojista', true)
+        .order('ordem');
+      if (error || pedidoDasPerguntasRef.current !== order.id) return;
+      const vistas = new Set();
+      const unicas = (data || [])
+        .filter(p => p.ativo !== false && p.tipo !== 'foto' && p.tipo !== 'veiculo')
+        .filter(p => {
+          const chave = `${p.nivel}|${normalizar(p.rotulo)}`;
+          if (vistas.has(chave)) return false;
+          vistas.add(chave);
+          return true;
+        });
+      setPerguntasLojista(unicas);
+    } catch {
+      setPerguntasLojista([]);
+    }
+  };
+
+  const perguntasLojistaPedido = perguntasLojista.filter(p => p.nivel !== 'item');
+  const perguntasLojistaItem = perguntasLojista.filter(p => p.nivel === 'item');
+
+  const valorParaCondicao = (v) => (v === true ? 'Sim' : v === false ? 'Não' : v);
+  const perguntaLojistaVisivel = (p, respostasItem = {}) => {
+    if (!p.condicao_pergunta_id) return true;
+    const alvo = perguntasLojista.find(x => x.id === p.condicao_pergunta_id);
+    if (!alvo) return true;
+    const resp = alvo.nivel === 'item' ? respostasItem[alvo.id] : respostasLojistaPedido[alvo.id];
+    return normalizar(valorParaCondicao(resp)) === normalizar(p.condicao_valor);
+  };
+  const respostaLojistaVazia = (p, v) => {
+    if (p.tipo === 'sim_nao') return false;
+    if (Array.isArray(v)) return v.length === 0;
+    return v == null || String(v).trim() === '';
+  };
+  // Mesmo formato das respostas do cliente: [{pergunta_id, rotulo, tipo, valor}]
+  const snapshotLojista = (lista, respostas = {}) => lista
+    .filter(p => perguntaLojistaVisivel(p, respostas))
+    .map(p => {
+      const bruto = respostas[p.id];
+      if (p.tipo === 'sim_nao') return { pergunta_id: p.id, rotulo: p.rotulo, tipo: p.tipo, valor: !!bruto };
+      if (respostaLojistaVazia(p, bruto)) return null;
+      return { pergunta_id: p.id, rotulo: p.rotulo, tipo: p.tipo, valor: p.tipo === 'numero' && p.unidade ? `${bruto} ${p.unidade}` : bruto };
+    })
+    .filter(Boolean);
+  const faltandoObrigatoria = (lista, respostas = {}) => lista
+    .filter(p => p.obrigatoria && perguntaLojistaVisivel(p, respostas))
+    .find(p => (p.tipo === 'sim_nao' ? !respostas[p.id] : respostaLojistaVazia(p, respostas[p.id])));
+
+  const opcoesDaPergunta = (p) => (Array.isArray(p.opcoes) ? p.opcoes : []);
+
+  // Campo de uma pergunta do lojista
+  const renderPerguntaLojista = (p, valor, aoMudar, chave) => {
+    const rotulo = (
+      <span className={CLASSE_ROTULO}>
+        {p.rotulo}{p.obrigatoria ? '' : <span className="font-normal text-[#8B88A6]"> (opcional)</span>}
+      </span>
+    );
+    const ajuda = p.ajuda ? <span className="block text-[12px] text-[#5B5E7A] mt-1">{p.ajuda}</span> : null;
+
+    if (p.tipo === 'sim_nao') {
+      return (
+        <div key={chave}>
+          {renderInterruptor({ checked: Boolean(valor), onChange: (v) => aoMudar(v), rotulo: p.rotulo })}
+          {ajuda}
+        </div>
+      );
+    }
+    if (p.tipo === 'escolha_unica' || p.tipo === 'escolha_multipla') {
+      const multipla = p.tipo === 'escolha_multipla';
+      const marcados = multipla ? (Array.isArray(valor) ? valor : []) : [valor];
+      return (
+        <div key={chave} role="group" aria-label={p.rotulo}>
+          {rotulo}
+          <div className="flex flex-wrap gap-2">
+            {opcoesDaPergunta(p).map(op => {
+              const ativo = marcados.includes(op);
+              return (
+                <button
+                  key={op}
+                  type="button"
+                  aria-pressed={ativo}
+                  onClick={() => {
+                    if (!multipla) aoMudar(ativo ? '' : op);
+                    else aoMudar(ativo ? marcados.filter(m => m !== op) : [...marcados, op]);
+                  }}
+                  className={`min-h-[44px] px-4 rounded-xl border-2 text-sm font-bold transition ${ativo ? 'border-[#5E17EB] bg-[#F1EBFF] text-[#3C0DA8]' : 'border-[#E4E2EF] bg-white text-[#0E1033] hover:border-[#C9B8F5]'}`}
+                >
+                  {op}
+                </button>
+              );
+            })}
+          </div>
+          {ajuda}
+        </div>
+      );
+    }
+    return (
+      <label key={chave} className="block">
+        {rotulo}
+        <span className="flex items-center gap-2">
+          <input
+            type={p.tipo === 'numero' ? 'number' : 'text'}
+            inputMode={p.tipo === 'numero' ? 'decimal' : undefined}
+            value={valor ?? ''}
+            placeholder={p.placeholder || ''}
+            onChange={(e) => aoMudar(e.target.value)}
+            className={CLASSE_ENTRADA}
+          />
+          {p.tipo === 'numero' && p.unidade && <span className="text-sm font-semibold text-[#5B5E7A] shrink-0">{p.unidade}</span>}
+        </span>
+        {ajuda}
+      </label>
+    );
+  };
+
+  const handleRespostaLojistaItem = (idx, perguntaId, valor) => {
+    setBidItemsData(prev => prev.map((b, i) => (i === idx ? { ...b, respostas_lojista: { ...(b.respostas_lojista || {}), [perguntaId]: valor } } : b)));
+  };
+
   const [mostrarPeriodo, setMostrarPeriodo] = useState(false);
   const [mostrarTodasAvaliacoes, setMostrarTodasAvaliacoes] = useState(false);
 
@@ -1212,6 +1383,7 @@ export default function LojistaDashboard() {
       bid.oferece_cashback ? ['Cashback oferecido', brl(bid.valor_cashback_oferecido)] : null,
       bid.aceita_cashback ? ['Aceita cashback como pagamento', 'Sim'] : null,
       bid.cashback_aplicado > 0 ? ['Cashback usado pelo cliente', brl(bid.cashback_aplicado)] : null,
+      ...respostasVisiveis(bid.respostas_lojista).map(r => [r.rotulo, r.valor === true ? 'Sim' : Array.isArray(r.valor) ? r.valor.join(', ') : String(r.valor)]),
     ].filter(Boolean);
 
     return (
@@ -1248,6 +1420,7 @@ export default function LojistaDashboard() {
                         {op.atendido && op.marca_enviada && (
                           <p className={`text-[13px] font-semibold ${op.marca_similar ? 'text-[#8A5A00]' : 'text-[#5B5E7A]'}`}>{op.marca_similar ? 'Similar: ' : 'Marca: '}{op.marca_enviada}</p>
                         )}
+                        {op.atendido && (enviados.length === 1 || opIdx === 0) && renderRespostas(op.respostas, true)}
                         {op.garantia_opcao && <p className="text-[#5B5E7A] text-[13px]">Garantia: {op.garantia_opcao}</p>}
                         {op.observacao_opcao && <p className="text-[#5B5E7A] text-[13px]">Obs: {op.observacao_opcao}</p>}
                         {enviados.length > 1 && op.imagem_url && (
@@ -2372,6 +2545,19 @@ export default function LojistaDashboard() {
                               </span>
                             )}
                           </label>
+                          {perguntasLojistaItem.length > 0 && (
+                            <div className="bg-[#F5F4FA] rounded-xl p-3.5 space-y-3.5">
+                              <p className="text-[12px] font-bold text-[#5B5E7A] uppercase tracking-wide">O cliente quer saber</p>
+                              {perguntasLojistaItem
+                                .filter(p => perguntaLojistaVisivel(p, bidItemsData[idx]?.respostas_lojista || {}))
+                                .map(p => renderPerguntaLojista(
+                                  p,
+                                  (bidItemsData[idx]?.respostas_lojista || {})[p.id],
+                                  (v) => handleRespostaLojistaItem(idx, p.id, v),
+                                  `pl-${idx}-${p.id}`
+                                ))}
+                            </div>
+                          )}
                           <div>
                             <span className={CLASSE_ROTULO}>Foto do produto (opcional)</span>
                             {renderEnvioFoto({
@@ -2570,8 +2756,16 @@ export default function LojistaDashboard() {
 
               {/* 4 · Detalhes */}
               <section className="space-y-2.5">
-                <h3 className="text-xs font-bold text-[#5B5E7A] uppercase tracking-wide">4 · Detalhes (opcional)</h3>
+                <h3 className="text-xs font-bold text-[#5B5E7A] uppercase tracking-wide">{perguntasLojistaPedido.some(p => p.obrigatoria) ? '4 · Detalhes' : '4 · Detalhes (opcional)'}</h3>
                 <div className="bg-white border border-[#E4E2EF] rounded-2xl p-4 space-y-3.5">
+                  {perguntasLojistaPedido
+                    .filter(p => perguntaLojistaVisivel(p, {}))
+                    .map(p => renderPerguntaLojista(
+                      p,
+                      respostasLojistaPedido[p.id],
+                      (v) => setRespostasLojistaPedido(prev => ({ ...prev, [p.id]: v })),
+                      `plp-${p.id}`
+                    ))}
                   <label className="block">
                     <span className={CLASSE_ROTULO}>Garantia</span>
                     <input type="text" placeholder="Ex: 3 meses, 1 ano..." value={garantia} onChange={(e) => setGarantia(e.target.value)} className={CLASSE_ENTRADA} />
