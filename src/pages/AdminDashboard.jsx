@@ -4,6 +4,9 @@ import { createClient } from '@supabase/supabase-js';
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo.svg';
 import { inserirPerfilComRetry, montarEmailDeCadastro } from '../utils/authUtils';
+import AdminCategorias from './AdminCategorias';
+import AdminListasEscolares from './AdminListasEscolares';
+import { Icone } from '../utils/nunoUI';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('lojistas'); // 'lojistas' ou 'pedidos'
@@ -1282,6 +1285,20 @@ export default function AdminDashboard() {
               >
                 <span>📦</span> {!sidebarColapsada && <span className="truncate">Monitoramento de Pedidos</span>}
               </button>
+              <button
+                onClick={() => setActiveTab('categorias')}
+                title="Setores, categorias e perguntas"
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition ${activeTab === 'categorias' ? 'bg-[#5E17EB] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
+              >
+                <Icone nome="grade" tamanho={18} /> {!sidebarColapsada && <span className="truncate">Setores e perguntas</span>}
+              </button>
+              <button
+                onClick={() => setActiveTab('listas')}
+                title="Listas escolares"
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition ${activeTab === 'listas' ? 'bg-[#5E17EB] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
+              >
+                <Icone nome="escola" tamanho={18} /> {!sidebarColapsada && <span className="truncate">Listas escolares</span>}
+              </button>
 
               <div className="pt-2 mt-2 border-t border-slate-100 space-y-1">
                 <button
@@ -1713,6 +1730,10 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {activeTab === 'categorias' && <AdminCategorias />}
+
+        {activeTab === 'listas' && <AdminListasEscolares />}
 
           </div>
         </div>
